@@ -2184,7 +2184,12 @@ const PharmacyManagement = ({ profile }: { profile: any }) => {
     rating: '5.0',
     is_open: true,
     plan: 'Gratuito',
-    status: 'Aprovado'
+    status: 'Aprovado',
+    // Novos campos
+    cnpj: '',
+    owner_name: '',
+    owner_phone: '',
+    establishment_phone: ''
   });
 
   const fetchPharmacies = async () => {
@@ -2212,7 +2217,11 @@ const PharmacyManagement = ({ profile }: { profile: any }) => {
       rating: parseFloat(formData.rating) || 5.0,
       is_open: formData.is_open,
       plan: formData.plan,
-      status: formData.status
+      status: formData.status,
+      cnpj: formData.cnpj,
+      owner_name: formData.owner_name,
+      owner_phone: formData.owner_phone,
+      establishment_phone: formData.establishment_phone
     };
 
     let error;
@@ -2282,6 +2291,15 @@ const PharmacyManagement = ({ profile }: { profile: any }) => {
     }
   };
 
+  const handleApprove = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation(); // Evita deletar ou editar se tiver handlers pai
+    if (window.confirm('Deseja APROVAR esta farmácia?')) {
+      const { error } = await supabase.from('pharmacies').update({ status: 'Aprovado' }).eq('id', id);
+      if (error) alert(error.message);
+      else fetchPharmacies();
+    }
+  };
+
   const handleDelete = async (id: string) => {
     if (window.confirm('Tem certeza que deseja excluir esta farmácia?')) {
       const { error } = await supabase.from('pharmacies').delete().eq('id', id);
@@ -2304,7 +2322,11 @@ const PharmacyManagement = ({ profile }: { profile: any }) => {
       rating: pharm.rating?.toString() || '5.0',
       is_open: pharm.is_open,
       plan: pharm.plan || 'Gratuito',
-      status: pharm.status || 'Aprovado'
+      status: pharm.status || 'Aprovado',
+      cnpj: pharm.cnpj || '',
+      owner_name: pharm.owner_name || '',
+      owner_phone: pharm.owner_phone || '',
+      establishment_phone: pharm.establishment_phone || ''
     });
     setShowModal(true);
   };
@@ -2332,7 +2354,12 @@ const PharmacyManagement = ({ profile }: { profile: any }) => {
                 rating: '5.0',
                 is_open: true,
                 plan: 'Gratuito',
-                status: 'Aprovado'
+                plan: 'Gratuito',
+                status: 'Aprovado',
+                cnpj: '',
+                owner_name: '',
+                owner_phone: '',
+                establishment_phone: ''
               });
               setShowModal(true);
             }}
@@ -2386,6 +2413,12 @@ const PharmacyManagement = ({ profile }: { profile: any }) => {
                     <span className={`w-fit mt-1.5 bg-primary/10 text-primary text-[8px] font-black px-2 py-0.5 rounded-full uppercase tracking-widest`}>{pharm.plan || 'Bronze'}</span>
                   </div>
                   <p className="text-[10px] text-slate-500 dark:text-[#92c9a9] mt-2 font-bold italic truncate opacity-70">{pharm.address}</p>
+
+                  {/* Dados Extras de Resumo */}
+                  <div className="flex flex-col mt-2 gap-1">
+                    {pharm.cnpj && <p className="text-[9px] text-slate-400 font-bold uppercase">CNPJ: {pharm.cnpj}</p>}
+                    {pharm.owner_name && <p className="text-[9px] text-slate-400 font-bold uppercase">Resp: {pharm.owner_name}</p>}
+                  </div>
                 </div>
               </div>
 
@@ -2395,6 +2428,11 @@ const PharmacyManagement = ({ profile }: { profile: any }) => {
                   <span className="text-[9px] font-black text-slate-600 dark:text-slate-300 uppercase tracking-widest">{pharm.status || 'Aprovado'}</span>
                 </div>
                 <div className="flex gap-2">
+                  {pharm.status === 'Pendente' && (
+                    <button onClick={(e) => handleApprove(pharm.id, e)} className="p-2.5 flex items-center justify-center bg-green-500/10 text-green-500 rounded-xl transition-colors hover:bg-green-500 hover:text-white active:scale-90 shadow-sm border border-transparent" title="Aprovar Farmácia">
+                      <MaterialIcon name="check_circle" className="text-sm" />
+                    </button>
+                  )}
                   <button onClick={() => openEdit(pharm)} className="p-2.5 flex items-center justify-center bg-slate-100 dark:bg-white/10 text-slate-700 dark:text-white rounded-xl transition-colors hover:bg-primary/20 active:scale-90 shadow-sm border border-transparent hover:border-primary/20">
                     <MaterialIcon name="edit" className="text-sm" />
                   </button>
@@ -2444,31 +2482,51 @@ const PharmacyManagement = ({ profile }: { profile: any }) => {
                   <span className="text-[10px] font-black uppercase text-slate-500">Endereço (Auto-preenchido pelo CEP)</span>
                   <input required className="h-12 px-4 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 rounded-xl outline-none font-bold italic" value={formData.addressBase} onChange={e => setFormData({ ...formData, addressBase: e.target.value })} />
                 </label>
-                <label className="flex flex-col gap-1">
-                  <span className="text-[10px] font-black uppercase text-slate-500">Nº</span>
-                  <input required placeholder="Ex: 06" className="h-12 px-4 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 rounded-xl outline-none font-bold italic" value={formData.number} onChange={e => setFormData({ ...formData, number: e.target.value })} />
+
+                <label className="col-span-1 flex flex-col gap-1">
+                  <span className="text-[10px] font-black uppercase text-slate-500">CNPJ</span>
+                  <input className="h-12 px-4 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 rounded-xl outline-none font-bold italic" value={formData.cnpj} onChange={e => setFormData({ ...formData, cnpj: e.target.value })} placeholder="00.000.000/0000-00" />
                 </label>
-                <label className="flex flex-col gap-1">
-                  <span className="text-[10px] font-black uppercase text-slate-500">Complemento</span>
-                  <input placeholder="Ex: lj 04" className="h-12 px-4 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 rounded-xl outline-none font-bold italic" value={formData.complement} onChange={e => setFormData({ ...formData, complement: e.target.value })} />
+                <label className="col-span-1 flex flex-col gap-1">
+                  <span className="text-[10px] font-black uppercase text-slate-500">Telefone Estab.</span>
+                  <input className="h-12 px-4 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 rounded-xl outline-none font-bold italic" value={formData.establishment_phone} onChange={e => setFormData({ ...formData, establishment_phone: e.target.value })} />
                 </label>
-                <label className="flex flex-col gap-1">
-                  <span className="text-[10px] font-black uppercase text-slate-500">Plano</span>
-                  <select className="h-12 px-4 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 rounded-xl outline-none font-bold italic" value={formData.plan} onChange={e => setFormData({ ...formData, plan: e.target.value })}>
-                    <option value="Gratuito">Gratuito (15 pedidos)</option>
-                    <option value="Bronze">Bronze</option>
-                    <option value="Prata">Prata</option>
-                    <option value="Ouro">Ouro</option>
-                  </select>
+
+                <label className="col-span-1 flex flex-col gap-1">
+                  <span className="text-[10px] font-black uppercase text-slate-500">Nome do Responsável</span>
+                  <input className="h-12 px-4 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 rounded-xl outline-none font-bold italic" value={formData.owner_name} onChange={e => setFormData({ ...formData, owner_name: e.target.value })} />
                 </label>
-                <label className="flex flex-col gap-1">
-                  <span className="text-[10px] font-black uppercase text-slate-500">Status</span>
-                  <select className="h-12 px-4 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 rounded-xl outline-none font-bold italic" value={formData.status} onChange={e => setFormData({ ...formData, status: e.target.value })}>
-                    <option value="Aprovado">Aprovado</option>
-                    <option value="Pendente">Pendente</option>
-                    <option value="Bloqueado">Bloqueado</option>
-                  </select>
+                <label className="col-span-1 flex flex-col gap-1">
+                  <span className="text-[10px] font-black uppercase text-slate-500">Celular Responsável</span>
+                  <input className="h-12 px-4 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 rounded-xl outline-none font-bold italic" value={formData.owner_phone} onChange={e => setFormData({ ...formData, owner_phone: e.target.value })} />
                 </label>
+
+                <label className="flex flex-col gap-1">
+                  <label className="flex flex-col gap-1">
+                    <span className="text-[10px] font-black uppercase text-slate-500">Nº</span>
+                    <input required placeholder="Ex: 06" className="h-12 px-4 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 rounded-xl outline-none font-bold italic" value={formData.number} onChange={e => setFormData({ ...formData, number: e.target.value })} />
+                  </label>
+                  <label className="flex flex-col gap-1">
+                    <span className="text-[10px] font-black uppercase text-slate-500">Complemento</span>
+                    <input placeholder="Ex: lj 04" className="h-12 px-4 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 rounded-xl outline-none font-bold italic" value={formData.complement} onChange={e => setFormData({ ...formData, complement: e.target.value })} />
+                  </label>
+                  <label className="flex flex-col gap-1">
+                    <span className="text-[10px] font-black uppercase text-slate-500">Plano</span>
+                    <select className="h-12 px-4 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 rounded-xl outline-none font-bold italic" value={formData.plan} onChange={e => setFormData({ ...formData, plan: e.target.value })}>
+                      <option value="Gratuito">Gratuito (15 pedidos)</option>
+                      <option value="Bronze">Bronze</option>
+                      <option value="Prata">Prata</option>
+                      <option value="Ouro">Ouro</option>
+                    </select>
+                  </label>
+                  <label className="flex flex-col gap-1">
+                    <span className="text-[10px] font-black uppercase text-slate-500">Status</span>
+                    <select className="h-12 px-4 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 rounded-xl outline-none font-bold italic" value={formData.status} onChange={e => setFormData({ ...formData, status: e.target.value })}>
+                      <option value="Aprovado">Aprovado</option>
+                      <option value="Pendente">Pendente</option>
+                      <option value="Bloqueado">Bloqueado</option>
+                    </select>
+                  </label>
               </div>
 
               <button type="submit" className="w-full mt-8 bg-primary text-background-dark font-black py-4 rounded-2xl shadow-xl shadow-primary/20 active:scale-98 transition-all uppercase tracking-tighter">
