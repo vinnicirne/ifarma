@@ -3636,7 +3636,7 @@ function App() {
           {/* Protected Client Routes */}
           <Route path="/cart" element={<ProtectedRoute session={session}><Cart /></ProtectedRoute>} />
           <Route path="/wallet" element={<ProtectedRoute session={session}><UserWallet /></ProtectedRoute>} />
-          <Route path="/profile" element={<ProtectedRoute session={session}><UserProfile /></ProtectedRoute>} />
+          <Route path="/profile" element={<ProtectedRoute session={session}><UserProfile session={session} profile={profile} /></ProtectedRoute>} />
           <Route path="/favorites" element={<ProtectedRoute session={session}><Favorites /></ProtectedRoute>} />
           <Route path="/notifications" element={<ProtectedRoute session={session}><Notifications /></ProtectedRoute>} />
           <Route path="/order-tracking" element={<ProtectedRoute session={session}><OrderTracking /></ProtectedRoute>} />
