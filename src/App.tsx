@@ -3624,7 +3624,7 @@ function App() {
         <Routes>
           {/* Public Routes */}
           <Route path="/" element={<ClientHome userLocation={userLocation} sortedPharmacies={sortedPharmacies} session={session} />} />
-          <Route path="/pharmacies" element={<PharmacyList pharmacies={sortedPharmacies} session={session} />} />
+          <Route path="/pharmacies" element={<PharmacyList pharmacies={sortedPharmacies} />} />
           <Route path="/pharmacy/:id" element={<PharmacyPage session={session} />} />
           <Route path="/product/:id" element={<ProductPage session={session} />} />
           <Route path="/privacy" element={<PrivacyData />} />
