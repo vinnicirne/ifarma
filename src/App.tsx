@@ -156,6 +156,28 @@ const ProtectedRoute = ({ children, session }: { children: React.ReactNode, sess
   return <>{children}</>;
 };
 
+const MerchantRoute = ({ children, session, profile }: { children: React.ReactNode, session: any, profile: any }) => {
+  if (!session) return <Auth view="login" />;
+  // Check if role is 'store_owner' OR 'admin' (admins can view merchant panels for support)
+  if (profile?.role !== 'store_owner' && profile?.role !== 'admin') {
+    return (
+      <div className="min-h-screen bg-slate-50 dark:bg-background-dark flex flex-col items-center justify-center p-6 text-center">
+        <div className="size-24 rounded-full bg-red-500/10 flex items-center justify-center mb-6">
+          <MaterialIcon name="store_off" className="text-red-500 text-4xl" />
+        </div>
+        <h2 className="text-2xl font-black italic text-slate-900 dark:text-white">Acesso Restrito</h2>
+        <p className="text-slate-500 dark:text-slate-400 text-sm mt-2 max-w-xs font-medium">
+          Esta área é exclusiva para parceiros lojistas. Se você possui uma farmácia, aguarde a aprovação do seu cadastro.
+        </p>
+        <Link to="/" className="mt-8 px-6 py-3 bg-primary text-background-dark rounded-xl font-black uppercase tracking-widest text-xs hover:scale-105 transition-transform">
+          Voltar para a Loja
+        </Link>
+      </div>
+    );
+  }
+  return <>{children}</>;
+};
+
 // --- AREA 1: CLIENT COMPONENTS ---
 // --- Helper Functions ---
 const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
@@ -3724,11 +3746,11 @@ function App() {
           <Route path="/admin/settings" element={<AdminRoute session={session} profile={profile}><SystemSettings profile={profile} /></AdminRoute>} />
 
           {/* Protected Merchant Routes */}
-          <Route path="/merchant" element={<ProtectedRoute session={session}><MerchantDashboard /></ProtectedRoute>} />
-          <Route path="/merchant/orders" element={<ProtectedRoute session={session}><MerchantOrderManagement /></ProtectedRoute>} />
-          <Route path="/merchant/products" element={<ProtectedRoute session={session}><InventoryControl /></ProtectedRoute>} />
-          <Route path="/merchant/financial" element={<ProtectedRoute session={session}><MerchantFinancial /></ProtectedRoute>} />
-          <Route path="/merchant/settings" element={<ProtectedRoute session={session}><StoreCustomization /></ProtectedRoute>} />
+          <Route path="/merchant" element={<MerchantRoute session={session} profile={profile}><MerchantDashboard /></MerchantRoute>} />
+          <Route path="/merchant/orders" element={<MerchantRoute session={session} profile={profile}><MerchantOrderManagement /></MerchantRoute>} />
+          <Route path="/merchant/products" element={<MerchantRoute session={session} profile={profile}><InventoryControl /></MerchantRoute>} />
+          <Route path="/merchant/financial" element={<MerchantRoute session={session} profile={profile}><MerchantFinancial /></MerchantRoute>} />
+          <Route path="/merchant/settings" element={<MerchantRoute session={session} profile={profile}><StoreCustomization /></MerchantRoute>} />
 
           {/* Motoboy Routes */}
           <Route path="/motoboy-login" element={<MotoboyLogin />} />
