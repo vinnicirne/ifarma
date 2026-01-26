@@ -111,13 +111,20 @@ const Auth = ({ view = 'login' }: { view?: 'login' | 'signup' }) => {
           </button>
         </form>
 
-        <div className="mt-8 text-center">
+        <div className="mt-8 text-center space-y-4">
           <button
             onClick={() => setIsLogin(!isLogin)}
-            className="text-slate-400 text-[10px] font-black uppercase tracking-widest hover:text-primary transition-colors"
+            className="text-slate-400 text-[10px] font-black uppercase tracking-widest hover:text-primary transition-colors block w-full"
           >
             {isLogin ? 'Não tem uma conta? Cadastre-se' : 'Já tem uma conta? Entre agora'}
           </button>
+
+          <div className="w-full h-px bg-white/5 my-4"></div>
+
+          <Link to="/partner/register" className="inline-flex items-center gap-2 text-slate-500 hover:text-white transition-colors group">
+            <MaterialIcon name="storefront" className="text-lg group-hover:text-primary transition-colors" />
+            <span className="text-xs font-bold">Cadastre sua farmácia e venda online</span>
+          </Link>
         </div>
       </div>
     </div>
