@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 
@@ -7,10 +8,55 @@ const MaterialIcon = ({ name, className = "", style = {} }: { name: string, clas
 
 const UserProfile = ({ session, profile }: { session: any, profile: any }) => {
     const navigate = useNavigate();
+    const [isEditing, setIsEditing] = useState(false);
+    const [loading, setLoading] = useState(false);
+    const [formData, setFormData] = useState({
+        full_name: '',
+        cpf: '',
+        phone: '',
+        avatar_url: ''
+    });
+
+    useEffect(() => {
+        if (profile) {
+            setFormData({
+                full_name: profile.full_name || '',
+                cpf: profile.cpf || '',
+                phone: profile.phone || '',
+                avatar_url: profile.avatar_url || ''
+            });
+        }
+    }, [profile]);
 
     const handleLogout = async () => {
         await supabase.auth.signOut();
         navigate('/login');
+    };
+
+    const handleSave = async () => {
+        setLoading(true);
+        try {
+            const { error } = await supabase
+                .from('profiles')
+                .update({
+                    full_name: formData.full_name,
+                    cpf: formData.cpf,
+                    phone: formData.phone,
+                    avatar_url: formData.avatar_url
+                })
+                .eq('id', session.user.id);
+
+            if (error) throw error;
+            setIsEditing(false);
+            // O ideal seria recarregar o profile via contexto, mas por enquanto o banco atualiza
+            // e se o App.tsx observar changes ou recarregar, vai funcionar.
+            window.location.reload(); // Forçar refresh simples para ver dados novos
+        } catch (error) {
+            console.error('Erro ao atualizar perfil:', error);
+            alert('Erro ao atualizar perfil.');
+        } finally {
+            setLoading(false);
+        }
     };
 
     return (
@@ -43,7 +89,10 @@ const UserProfile = ({ session, profile }: { session: any, profile: any }) => {
                         >
                             {!profile?.avatar_url && <MaterialIcon name="person" className="text-6xl text-slate-300" />}
                         </div>
-                        <button className="absolute bottom-0 right-0 bg-primary text-white p-2 rounded-full shadow-lg border-2 border-background-dark hover:bg-primary/90 transition-colors active:scale-95">
+                        <button
+                            onClick={() => setIsEditing(true)}
+                            className="absolute bottom-0 right-0 bg-primary text-white p-2 rounded-full shadow-lg border-2 border-background-dark hover:bg-primary/90 transition-colors active:scale-95"
+                        >
                             <MaterialIcon name="edit" className="text-sm" />
                         </button>
                     </div>
@@ -122,6 +171,70 @@ const UserProfile = ({ session, profile }: { session: any, profile: any }) => {
                     <p className="text-center text-slate-500 dark:text-slate-600 text-xs mt-6">Versão 2.4.15 - PharmaMarket iOS</p>
                 </section>
             </main>
+
+            {/* Edit Profile Modal */}
+            {isEditing && (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+                    <div className="bg-white dark:bg-zinc-900 rounded-2xl w-full max-w-sm p-6 shadow-2xl">
+                        <div className="flex justify-between items-center mb-6">
+                            <h3 className="text-xl font-bold text-slate-900 dark:text-white">Editar Perfil</h3>
+                            <button onClick={() => setIsEditing(false)} className="text-slate-400 hover:text-slate-600">
+                                <MaterialIcon name="close" />
+                            </button>
+                        </div>
+
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Foto de Perfil (URL)</label>
+                                <input
+                                    type="text"
+                                    value={formData.avatar_url}
+                                    onChange={(e) => setFormData({ ...formData, avatar_url: e.target.value })}
+                                    className="w-full bg-slate-50 dark:bg-zinc-800 border-none rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary outline-none"
+                                    placeholder="https://..."
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Nome Completo</label>
+                                <input
+                                    type="text"
+                                    value={formData.full_name}
+                                    onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
+                                    className="w-full bg-slate-50 dark:bg-zinc-800 border-none rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary outline-none"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">CPF</label>
+                                <input
+                                    type="text"
+                                    value={formData.cpf}
+                                    onChange={(e) => setFormData({ ...formData, cpf: e.target.value })}
+                                    className="w-full bg-slate-50 dark:bg-zinc-800 border-none rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary outline-none"
+                                    placeholder="000.000.000-00"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Celular</label>
+                                <input
+                                    type="text"
+                                    value={formData.phone}
+                                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                                    className="w-full bg-slate-50 dark:bg-zinc-800 border-none rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary outline-none"
+                                    placeholder="(00) 00000-0000"
+                                />
+                            </div>
+
+                            <button
+                                onClick={handleSave}
+                                disabled={loading}
+                                className="w-full bg-primary text-black font-bold py-3 rounded-xl mt-4 hover:opacity-90 transition-opacity disabled:opacity-50"
+                            >
+                                {loading ? 'Salvando...' : 'Salvar Alterações'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Bottom Navigation Bar (iOS Style) */}
             <nav className="fixed bottom-0 left-0 right-0 bg-white/80 dark:bg-background-dark/80 backdrop-blur-xl border-t border-slate-200 dark:border-slate-800 pb-safe shadow-2xl z-50">

@@ -132,3 +132,17 @@ CREATE POLICY "Escrita restrita a administradores" ON system_settings FOR ALL US
 -- UPDATE profiles SET role = 'admin' WHERE id = (SELECT id FROM auth.users WHERE email = 'seu-email@exemplo.com');
 ALTER TABLE pharmacies ADD COLUMN IF NOT EXISTS plan TEXT DEFAULT 'Gratuito';
 ALTER TABLE pharmacies ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'Aprovado';
+
+-- 14. Correção de RLS para Farmácias (Permitir Cadastro)
+ALTER TABLE pharmacies ENABLE ROW LEVEL SECURITY;
+
+DO c:\Users\THINKPAD\Desktop\Ifarma 
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'pharmacies' AND policyname = 'Leitura pública de farmácias') THEN
+        CREATE POLICY "Leitura pública de farmácias" ON pharmacies FOR SELECT USING (true);
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'pharmacies' AND policyname = 'Gerenciamento total para autenticados') THEN
+        CREATE POLICY "Gerenciamento total para autenticados" ON pharmacies FOR ALL USING (auth.role() = 'authenticated');
+    END IF;
+END c:\Users\THINKPAD\Desktop\Ifarma;
