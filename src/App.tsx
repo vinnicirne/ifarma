@@ -13,6 +13,11 @@ import MotoboyDeliveryDetail from './pages/MotoboyDeliveryDetail';
 import MotoboyRouteStatus from './pages/MotoboyRouteStatus';
 import MotoboyDeliveryConfirm from './pages/MotoboyDeliveryConfirm';
 import MotoboyHistory from './pages/MotoboyHistory';
+import MerchantDashboard from './pages/merchant/MerchantDashboard';
+import MerchantOrderManagement from './pages/merchant/MerchantOrderManagement';
+import InventoryControl from './pages/merchant/InventoryControl';
+import StoreCustomization from './pages/merchant/StoreCustomization';
+import MerchantFinancial from './pages/merchant/MerchantFinancial';
 import { supabase } from './lib/supabase';
 
 // --- Shared Components & Icons ---
@@ -2502,31 +2507,30 @@ const PharmacyManagement = ({ profile }: { profile: any }) => {
                 </label>
 
                 <label className="flex flex-col gap-1">
-                  <label className="flex flex-col gap-1">
-                    <span className="text-[10px] font-black uppercase text-slate-500">Nº</span>
-                    <input required placeholder="Ex: 06" className="h-12 px-4 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 rounded-xl outline-none font-bold italic" value={formData.number} onChange={e => setFormData({ ...formData, number: e.target.value })} />
-                  </label>
-                  <label className="flex flex-col gap-1">
-                    <span className="text-[10px] font-black uppercase text-slate-500">Complemento</span>
-                    <input placeholder="Ex: lj 04" className="h-12 px-4 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 rounded-xl outline-none font-bold italic" value={formData.complement} onChange={e => setFormData({ ...formData, complement: e.target.value })} />
-                  </label>
-                  <label className="flex flex-col gap-1">
-                    <span className="text-[10px] font-black uppercase text-slate-500">Plano</span>
-                    <select className="h-12 px-4 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 rounded-xl outline-none font-bold italic" value={formData.plan} onChange={e => setFormData({ ...formData, plan: e.target.value })}>
-                      <option value="Gratuito">Gratuito (15 pedidos)</option>
-                      <option value="Bronze">Bronze</option>
-                      <option value="Prata">Prata</option>
-                      <option value="Ouro">Ouro</option>
-                    </select>
-                  </label>
-                  <label className="flex flex-col gap-1">
-                    <span className="text-[10px] font-black uppercase text-slate-500">Status</span>
-                    <select className="h-12 px-4 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 rounded-xl outline-none font-bold italic" value={formData.status} onChange={e => setFormData({ ...formData, status: e.target.value })}>
-                      <option value="Aprovado">Aprovado</option>
-                      <option value="Pendente">Pendente</option>
-                      <option value="Bloqueado">Bloqueado</option>
-                    </select>
-                  </label>
+                  <span className="text-[10px] font-black uppercase text-slate-500">Nº</span>
+                  <input required placeholder="Ex: 06" className="h-12 px-4 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 rounded-xl outline-none font-bold italic" value={formData.number} onChange={e => setFormData({ ...formData, number: e.target.value })} />
+                </label>
+                <label className="flex flex-col gap-1">
+                  <span className="text-[10px] font-black uppercase text-slate-500">Complemento</span>
+                  <input placeholder="Ex: lj 04" className="h-12 px-4 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 rounded-xl outline-none font-bold italic" value={formData.complement} onChange={e => setFormData({ ...formData, complement: e.target.value })} />
+                </label>
+                <label className="flex flex-col gap-1">
+                  <span className="text-[10px] font-black uppercase text-slate-500">Plano</span>
+                  <select className="h-12 px-4 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 rounded-xl outline-none font-bold italic" value={formData.plan} onChange={e => setFormData({ ...formData, plan: e.target.value })}>
+                    <option value="Gratuito">Gratuito (15 pedidos)</option>
+                    <option value="Bronze">Bronze</option>
+                    <option value="Prata">Prata</option>
+                    <option value="Ouro">Ouro</option>
+                  </select>
+                </label>
+                <label className="flex flex-col gap-1">
+                  <span className="text-[10px] font-black uppercase text-slate-500">Status</span>
+                  <select className="h-12 px-4 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 rounded-xl outline-none font-bold italic" value={formData.status} onChange={e => setFormData({ ...formData, status: e.target.value })}>
+                    <option value="Aprovado">Aprovado</option>
+                    <option value="Pendente">Pendente</option>
+                    <option value="Bloqueado">Bloqueado</option>
+                  </select>
+                </label>
               </div>
 
               <button type="submit" className="w-full mt-8 bg-primary text-background-dark font-black py-4 rounded-2xl shadow-xl shadow-primary/20 active:scale-98 transition-all uppercase tracking-tighter">
@@ -3719,13 +3723,12 @@ function App() {
           <Route path="/admin/promotions" element={<AdminRoute session={session} profile={profile}><PromotionManagement profile={profile} /></AdminRoute>} />
           <Route path="/admin/settings" element={<AdminRoute session={session} profile={profile}><SystemSettings profile={profile} /></AdminRoute>} />
 
-          {/* Protected Merchant Routes (Future Implementation) */}
-          <Route path="/merchant" element={<MerchantDashboard />} />
-          <Route path="/merchant-orders" element={<MerchantOrderManagement />} />
-          <Route path="/merchant/financial" element={<MerchantFinancial />} />
-          <Route path="/merchant/add-product" element={<AddProduct />} />
-          <Route path="/merchant/inventory" element={<InventoryControl />} />
-          <Route path="/merchant/settings" element={<StoreCustomization />} />
+          {/* Protected Merchant Routes */}
+          <Route path="/merchant" element={<ProtectedRoute session={session}><MerchantDashboard /></ProtectedRoute>} />
+          <Route path="/merchant/orders" element={<ProtectedRoute session={session}><MerchantOrderManagement /></ProtectedRoute>} />
+          <Route path="/merchant/products" element={<ProtectedRoute session={session}><InventoryControl /></ProtectedRoute>} />
+          <Route path="/merchant/financial" element={<ProtectedRoute session={session}><MerchantFinancial /></ProtectedRoute>} />
+          <Route path="/merchant/settings" element={<ProtectedRoute session={session}><StoreCustomization /></ProtectedRoute>} />
 
           {/* Motoboy Routes */}
           <Route path="/motoboy-login" element={<MotoboyLogin />} />
