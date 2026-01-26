@@ -362,8 +362,7 @@ const NearbyPharmacies = ({ pharmacies }: { pharmacies: any[] }) => (
   </>
 );
 
-const PharmacyList = ({ pharmacies, session }: { pharmacies: any[], session: any }) => {
-  const navigate = useNavigate();
+const PharmacyList = ({ pharmacies }: { pharmacies: any[] }) => {
   return (
     <div className="relative flex min-h-screen w-full max-w-[430px] mx-auto flex-col bg-background-light dark:bg-background-dark overflow-x-hidden shadow-2xl pb-24">
       <header className="sticky top-0 z-50 bg-background-light/80 dark:bg-background-dark/80 backdrop-blur-md px-4 pt-6 pb-2">
@@ -1142,7 +1141,6 @@ const OrderTracking = () => {
 };
 
 const MerchantDashboard = () => {
-  const navigate = useNavigate();
   return (
     <div className="bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 min-h-screen pb-24 font-display">
       {/* Top Navigation Bar */}
@@ -2162,7 +2160,6 @@ const AdminLayout = ({ children, activeTab, profile }: { children: React.ReactNo
 };
 
 const PharmacyManagement = ({ profile }: { profile: any }) => {
-  const navigate = useNavigate();
   const [pharmacies, setPharmacies] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -2478,7 +2475,6 @@ const PharmacyManagement = ({ profile }: { profile: any }) => {
 };
 
 const AdManagement = ({ profile }: { profile: any }) => {
-  const navigate = useNavigate();
   return (
     <AdminLayout activeTab="ads" profile={profile}>
       {/* Desktop Header */}
@@ -2624,6 +2620,7 @@ const AdManagement = ({ profile }: { profile: any }) => {
 };
 
 const UserWallet = () => {
+  const navigate = useNavigate();
   return (
     <div className="bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-white min-h-screen pb-24 transition-colors duration-200">
       {/* Top App Bar */}
@@ -3084,7 +3081,6 @@ const PromotionManagement = ({ profile }: { profile: any }) => {
 
 
 const MotoboyManagement = ({ profile }: { profile: any }) => {
-  const navigate = useNavigate();
   const [showAddForm, setShowAddForm] = useState(false);
 
   return (
@@ -3629,7 +3625,7 @@ function App() {
           {/* Public Routes */}
           <Route path="/" element={<ClientHome userLocation={userLocation} sortedPharmacies={sortedPharmacies} session={session} />} />
           <Route path="/pharmacies" element={<PharmacyList pharmacies={sortedPharmacies} session={session} />} />
-          <Route path="/pharmacy/:id" element={<PharmacyPage />} />
+          <Route path="/pharmacy/:id" element={<PharmacyPage session={session} />} />
           <Route path="/product/:id" element={<ProductPage session={session} />} />
           <Route path="/privacy" element={<PrivacyData />} />
           <Route path="/help" element={<HelpSupport />} />
