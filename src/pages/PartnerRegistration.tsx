@@ -303,6 +303,16 @@ const PartnerRegistration = () => {
                                             <span>Não, preciso de parceiros</span>
                                         </label>
                                     </div>
+
+                                    {formData.delivery_enabled === 'false' && (
+                                        <div className="mt-4 p-4 bg-orange-100 dark:bg-orange-500/10 border border-orange-200 dark:border-orange-500/20 rounded-xl flex items-start gap-3 animate-fade-in">
+                                            <MaterialIcon name="warning" className="text-orange-600 dark:text-orange-400 mt-0.5 shrink-0" />
+                                            <p className="text-sm text-orange-800 dark:text-orange-200 font-medium leading-relaxed">
+                                                <span className="font-bold block mb-1">Atenção</span>
+                                                No momento não temos a opção de parceiros de entrega disponível. Seu cadastro ficará pendente até que esta funcionalidade seja ativada em sua região.
+                                            </p>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         </div>
