@@ -1,4 +1,5 @@
 import MerchantLayout from './MerchantLayout';
+import { Link } from 'react-router-dom';
 
 const MaterialIcon = ({ name, className = "" }: { name: string, className?: string }) => (
     <span className={`material-symbols-outlined ${className}`}>{name}</span>
@@ -14,6 +15,10 @@ const MerchantDashboard = () => {
                     <p className="text-sm font-bold text-slate-500 dark:text-slate-400 mt-1">Aqui está o resumo do seu dia.</p>
                 </div>
                 <div className="flex gap-3">
+                    <Link to="/merchant/motoboys" className="flex items-center gap-2 bg-primary/10 hover:bg-primary/20 transition-colors px-4 py-2 rounded-2xl shadow-sm border border-primary/20 cursor-pointer">
+                        <MaterialIcon name="sports_motorsports" className="text-primary" />
+                        <span className="text-xs font-black uppercase tracking-widest text-primary">Gerenciar Motoboys</span>
+                    </Link>
                     <div className="flex items-center gap-2 bg-white dark:bg-zinc-800 px-4 py-2 rounded-2xl shadow-sm border border-slate-100 dark:border-white/5">
                         <MaterialIcon name="calendar_today" className="text-slate-400" />
                         <span className="text-xs font-black uppercase tracking-widest text-slate-600 dark:text-white">Hoje, 25 Out</span>

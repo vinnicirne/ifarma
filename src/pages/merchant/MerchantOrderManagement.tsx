@@ -1,24 +1,79 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import MerchantLayout from './MerchantLayout';
+import { supabase } from '../../lib/supabase';
 
 const MaterialIcon = ({ name, className = "" }: { name: string, className?: string }) => (
     <span className={`material-symbols-outlined ${className}`}>{name}</span>
 );
 
 const MerchantOrderManagement = () => {
-    const [orders, setOrders] = useState([
-        { id: '#8921', client: 'Ana Silva', items: '2x Dipirona 500mg, 1x Vitamina C', total: 'R$ 45,90', status: 'Pendente', time: '2 min', address: 'Rua das Flores, 123' },
-        { id: '#8920', client: 'Carlos Souza', items: '1x Shampoo Clear Men', total: 'R$ 22,90', status: 'Em Preparo', time: '15 min', address: 'Av. Brasil, 500' },
-        { id: '#8919', client: 'Mariana Lima', items: '1x Protetor Solar', total: 'R$ 89,90', status: 'Aguardando', time: '30 min', address: 'Retirada na Loja' },
-        { id: '#8918', client: 'Roberto Dias', items: '3x Dorflex', total: 'R$ 18,90', status: 'Em Rota', time: '45 min', address: 'Rua A, 10' },
-    ]);
+    const [orders, setOrders] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
 
+    // Columns mapping to DB status
     const columns = [
-        { id: 'Pendente', label: 'Novos', color: 'blue-500', icon: 'notifications_active' },
-        { id: 'Em Preparo', label: 'Em Preparo', color: 'orange-500', icon: 'inventory' },
-        { id: 'Aguardando', label: 'Pronto/Aguardando', color: 'yellow-500', icon: 'timer' },
-        { id: 'Em Rota', label: 'Saiu p/ Entrega', color: 'purple-500', icon: 'sports_motorsports' },
+        { id: 'pendente', label: 'Novos', color: 'blue-500', icon: 'notifications_active' },
+        { id: 'preparando', label: 'Em Preparo', color: 'orange-500', icon: 'inventory' },
+        { id: 'pronto_entrega', label: 'Pronto/Aguardando', color: 'yellow-500', icon: 'timer' }, // Assuming this maps to 'Aguardando' logic or similar
+        { id: 'em_rota', label: 'Saiu p/ Entrega', color: 'purple-500', icon: 'sports_motorsports' },
     ];
+
+    useEffect(() => {
+        fetchOrders();
+
+        // Subscribe to changes (simplified for all orders for demo, ideally filter by pharmacy_id)
+        const subscription = supabase
+            .channel('merchant_orders')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, (payload) => {
+                fetchOrders(); // Refresh all for simplicity
+            })
+            .subscribe();
+
+        return () => { subscription.unsubscribe(); };
+    }, []);
+
+    const fetchOrders = async () => {
+        try {
+            // In a real app, we would get the pharmacy_id from the logged-in user's profile
+            // For now, we fetch all orders or filter by the mock pharmacy ID we used in Cart
+            const { data, error } = await supabase
+                .from('orders')
+                .select('*')
+                .order('created_at', { ascending: false });
+
+            if (error) throw error;
+            setOrders(data || []);
+        } catch (err) {
+            console.error('Error fetching orders:', err);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const updateStatus = async (orderId: string, newStatus: string) => {
+        try {
+            const { error } = await supabase
+                .from('orders')
+                .update({ status: newStatus })
+                .eq('id', orderId);
+
+            if (error) throw error;
+            // Optimistic update
+            setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: newStatus } : o));
+        } catch (err) {
+            console.error('Error updating status:', err);
+            alert('Erro ao atualizar status');
+        }
+    };
+
+    const moveOrder = (orderId: string, currentStatus: string) => {
+        const statusOrder = ['pendente', 'preparando', 'em_rota', 'entregue'];
+        const currentIndex = statusOrder.indexOf(currentStatus);
+        const nextStatus = statusOrder[currentIndex + 1];
+        if (nextStatus) {
+            updateStatus(orderId, nextStatus);
+        }
+    };
 
     return (
         <MerchantLayout activeTab="orders" title="Pedidos">
@@ -28,15 +83,7 @@ const MerchantOrderManagement = () => {
                 <div className="flex justify-between items-center mb-6">
                     <div>
                         <h1 className="text-2xl font-black italic text-slate-900 dark:text-white tracking-tighter">Gestão de Pedidos</h1>
-                        <p className="text-sm font-bold text-slate-500 dark:text-slate-400 mt-1">Arrastia os cards para atualizar o status.</p>
-                    </div>
-                    <div className="flex gap-2">
-                        <button className="h-10 px-4 bg-white dark:bg-zinc-800 rounded-xl border border-slate-100 dark:border-white/5 font-black text-xs uppercase tracking-widest text-slate-600 dark:text-slate-300 shadow-sm">
-                            Histórico
-                        </button>
-                        <button className="h-10 px-4 bg-primary text-background-dark rounded-xl font-black text-xs uppercase tracking-widest shadow-lg shadow-primary/20">
-                            Novo Pedido (Manual)
-                        </button>
+                        <p className="text-sm font-bold text-slate-500 dark:text-slate-400 mt-1">Gerencie os pedidos em tempo real.</p>
                     </div>
                 </div>
 
@@ -60,26 +107,28 @@ const MerchantOrderManagement = () => {
                                 {/* Cards Container */}
                                 <div className="flex-1 space-y-3 overflow-y-auto pr-1 custom-scrollbar">
                                     {orders.filter(o => o.status === col.id).map((order) => (
-                                        <div key={order.id} className="bg-white dark:bg-zinc-800 p-4 rounded-2xl shadow-sm border border-slate-100 dark:border-white/5 cursor-grab active:cursor-grabbing hover:scale-[1.02] transition-transform group">
+                                        <div key={order.id} className="bg-white dark:bg-zinc-800 p-4 rounded-2xl shadow-sm border border-slate-100 dark:border-white/5 cursor-pointer hover:scale-[1.02] transition-transform group">
                                             <div className="flex justify-between items-start mb-2">
-                                                <span className="font-black text-sm text-slate-900 dark:text-white">{order.id}</span>
-                                                <span className="text-[10px] font-bold text-slate-400">{order.time}</span>
+                                                <span className="font-black text-sm text-slate-900 dark:text-white">#{order.id.substring(0, 6)}</span>
+                                                <span className="text-[10px] font-bold text-slate-400">{new Date(order.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                                             </div>
-                                            <h4 className="font-bold text-slate-700 dark:text-slate-200 text-sm leading-tight mb-1">{order.client}</h4>
-                                            <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate mb-3">{order.items}</p>
+                                            <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate mb-3">
+                                                R$ {order.total_price} • {order.payment_method || 'Pix/Card'}
+                                            </p>
 
                                             <div className="flex items-center gap-2 mb-3 bg-slate-50 dark:bg-black/20 p-2 rounded-lg">
-                                                <MaterialIcon name="location_on" className="text-[14px] text-slate-400" />
-                                                <span className="text-[10px] font-bold text-slate-600 dark:text-slate-300 truncate">{order.address}</span>
+                                                <MaterialIcon name="person" className="text-[14px] text-slate-400" />
+                                                <span className="text-[10px] font-bold text-slate-600 dark:text-slate-300 truncate">Cliente App</span>
                                             </div>
 
                                             <div className="flex justify-between items-center pt-2 border-t border-slate-50 dark:border-white/5">
-                                                <span className="font-black text-primary">{order.total}</span>
-                                                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                    <button className="size-8 rounded-lg bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 flex items-center justify-center text-slate-600 dark:text-slate-400">
-                                                        <MaterialIcon name="visibility" className="text-lg" />
-                                                    </button>
-                                                    <button className="size-8 rounded-lg bg-primary text-background-dark flex items-center justify-center shadow-lg shadow-primary/20">
+                                                <span className="font-black text-primary text-xs">Ação Rápida</span>
+                                                <div className="flex gap-1">
+                                                    <button
+                                                        onClick={() => moveOrder(order.id, order.status)}
+                                                        className="size-8 rounded-lg bg-primary text-background-dark flex items-center justify-center shadow-lg shadow-primary/20 hover:scale-110 transition-transform"
+                                                        title="Avançar Status"
+                                                    >
                                                         <MaterialIcon name="arrow_forward" className="text-lg" />
                                                     </button>
                                                 </div>

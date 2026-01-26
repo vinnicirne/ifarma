@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+﻿import React, { useState, useEffect, useMemo } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, useNavigate, useLocation } from 'react-router-dom';
 import HelpSupport from './pages/HelpSupport';
 import UserProfile from './pages/UserProfile';
@@ -13,11 +13,13 @@ import MotoboyDeliveryDetail from './pages/MotoboyDeliveryDetail';
 import MotoboyRouteStatus from './pages/MotoboyRouteStatus';
 import MotoboyDeliveryConfirm from './pages/MotoboyDeliveryConfirm';
 import MotoboyHistory from './pages/MotoboyHistory';
+import MerchantLogin from './pages/merchant/MerchantLogin';
 import MerchantDashboard from './pages/merchant/MerchantDashboard';
 import MerchantOrderManagement from './pages/merchant/MerchantOrderManagement';
 import InventoryControl from './pages/merchant/InventoryControl';
 import StoreCustomization from './pages/merchant/StoreCustomization';
 import MerchantFinancial from './pages/merchant/MerchantFinancial';
+import MerchantMotoboys from './pages/merchant/MerchantMotoboys';
 import { supabase } from './lib/supabase';
 
 // --- Shared Components & Icons ---
@@ -78,7 +80,7 @@ const Auth = ({ view = 'login' }: { view?: 'login' | 'signup' }) => {
               <input
                 required
                 className="h-14 px-5 bg-black/20 border border-white/5 rounded-2xl text-white outline-none focus:ring-2 focus:ring-primary/20 font-bold italic"
-                placeholder="Ex: João Silva"
+                placeholder="Ex: JoÃ£o Silva"
                 value={fullName}
                 onChange={e => setFullName(e.target.value)}
               />
@@ -101,7 +103,7 @@ const Auth = ({ view = 'login' }: { view?: 'login' | 'signup' }) => {
               required
               type="password"
               className="h-14 px-5 bg-black/20 border border-white/5 rounded-2xl text-white outline-none focus:ring-2 focus:ring-primary/20 font-bold italic"
-              placeholder="••••••••"
+              placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
               value={password}
               onChange={e => setPassword(e.target.value)}
             />
@@ -121,14 +123,14 @@ const Auth = ({ view = 'login' }: { view?: 'login' | 'signup' }) => {
             onClick={() => setIsLogin(!isLogin)}
             className="text-slate-400 text-[10px] font-black uppercase tracking-widest hover:text-primary transition-colors block w-full"
           >
-            {isLogin ? 'Não tem uma conta? Cadastre-se' : 'Já tem uma conta? Entre agora'}
+            {isLogin ? 'NÃ£o tem uma conta? Cadastre-se' : 'JÃ¡ tem uma conta? Entre agora'}
           </button>
 
           <div className="w-full h-px bg-white/5 my-4"></div>
 
           <Link to="/partner/register" className="inline-flex items-center gap-2 text-slate-500 hover:text-white transition-colors group">
             <MaterialIcon name="storefront" className="text-lg group-hover:text-primary transition-colors" />
-            <span className="text-xs font-bold">Cadastre sua farmácia e venda online</span>
+            <span className="text-xs font-bold">Cadastre sua farmÃ¡cia e venda online</span>
           </Link>
         </div>
       </div>
@@ -143,7 +145,7 @@ const AdminRoute = ({ children, session, profile }: { children: React.ReactNode,
       <div className="min-h-screen bg-background-dark flex flex-col items-center justify-center p-6 text-center">
         <MaterialIcon name="block" className="text-red-500 text-6xl mb-4" />
         <h2 className="text-xl font-black italic text-white">Acesso Negado</h2>
-        <p className="text-slate-400 text-sm mt-2 max-w-xs">Esta área é restrita para administradores da plataforma.</p>
+        <p className="text-slate-400 text-sm mt-2 max-w-xs">Esta Ã¡rea Ã© restrita para administradores da plataforma.</p>
         <Link to="/" className="mt-8 text-primary font-black uppercase tracking-widest text-xs hover:underline">Voltar para a Home</Link>
       </div>
     );
@@ -157,7 +159,7 @@ const ProtectedRoute = ({ children, session }: { children: React.ReactNode, sess
 };
 
 const MerchantRoute = ({ children, session, profile }: { children: React.ReactNode, session: any, profile: any }) => {
-  if (!session) return <Auth view="login" />;
+  if (!session) return <MerchantLogin />;
   // Check if role is 'store_owner' OR 'admin' (admins can view merchant panels for support)
   if (profile?.role !== 'store_owner' && profile?.role !== 'admin') {
     return (
@@ -167,11 +169,16 @@ const MerchantRoute = ({ children, session, profile }: { children: React.ReactNo
         </div>
         <h2 className="text-2xl font-black italic text-slate-900 dark:text-white">Acesso Restrito</h2>
         <p className="text-slate-500 dark:text-slate-400 text-sm mt-2 max-w-xs font-medium">
-          Esta área é exclusiva para parceiros lojistas. Se você possui uma farmácia, aguarde a aprovação do seu cadastro.
+          Esta área é exclusiva para parceiros lojistas.
         </p>
-        <Link to="/" className="mt-8 px-6 py-3 bg-primary text-background-dark rounded-xl font-black uppercase tracking-widest text-xs hover:scale-105 transition-transform">
-          Voltar para a Loja
-        </Link>
+        <div className="mt-8 flex gap-4">
+          <Link to="/merchant/login" className="px-6 py-3 bg-slate-200 dark:bg-white/10 text-slate-700 dark:text-white rounded-xl font-black uppercase tracking-widest text-xs hover:scale-105 transition-transform">
+            Trocar Conta
+          </Link>
+          <Link to="/" className="px-6 py-3 bg-primary text-background-dark rounded-xl font-black uppercase tracking-widest text-xs hover:scale-105 transition-transform">
+            Voltar para Loja
+          </Link>
+        </div>
       </div>
     );
   }
@@ -194,7 +201,7 @@ const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: numbe
 
 const TopAppBar = ({ onSearch, userLocation }: { onSearch: (query: string) => void, userLocation: { lat: number, lng: number } | null }) => {
   const [query, setQuery] = useState('');
-  const [address, setAddress] = useState('Localização Atual');
+  const [address, setAddress] = useState('LocalizaÃ§Ã£o Atual');
 
   useEffect(() => {
     const fetchAddress = async () => {
@@ -213,14 +220,14 @@ const TopAppBar = ({ onSearch, userLocation }: { onSearch: (query: string) => vo
           );
           const data = await response.json();
           if (data.results && data.results[0]) {
-            // Pegar o endereço formatado mais curto ou relevante
+            // Pegar o endereÃ§o formatado mais curto ou relevante
             const fullAddress = data.results[0].formatted_address;
             const shortAddress = fullAddress.split(',').slice(0, 2).join(',');
             setAddress(shortAddress);
           }
         }
       } catch (error) {
-        console.error("Erro na geocodificação reversa:", error);
+        console.error("Erro na geocodificaÃ§Ã£o reversa:", error);
       }
     };
     fetchAddress();
@@ -242,7 +249,7 @@ const TopAppBar = ({ onSearch, userLocation }: { onSearch: (query: string) => vo
           <div className="flex flex-col">
             <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400">Entregar em</span>
             <h2 className="text-[#0d161b] dark:text-white text-sm font-bold leading-tight flex items-center gap-1">
-              {address || 'Localização Atual'}
+              {address || 'LocalizaÃ§Ã£o Atual'}
               <MaterialIcon name="keyboard_arrow_down" className="text-sm" />
             </h2>
           </div>
@@ -267,7 +274,7 @@ const TopAppBar = ({ onSearch, userLocation }: { onSearch: (query: string) => vo
               value={query}
               onChange={handleInputChange}
               className="form-input flex w-full min-w-0 flex-1 resize-none overflow-hidden rounded-r-xl text-[#0d161b] dark:text-white focus:outline-0 focus:ring-0 border-none bg-slate-100 dark:bg-slate-800 focus:border-none h-full placeholder:text-[#4c799a] px-4 pl-2 text-base font-normal leading-normal"
-              placeholder="Buscar remédios ou farmácias"
+              placeholder="Buscar remÃ©dios ou farmÃ¡cias"
             />
           </div>
         </label>
@@ -284,7 +291,7 @@ const PromoCarousel = () => (
           style={{ background: 'linear-gradient(135deg, #1392ec 0%, #0056b3 100%)' }}>
           <div className="p-4 flex flex-col justify-center h-full text-white">
             <p className="text-xs font-bold uppercase tracking-widest opacity-80">Ofertas da Semana</p>
-            <p className="text-xl font-bold leading-tight">Itens selecionados com até 50% OFF</p>
+            <p className="text-xl font-bold leading-tight">Itens selecionados com atÃ© 50% OFF</p>
           </div>
         </div>
       </div>
@@ -292,7 +299,7 @@ const PromoCarousel = () => (
         <div className="w-full bg-center bg-no-repeat aspect-[21/9] bg-cover rounded-xl flex flex-col relative overflow-hidden"
           style={{ background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)' }}>
           <div className="p-4 flex flex-col justify-center h-full text-white">
-            <p className="text-xs font-bold uppercase tracking-widest opacity-80">Saúde em Dia</p>
+            <p className="text-xs font-bold uppercase tracking-widest opacity-80">SaÃºde em Dia</p>
             <p className="text-xl font-bold leading-tight">Suplementos 20% OFF. Aproveite agora!</p>
           </div>
         </div>
@@ -328,11 +335,11 @@ const CategoryGrid = () => (
 const FeaturedPharmacies = ({ pharmacies }: { pharmacies: any[] }) => (
   <>
     <div className="px-4 pt-6 pb-2">
-      <h3 className="text-[#0d161b] dark:text-white text-lg font-bold leading-tight tracking-[-0.015em]">Farmácias em Destaque</h3>
+      <h3 className="text-[#0d161b] dark:text-white text-lg font-bold leading-tight tracking-[-0.015em]">FarmÃ¡cias em Destaque</h3>
     </div>
     <div className="flex overflow-x-auto hide-scrollbar">
       <div className="flex items-stretch p-4 gap-4">
-        {pharmacies.filter(p => p.rating >= 4.5).map(pharma => (
+        {pharmacies.filter(p => p.is_featured).map(pharma => (
           <Link to="/pharmacy/1" key={pharma.id} className="min-w-[160px] flex flex-col gap-2">
             <div className="w-full aspect-square rounded-2xl bg-slate-100 flex items-center justify-center p-4 border border-slate-100 dark:border-slate-800 dark:bg-slate-900 overflow-hidden relative shadow-sm">
               {pharma.logo_url ? (
@@ -345,11 +352,14 @@ const FeaturedPharmacies = ({ pharmacies }: { pharmacies: any[] }) => (
               {pharma.is_open && (
                 <div className="absolute bottom-2 right-2 bg-success text-white text-[10px] px-2 py-0.5 rounded-full font-bold">ABERTO</div>
               )}
+              {pharma.isNew && (
+                <div className="absolute top-2 left-2 bg-blue-500 text-white text-[9px] px-2 py-0.5 rounded-full font-black uppercase tracking-widest shadow-sm">NOVO</div>
+              )}
             </div>
             <div>
               <p className="text-[#0d161b] dark:text-white text-sm font-bold truncate">{pharma.name}</p>
               <p className="text-slate-500 text-xs flex items-center gap-1">
-                <MaterialIcon name="star" className="text-xs text-yellow-500" fill /> {pharma.rating || '0.0'} • 15-25 min
+                <MaterialIcon name="star" className="text-xs text-yellow-500" fill /> {pharma.rating || '0.0'} â€¢ 15-25 min
               </p>
             </div>
           </Link>
@@ -362,7 +372,7 @@ const FeaturedPharmacies = ({ pharmacies }: { pharmacies: any[] }) => (
 const NearbyPharmacies = ({ pharmacies }: { pharmacies: any[] }) => (
   <>
     <div className="px-4 pt-6 pb-2 flex justify-between items-center">
-      <h3 className="text-[#0d161b] dark:text-white text-lg font-bold leading-tight tracking-[-0.015em]">Farmácias Próximas</h3>
+      <h3 className="text-[#0d161b] dark:text-white text-lg font-bold leading-tight tracking-[-0.015em]">FarmÃ¡cias PrÃ³ximas</h3>
       <Link to="/pharmacies" className="text-primary text-sm font-bold">Ver tudo</Link>
     </div>
     <div className="px-4 flex flex-col gap-4 pb-20">
@@ -377,14 +387,17 @@ const NearbyPharmacies = ({ pharmacies }: { pharmacies: any[] }) => (
           </div>
           <div className="flex-1 flex flex-col gap-1">
             <div className="flex justify-between items-start">
-              <h4 className="text-base font-bold text-[#0d161b] dark:text-white">{pharma.name}</h4>
+              <h4 className="text-base font-bold text-[#0d161b] dark:text-white flex items-center gap-2">
+                {pharma.name}
+                {pharma.isNew && <span className="text-[8px] bg-blue-500 text-white px-1.5 py-0.5 rounded-md font-black uppercase tracking-widest">NOVO</span>}
+              </h4>
               <div className="flex items-center gap-1 text-xs font-bold bg-yellow-50 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 px-1.5 py-0.5 rounded">
                 <MaterialIcon name="star" className="text-[14px]" fill /> {pharma.rating || '0.0'}
               </div>
             </div>
             <div className="flex items-center gap-3 text-xs text-slate-500 dark:text-slate-400">
               <span className="flex items-center gap-1"><MaterialIcon name="schedule" className="text-[14px]" /> 20-30 min</span>
-              <span>•</span>
+              <span>â€¢</span>
               <span className="flex items-center gap-1">
                 <MaterialIcon name="location_on" className="text-[14px]" />
                 {pharma.distance === Infinity ? 'N/A' : `${pharma.distance.toFixed(1)} km`}
@@ -406,41 +419,41 @@ const PharmacyList = ({ pharmacies }: { pharmacies: any[] }) => {
             <MaterialIcon name="location_on" className="text-[#0d1b13] dark:text-white" />
             <div className="flex flex-col">
               <span className="text-[10px] uppercase tracking-wider text-gray-500 font-bold">Entregar em</span>
-              <span className="text-sm font-semibold text-[#0d1b13] dark:text-white">Localização Atual</span>
+              <span className="text-sm font-semibold text-[#0d1b13] dark:text-white">LocalizaÃ§Ã£o Atual</span>
             </div>
           </div>
           <div className="flex size-10 items-center justify-center rounded-full bg-white dark:bg-zinc-800 shadow-sm">
             <MaterialIcon name="person" className="text-[#0d1b13] dark:text-white" />
           </div>
         </div>
-        <h1 className="text-2xl font-bold tracking-tight text-[#0d1b13] dark:text-white mb-4">Farmácias</h1>
+        <h1 className="text-2xl font-bold tracking-tight text-[#0d1b13] dark:text-white mb-4">FarmÃ¡cias</h1>
         <div className="pb-2">
           <label className="flex flex-col min-w-40 h-12 w-full">
             <div className="flex w-full flex-1 items-stretch rounded-xl h-full shadow-sm">
               <div className="text-[#4c9a6c] flex border-none bg-white dark:bg-zinc-800 items-center justify-center pl-4 rounded-l-xl">
                 <MaterialIcon name="search" />
               </div>
-              <input className="form-input flex w-full min-w-0 flex-1 resize-none overflow-hidden rounded-r-xl text-[#0d1b13] dark:text-white focus:outline-0 focus:ring-0 border-none bg-white dark:bg-zinc-800 placeholder:text-gray-400 px-4 pl-2 text-base font-normal leading-normal" placeholder="Buscar farmácia ou medicamento" />
+              <input className="form-input flex w-full min-w-0 flex-1 resize-none overflow-hidden rounded-r-xl text-[#0d1b13] dark:text-white focus:outline-0 focus:ring-0 border-none bg-white dark:bg-zinc-800 placeholder:text-gray-400 px-4 pl-2 text-base font-normal leading-normal" placeholder="Buscar farmÃ¡cia ou medicamento" />
             </div>
           </label>
         </div>
         <div className="flex gap-2 py-2 overflow-x-auto hide-scrollbar">
           <button className="flex h-9 shrink-0 items-center justify-center gap-x-2 rounded-full bg-primary text-[#0d1b13] px-4 shadow-sm">
-            <p className="text-sm font-semibold">Distância</p>
+            <p className="text-sm font-semibold">DistÃ¢ncia</p>
             <MaterialIcon name="keyboard_arrow_down" className="text-[18px]" />
           </button>
           <button className="flex h-9 shrink-0 items-center justify-center gap-x-2 rounded-full bg-white dark:bg-zinc-800 text-[#0d1b13] dark:text-white px-4 border border-gray-100 dark:border-zinc-700 shadow-sm font-medium text-sm">
-            Avaliação <MaterialIcon name="star" className="text-[18px]" />
+            AvaliaÃ§Ã£o <MaterialIcon name="star" className="text-[18px]" />
           </button>
           <button className="flex h-9 shrink-0 items-center justify-center gap-x-2 rounded-full bg-white dark:bg-zinc-800 text-[#0d1b13] dark:text-white px-4 border border-gray-100 dark:border-zinc-700 shadow-sm font-medium text-sm">
-            Entrega Grátis
+            Entrega GrÃ¡tis
           </button>
         </div>
       </header>
 
       <main className="flex-1 px-4 py-2 space-y-4">
         {pharmacies.length === 0 ? (
-          <div className="text-center py-20 opacity-50 font-bold italic">Nenhuma farmácia encontrada</div>
+          <div className="text-center py-20 opacity-50 font-bold italic">Nenhuma farmÃ¡cia encontrada</div>
         ) : (
           pharmacies.map((pharma, i) => (
             <div key={i} className="group flex items-stretch justify-between gap-4 rounded-xl bg-white dark:bg-zinc-900 p-4 shadow-sm border border-gray-50 dark:border-zinc-800">
@@ -449,17 +462,20 @@ const PharmacyList = ({ pharmacies }: { pharmacies: any[] }) => {
                   <div className="flex items-center gap-1">
                     <MaterialIcon name="star" className="text-orange-400 text-[16px]" fill />
                     <p className="text-[#0d1b13] dark:text-white text-sm font-bold">{pharma.rating || '0.0'}</p>
-                    <span className="text-gray-400 text-xs font-normal">• 100+ avaliações</span>
+                    <span className="text-gray-400 text-xs font-normal">â€¢ 100+ avaliaÃ§Ãµes</span>
                   </div>
-                  <p className="text-[#0d1b13] dark:text-white text-lg font-bold leading-tight">{pharma.name}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-[#0d1b13] dark:text-white text-lg font-bold leading-tight">{pharma.name}</p>
+                    {pharma.isNew && <span className="text-[8px] bg-blue-500 text-white px-1.5 py-0.5 rounded-md font-black uppercase tracking-widest">NOVO</span>}
+                  </div>
                   <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400 text-sm font-medium">
                     <MaterialIcon name="schedule" className="text-[16px]" />
                     <span>20-40 min</span>
-                    <span>•</span>
-                    <span>{pharma.distance === Infinity ? 'Distância N/A' : `${pharma.distance.toFixed(1)} km`}</span>
+                    <span>â€¢</span>
+                    <span>{pharma.distance === Infinity ? 'DistÃ¢ncia N/A' : `${pharma.distance.toFixed(1)} km`}</span>
                   </div>
                   <div className="mt-1 flex gap-2">
-                    <span className="inline-flex items-center rounded-md bg-primary/10 px-2 py-0.5 text-xs font-semibold text-green-700 dark:text-primary">Entrega Grátis</span>
+                    <span className="inline-flex items-center rounded-md bg-primary/10 px-2 py-0.5 text-xs font-semibold text-green-700 dark:text-primary">Entrega GrÃ¡tis</span>
                   </div>
                 </div>
                 <Link to="/pharmacy/1" className="flex min-w-[120px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-9 px-4 bg-primary text-[#0d1b13] text-sm font-bold leading-normal w-fit transition-transform active:scale-95">
@@ -489,7 +505,7 @@ const BottomNav = () => {
       <div className="flex justify-around items-center">
         <Link to="/" className={`flex flex-col items-center gap-1 ${location.pathname === '/' ? 'text-primary' : 'text-slate-400'}`}>
           <MaterialIcon name="home" fill={location.pathname === '/'} />
-          <span className="text-[10px] font-bold">Início</span>
+          <span className="text-[10px] font-bold">InÃ­cio</span>
         </Link>
         <Link to="/pharmacies" className={`flex flex-col items-center gap-1 ${location.pathname === '/pharmacies' ? 'text-primary' : 'text-slate-400'}`}>
           <MaterialIcon name="search" fill={location.pathname === '/pharmacies'} />
@@ -598,7 +614,7 @@ const ClientHome = ({ userLocation, sortedPharmacies, session }: { userLocation:
               <div className="flex flex-col items-center justify-center py-20 text-slate-400">
                 <MaterialIcon name="search_off" className="text-6xl mb-4 opacity-20" />
                 <p className="font-bold italic">Nenhum produto encontrado</p>
-                <p className="text-xs opacity-60">Tente buscar por termos mais genéricos</p>
+                <p className="text-xs opacity-60">Tente buscar por termos mais genÃ©ricos</p>
               </div>
             ) : (
               <div className="grid grid-cols-1 gap-4">
@@ -628,7 +644,7 @@ const ClientHome = ({ userLocation, sortedPharmacies, session }: { userLocation:
                           <div className="flex flex-col">
                             <span className="text-xs font-black italic text-slate-700 dark:text-slate-200">{item.pharmacy.name}</span>
                             <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">
-                              {item.distance === Infinity ? 'Distância N/A' : `${item.distance.toFixed(1)} km`}
+                              {item.distance === Infinity ? 'DistÃ¢ncia N/A' : `${item.distance.toFixed(1)} km`}
                             </span>
                           </div>
                         </div>
@@ -820,16 +836,16 @@ const ProductPage = ({ session }: { session: any }) => {
       <div className="px-6 -mt-6 relative z-10">
         <div className="flex flex-col gap-2">
           <span className="text-[10px] font-black bg-red-500 text-white px-3 py-1 rounded-full self-start flex items-center gap-1">
-            <MaterialIcon name="description" className="text-[12px]" /> EXIGE RECEITA MÉDICA
+            <MaterialIcon name="description" className="text-[12px]" /> EXIGE RECEITA MÃ‰DICA
           </span>
           <h1 className="text-3xl font-black text-slate-800 dark:text-white mt-2">Amoxicilina 500mg</h1>
-          <p className="text-slate-400 font-medium">Antibiótico • 21 comprimidos • EMS</p>
+          <p className="text-slate-400 font-medium">AntibiÃ³tico â€¢ 21 comprimidos â€¢ EMS</p>
         </div>
 
         <div className="mt-8">
-          <h3 className="text-sm font-black text-slate-800 dark:text-white uppercase tracking-wider">Descrição</h3>
+          <h3 className="text-sm font-black text-slate-800 dark:text-white uppercase tracking-wider">DescriÃ§Ã£o</h3>
           <p className="text-slate-500 dark:text-slate-400 mt-2 text-sm leading-relaxed">
-            A amoxicilina é um antibiótico eficaz contra uma grande variedade de bactérias, indicada para o tratamento de infecções bacterianas causadas por germes sensíveis à amoxicilina.
+            A amoxicilina Ã© um antibiÃ³tico eficaz contra uma grande variedade de bactÃ©rias, indicada para o tratamento de infecÃ§Ãµes bacterianas causadas por germes sensÃ­veis Ã  amoxicilina.
           </p>
         </div>
 
@@ -842,21 +858,21 @@ const ProductPage = ({ session }: { session: any }) => {
             <button className="size-10 rounded-xl bg-white dark:bg-slate-700 shadow-sm flex items-center justify-center font-bold">-</button>
             <span className="font-black text-lg">1</span>
             <button className="size-10 rounded-xl bg-white dark:bg-slate-700 shadow-sm flex items-center justify-center font-bold text-primary">+</button>
-            <p className="text-primary font-bold text-base leading-tight">Este medicamento exige receita médica</p>
-            <p className="text-primary/80 dark:text-primary/60 text-sm font-medium">A venda será finalizada apenas após a validação da sua receita.</p>
+            <p className="text-primary font-bold text-base leading-tight">Este medicamento exige receita mÃ©dica</p>
+            <p className="text-primary/80 dark:text-primary/60 text-sm font-medium">A venda serÃ¡ finalizada apenas apÃ³s a validaÃ§Ã£o da sua receita.</p>
           </div>
         </div>
       </div>
 
       {/* Product Description */}
       <div className="px-4 py-2">
-        <h3 className="text-[#1c140d] dark:text-white text-lg font-bold pb-2 border-b border-gray-100 dark:border-white/10 mb-3 font-sans">Descrição detalhada</h3>
+        <h3 className="text-[#1c140d] dark:text-white text-lg font-bold pb-2 border-b border-gray-100 dark:border-white/10 mb-3 font-sans">DescriÃ§Ã£o detalhada</h3>
         <p className="text-gray-600 dark:text-gray-300 text-base leading-relaxed font-medium">
-          Este medicamento é indicado para o tratamento de infecções bacterianas causadas por germes sensíveis aos componentes da fórmula. Atua como um agente antibiótico de amplo espectro.
+          Este medicamento Ã© indicado para o tratamento de infecÃ§Ãµes bacterianas causadas por germes sensÃ­veis aos componentes da fÃ³rmula. Atua como um agente antibiÃ³tico de amplo espectro.
         </p>
         <div className="mt-6 flex flex-col gap-4">
           <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-white/5 rounded-xl border border-gray-100 dark:border-white/5">
-            <span className="font-bold text-sm">Composição</span>
+            <span className="font-bold text-sm">ComposiÃ§Ã£o</span>
             <MaterialIcon name="add" className="text-gray-400" />
           </div>
           <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-white/5 rounded-xl border border-gray-100 dark:border-white/5">
@@ -898,7 +914,7 @@ const PrescriptionUpload = () => {
             <MaterialIcon name="arrow_back_ios" className="text-xl" />
           </button>
           <h1 className="text-background-dark dark:text-white text-lg font-bold leading-tight tracking-tight flex-1 text-center pr-10">
-            Enviar Receita Médica
+            Enviar Receita MÃ©dica
           </h1>
         </div>
       </header>
@@ -928,9 +944,9 @@ const PrescriptionUpload = () => {
         <div className="flex flex-col gap-2">
           <label className="flex flex-col w-full">
             <p className="text-background-dark dark:text-white text-sm font-bold leading-normal pb-2 px-1 uppercase tracking-wider opacity-60">
-              Observações adicionais
+              ObservaÃ§Ãµes adicionais
             </p>
-            <textarea className="form-input flex w-full resize-none overflow-hidden rounded-2xl text-background-dark dark:text-white focus:outline-0 focus:ring-2 focus:ring-primary/30 border border-black/10 dark:border-white/10 bg-white dark:bg-white/5 focus:border-primary min-h-[140px] placeholder:text-background-dark/30 dark:placeholder:text-white/30 p-4 text-base font-medium leading-normal transition-all" placeholder="Ex: Necessito de genérico, entrega urgente, etc."></textarea>
+            <textarea className="form-input flex w-full resize-none overflow-hidden rounded-2xl text-background-dark dark:text-white focus:outline-0 focus:ring-2 focus:ring-primary/30 border border-black/10 dark:border-white/10 bg-white dark:bg-white/5 focus:border-primary min-h-[140px] placeholder:text-background-dark/30 dark:placeholder:text-white/30 p-4 text-base font-medium leading-normal transition-all" placeholder="Ex: Necessito de genÃ©rico, entrega urgente, etc."></textarea>
           </label>
         </div>
 
@@ -940,7 +956,7 @@ const PrescriptionUpload = () => {
             <MaterialIcon name="verified_user" />
           </div>
           <p className="text-background-dark/70 dark:text-white/70 text-[13px] leading-snug font-medium">
-            Seus dados estão protegidos. Suas informações médicas são tratadas com total sigilo e segurança conforme a LGPD.
+            Seus dados estÃ£o protegidos. Suas informaÃ§Ãµes mÃ©dicas sÃ£o tratadas com total sigilo e seguranÃ§a conforme a LGPD.
           </p>
         </div>
       </main>
@@ -961,6 +977,84 @@ const PrescriptionUpload = () => {
 
 const Cart = () => {
   const navigate = useNavigate();
+  const [loading, setLoading] = useState(false);
+  const [cartItems, setCartItems] = useState<any[]>([]);
+  const [total, setTotal] = useState(0);
+
+  // Mock: Load a sample product if cart is empty to facilitate testing
+  useEffect(() => {
+    const fetchSample = async () => {
+      const { data: products } = await supabase.from('products').select('*').limit(2);
+      if (products && products.length > 0) {
+        const items = products.map(p => ({
+          ...p,
+          qty: 1,
+          price: Number(Math.random() * 50 + 10).toFixed(2), // Mock price if not in DB specific to pharmacy
+          pharmacy_id: 'd290f1ee-6c54-4b01-90e6-d701748f0851' // Hardcoded for test: Farmácia Central (update with real ID if needed)
+        }));
+        setCartItems(items);
+        const t = items.reduce((acc, item) => acc + (Number(item.price) * item.qty), 0);
+        setTotal(t);
+      }
+    };
+    fetchSample();
+  }, []);
+
+  const handleCheckout = async () => {
+    setLoading(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        alert('Faça login para continuar');
+        navigate('/login');
+        return;
+      }
+
+      // 1. Create Order
+      // Using the pharmacy_id from the first item (assuming single pharmacy cart for now)
+      const pharmacyId = cartItems[0]?.pharmacy_id;
+
+      // Fetch a real pharmacy ID if the mock one is invalid (optional validation)
+      const { data: pharmacy } = await supabase.from('pharmacies').select('id').limit(1).single();
+      const targetPharmacyId = pharmacy?.id || pharmacyId;
+
+      const { data: order, error: orderError } = await supabase
+        .from('orders')
+        .insert({
+          pharmacy_id: targetPharmacyId,
+          total_price: total,
+          status: 'pendente',
+          created_at: new Date().toISOString()
+        })
+        .select()
+        .single();
+
+      if (orderError) throw orderError;
+
+      // 2. Create Order Items
+      const orderItems = cartItems.map(item => ({
+        order_id: order.id,
+        product_id: item.id,
+        quantity: item.qty,
+        price: item.price
+      }));
+
+      const { error: itemsError } = await supabase
+        .from('order_items')
+        .insert(orderItems);
+
+      if (itemsError) throw itemsError;
+
+      navigate(`/order-tracking/${order.id}`);
+
+    } catch (error: any) {
+      console.error('Erro ao finalizar pedido:', error);
+      alert('Erro ao processar pedido: ' + error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="relative flex min-h-screen w-full flex-col max-w-[480px] mx-auto overflow-x-hidden pb-32 bg-background-light dark:bg-background-dark font-display text-[#0d1b13] dark:text-white antialiased">
       {/* TopAppBar */}
@@ -968,17 +1062,13 @@ const Cart = () => {
         <button onClick={() => navigate(-1)} className="text-[#0d1b13] dark:text-white flex size-12 shrink-0 items-center justify-start cursor-pointer transition-colors hover:opacity-70">
           <MaterialIcon name="arrow_back_ios" />
         </button>
-        <h2 className="text-[#0d1b13] dark:text-white text-lg font-bold leading-tight tracking-[-0.015em] flex-1 text-center pr-12">Shopping Cart</h2>
+        <h2 className="text-[#0d1b13] dark:text-white text-lg font-bold leading-tight tracking-[-0.015em] flex-1 text-center pr-12">Meu Carrinho</h2>
       </header>
 
       <main className="flex-1 flex flex-col gap-2 p-2">
         {/* Cart Items List */}
         <div className="flex flex-col gap-1 mt-2">
-          {[
-            { name: 'Paracetamol 500mg', detail: '10 tablets', price: '$4.50', qty: 2 },
-            { name: 'Vitamin C Serum', detail: '30ml bottle', price: '$12.00', qty: 1 },
-            { name: 'Digital Thermometer', detail: '1 unit', price: '$15.00', qty: 1 }
-          ].map((item, i) => (
+          {cartItems.map((item, i) => (
             <div key={i} className="flex items-center gap-4 bg-white dark:bg-background-dark/40 rounded-xl px-4 min-h-[88px] py-3 justify-between shadow-sm">
               <div className="flex items-center gap-4">
                 <div className="size-16 bg-slate-50 dark:bg-zinc-800 rounded-lg flex items-center justify-center border border-gray-100 dark:border-gray-700 bg-center bg-no-repeat bg-cover">
@@ -986,19 +1076,13 @@ const Cart = () => {
                 </div>
                 <div className="flex flex-col justify-center">
                   <p className="text-[#0d1b13] dark:text-white text-base font-semibold leading-tight line-clamp-1">{item.name}</p>
-                  <p className="text-[#4c9a6c] text-sm font-medium mt-1">{item.detail}</p>
-                  <p className="text-[#0d1b13] dark:text-gray-300 text-sm font-bold mt-1">{item.price}</p>
+                  <p className="text-[#4c9a6c] text-sm font-medium mt-1">{item.description?.substring(0, 20)}...</p>
+                  <p className="text-[#0d1b13] dark:text-gray-300 text-sm font-bold mt-1">R$ {item.price}</p>
                 </div>
               </div>
               <div className="shrink-0">
                 <div className="flex items-center gap-3 text-[#0d1b13] dark:text-white bg-background-light dark:bg-gray-800 rounded-full px-2 py-1">
-                  <button className="flex h-8 w-8 items-center justify-center rounded-full bg-white dark:bg-gray-700 shadow-sm active:scale-90 transition-transform cursor-pointer">
-                    <MaterialIcon name="remove" className="text-sm font-bold" />
-                  </button>
-                  <input className="text-base font-bold w-6 p-0 text-center bg-transparent focus:outline-0 focus:ring-0 border-none" type="number" defaultValue={item.qty} />
-                  <button className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-white shadow-sm active:scale-90 transition-transform cursor-pointer">
-                    <MaterialIcon name="add" className="text-sm font-bold" />
-                  </button>
+                  <span className="text-base font-bold w-6 p-0 text-center">{item.qty}</span>
                 </div>
               </div>
             </div>
@@ -1009,42 +1093,99 @@ const Cart = () => {
         <div className="flex px-4 py-6 justify-center">
           <Link to="/" className="flex min-w-[140px] cursor-pointer items-center justify-center overflow-hidden rounded-full h-11 px-6 bg-primary/10 dark:bg-primary/20 text-[#0d1b13] dark:text-primary gap-2 text-sm font-bold leading-normal tracking-wide transition-colors hover:bg-primary/20">
             <MaterialIcon name="add_circle" className="text-xl" />
-            <span className="truncate">Add more items</span>
+            <span className="truncate">Adicionar mais itens</span>
           </Link>
         </div>
 
         {/* Order Summary */}
         <div className="mt-4 mx-2 p-5 bg-white dark:bg-background-dark/40 rounded-2xl border border-gray-100 dark:border-gray-800">
-          <h3 className="text-sm font-bold uppercase tracking-wider text-gray-400 mb-4 px-1">Order Summary</h3>
+          <h3 className="text-sm font-bold uppercase tracking-wider text-gray-400 mb-4 px-1">Resumo do Pedido</h3>
           <div className="flex justify-between gap-x-6 py-2 px-1">
             <p className="text-gray-500 dark:text-gray-400 text-base font-medium leading-normal">Subtotal</p>
-            <p className="text-[#0d1b13] dark:text-white text-base font-semibold leading-normal text-right">$36.00</p>
+            <p className="text-[#0d1b13] dark:text-white text-base font-semibold leading-normal text-right">R$ {total.toFixed(2)}</p>
           </div>
           <div className="flex justify-between gap-x-6 py-2 px-1">
-            <p className="text-gray-500 dark:text-gray-400 text-base font-medium leading-normal">Delivery Fee</p>
-            <p className="text-primary text-base font-semibold leading-normal text-right">FREE</p>
+            <p className="text-gray-500 dark:text-gray-400 text-base font-medium leading-normal">Taxa de Entrega</p>
+            <p className="text-primary text-base font-semibold leading-normal text-right">GRÁTIS</p>
           </div>
           <div className="h-px bg-gray-100 dark:bg-gray-800 my-3"></div>
           <div className="flex justify-between gap-x-6 py-2 px-1">
-            <p className="text-[#0d1b13] dark:text-white text-lg font-bold leading-normal">Total Amount</p>
-            <p className="text-[#0d1b13] dark:text-white text-xl font-bold leading-normal text-right">$36.00</p>
+            <p className="text-[#0d1b13] dark:text-white text-lg font-bold leading-normal">Total</p>
+            <p className="text-[#0d1b13] dark:text-white text-xl font-bold leading-normal text-right">R$ {total.toFixed(2)}</p>
           </div>
         </div>
       </main>
 
       {/* Sticky Bottom CTA */}
       <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[480px] p-4 bg-background-light/95 dark:bg-background-dark/95 backdrop-blur-md border-t border-gray-100 dark:border-gray-800 pb-8 z-50 shadow-sm">
-        <Link to="/order-tracking" className="flex w-full cursor-pointer items-center justify-center overflow-hidden rounded-full h-14 px-4 bg-primary text-white gap-3 text-base font-bold leading-normal tracking-wide shadow-lg shadow-primary/20 active:scale-[0.98] transition-all">
-          <span className="truncate">Proceed to Payment</span>
-          <MaterialIcon name="arrow_forward" />
-        </Link>
+        <button
+          onClick={handleCheckout}
+          disabled={loading}
+          className="flex w-full cursor-pointer items-center justify-center overflow-hidden rounded-full h-14 px-4 bg-primary text-white gap-3 text-base font-bold leading-normal tracking-wide shadow-lg shadow-primary/20 active:scale-[0.98] transition-all disabled:opacity-50"
+        >
+          <span className="truncate">{loading ? 'Processando...' : 'Confirmar Pedido'}</span>
+          {!loading && <MaterialIcon name="arrow_forward" />}
+        </button>
       </div>
     </div>
   );
 };
 
+// Add useParams to import
+import { useParams } from 'react-router-dom';
+
 const OrderTracking = () => {
   const navigate = useNavigate();
+  const { orderId } = useParams();
+  const [order, setOrder] = useState<any>(null);
+  const [items, setItems] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (!orderId) return;
+
+    const fetchOrder = async () => {
+      const { data: orderData } = await supabase
+        .from('orders')
+        .select('*')
+        .eq('id', orderId)
+        .single();
+
+      if (orderData) {
+        setOrder(orderData);
+
+        const { data: itemsData } = await supabase
+          .from('order_items')
+          .select('*, products(*)')
+          .eq('order_id', orderId);
+
+        if (itemsData) setItems(itemsData);
+      }
+    };
+
+    fetchOrder();
+
+    // Realtime subscription
+    const subscription = supabase
+      .channel(`order_tracking_${orderId}`)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders', filter: `id=eq.${orderId}` }, (payload) => {
+        setOrder(payload.new);
+      })
+      .subscribe();
+
+    return () => { subscription.unsubscribe(); };
+  }, [orderId]);
+
+  if (!order) return <div className="p-8 text-center text-white">Carregando pedido...</div>;
+
+  const steps = [
+    { status: 'pendente', label: 'Pedido Recebido', sub: `Confirmado às ${new Date(order.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`, icon: 'check' },
+    { status: 'preparando', label: 'Preparando seu pedido', sub: 'Em andamento', icon: 'pill' },
+    { status: 'em_rota', label: 'Em rota de entrega', sub: 'Aguardando saída', icon: 'local_shipping' },
+    { status: 'entregue', label: 'Entregue', sub: 'Pedido finalizado', icon: 'home' }
+  ];
+
+  const currentStepIndex = steps.findIndex(s => s.status === order.status);
+
   return (
     <div className="relative mx-auto flex h-auto min-h-screen max-w-[480px] flex-col overflow-x-hidden shadow-2xl bg-white dark:bg-background-dark pb-10">
       {/* TopAppBar */}
@@ -1078,57 +1219,33 @@ const OrderTracking = () => {
       {/* SectionHeader */}
       <div className="flex items-center justify-between px-6 pt-4 pb-2">
         <h3 className="text-[#0d1b13] dark:text-white text-xl font-black leading-tight tracking-[-0.015em]">Status do Pedido</h3>
-        <span className="text-[10px] font-black text-primary bg-primary/10 px-3 py-1.5 rounded-full uppercase tracking-widest shadow-sm ring-1 ring-primary/5">#48291</span>
+        <span className="text-[10px] font-black text-primary bg-primary/10 px-3 py-1.5 rounded-full uppercase tracking-widest shadow-sm ring-1 ring-primary/5">#{orderId?.substring(0, 8)}</span>
       </div>
 
       {/* Timeline */}
       <div className="grid grid-cols-[48px_1fr] gap-x-2 px-8 py-4">
-        {/* Step 1: Pedido Recebido (Done) */}
-        <div className="flex flex-col items-center gap-1">
-          <div className="bg-primary text-slate-900 rounded-full p-1.5 shadow-lg shadow-primary/20">
-            <MaterialIcon name="check" className="text-[18px]" />
-          </div>
-          <div className="w-[3px] bg-primary h-12 opacity-50"></div>
-        </div>
-        <div className="flex flex-1 flex-col pb-8">
-          <p className="text-[#0d1b13] dark:text-white text-base font-black leading-normal italic">Pedido Recebido</p>
-          <p className="text-gray-400 text-[10px] font-black uppercase tracking-widest mt-1">Confirmado às 10:30</p>
-        </div>
+        {steps.map((step, index) => {
+          const isActive = index === currentStepIndex;
+          const isCompleted = index < currentStepIndex;
+          const isPending = index > currentStepIndex;
 
-        {/* Step 2: Preparando (Active) */}
-        <div className="flex flex-col items-center gap-1">
-          <div className="bg-primary ring-8 ring-primary/10 text-slate-900 rounded-full p-2 shadow-xl scale-110">
-            <MaterialIcon name="pill" className="text-[20px]" fill />
-          </div>
-          <div className="w-[3px] bg-gray-100 dark:bg-zinc-800 h-12"></div>
-        </div>
-        <div className="flex flex-1 flex-col pb-8">
-          <p className="text-[#0d1b13] dark:text-white text-base font-black leading-normal italic">Preparando seu pedido</p>
-          <p className="text-primary text-[10px] font-black uppercase tracking-[0.2em] mt-1 pulse">Em andamento</p>
-        </div>
-
-        {/* Step 3: Em rota (Pending) */}
-        <div className="flex flex-col items-center gap-1">
-          <div className="bg-gray-100 dark:bg-zinc-800 text-gray-300 rounded-full p-1.5 grayscale opacity-50">
-            <MaterialIcon name="local_shipping" className="text-[20px]" />
-          </div>
-          <div className="w-[3px] bg-gray-100 dark:bg-zinc-800 h-10"></div>
-        </div>
-        <div className="flex flex-1 flex-col pb-8">
-          <p className="text-gray-400 dark:text-gray-600 text-base font-black leading-normal italic opacity-60">Em rota de entrega</p>
-          <p className="text-gray-400 dark:text-gray-600 text-[10px] font-black uppercase tracking-widest mt-1 opacity-50">Aguardando saída</p>
-        </div>
-
-        {/* Step 4: Entregue (Pending) */}
-        <div className="flex flex-col items-center gap-1">
-          <div className="bg-gray-100 dark:bg-zinc-800 text-gray-300 rounded-full p-1.5 grayscale opacity-50">
-            <MaterialIcon name="home" className="text-[20px]" />
-          </div>
-        </div>
-        <div className="flex flex-1 flex-col">
-          <p className="text-gray-400 dark:text-gray-600 text-base font-black leading-normal italic opacity-60">Entregue</p>
-          <p className="text-gray-400 dark:text-gray-600 text-[10px] font-black uppercase tracking-widest mt-1 opacity-50">Pendente</p>
-        </div>
+          return (
+            <React.Fragment key={index}>
+              <div className="flex flex-col items-center gap-1">
+                <div className={`rounded-full p-2 shadow-sm z-10 ${isActive ? 'bg-primary ring-8 ring-primary/10 scale-110 text-slate-900' : isCompleted ? 'bg-primary text-slate-900' : 'bg-gray-100 dark:bg-zinc-800 text-gray-300 grayscale opacity-50'}`}>
+                  <MaterialIcon name={step.icon} className="text-[18px]" fill={isActive} />
+                </div>
+                {index < steps.length - 1 && (
+                  <div className={`w-[3px] h-12 ${isCompleted ? 'bg-primary opacity-50' : 'bg-gray-100 dark:bg-zinc-800'}`}></div>
+                )}
+              </div>
+              <div className="flex flex-1 flex-col pb-8">
+                <p className={`text-base font-black leading-normal italic ${isPending ? 'text-gray-400 dark:text-gray-600 opacity-60' : 'text-[#0d1b13] dark:text-white'}`}>{step.label}</p>
+                <p className={`text-[10px] font-black uppercase tracking-widest mt-1 ${isActive ? 'text-primary pulse' : 'text-gray-400 opacity-80'}`}>{isActive ? step.sub : isCompleted ? 'Concluído' : 'Pendente'}</p>
+              </div>
+            </React.Fragment>
+          );
+        })}
       </div>
 
       {/* Chat Button */}
@@ -1143,10 +1260,7 @@ const OrderTracking = () => {
       <div className="px-6 pb-12 mt-4">
         <h3 className="text-[#0d1b13] dark:text-white text-lg font-black leading-tight tracking-[-0.015em] pb-6 font-sans">Itens do Pedido</h3>
         <div className="space-y-4">
-          {[
-            { name: 'Paracetamol 750mg', qty: '2 unidades', price: 'R$ 18,90', icon: 'pill' },
-            { name: 'Vitamina C Efervescente 1g', qty: '1 unidade', price: 'R$ 24,50', icon: 'vaccines' }
-          ].map((item, i) => (
+          {items.map((item, i) => (
             <div key={i} className="flex items-center gap-4 bg-gray-50 dark:bg-zinc-900/50 p-4 rounded-3xl border border-gray-100 dark:border-gray-800 group shadow-sm">
               <div className="w-14 h-14 bg-white dark:bg-zinc-800 rounded-2xl flex items-center justify-center p-2 border border-gray-100 dark:border-white/5 transition-transform group-hover:scale-110">
                 <MaterialIcon name={item.icon} className="text-primary/30 text-2xl" />
@@ -1174,707 +1288,6 @@ const OrderTracking = () => {
     </div>
   );
 };
-
-const MerchantDashboard = () => {
-  return (
-    <div className="bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 min-h-screen pb-24 font-display">
-      {/* Top Navigation Bar */}
-      <header className="sticky top-0 z-30 bg-background-light/80 dark:bg-background-dark/80 backdrop-blur-md border-b border-black/5 dark:border-white/5">
-        <div className="flex items-center p-4 pb-2 justify-between max-w-md mx-auto">
-          <div className="flex items-center gap-3">
-            <div className="size-10 rounded-[14px] bg-primary/20 flex items-center justify-center">
-              <MaterialIcon name="local_pharmacy" className="text-primary text-2xl" />
-            </div>
-            <div>
-              <h2 className="text-slate-900 dark:text-white text-lg font-black leading-tight tracking-tighter">HealthyCare Store</h2>
-              <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">Merchant Portal</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <button className="relative p-2 rounded-full hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
-              <MaterialIcon name="notifications" className="text-slate-700 dark:text-slate-300" />
-              <span className="absolute top-2.5 right-2.5 size-2 bg-red-500 border-2 border-white dark:border-background-dark rounded-full"></span>
-            </button>
-            <button className="p-2 rounded-full hover:bg-black/5 dark:hover:bg-white/5 transition-colors lg:hidden">
-              <MaterialIcon name="menu" className="text-slate-700 dark:text-slate-300" />
-            </button>
-          </div>
-        </div>
-      </header>
-
-      <main className="max-w-md mx-auto">
-        {/* Summary Stats Section */}
-        <div className="overflow-x-auto no-scrollbar flex gap-4 p-4">
-          {[
-            { label: "Today's Orders", val: "42", trend: "+15%", icon: "shopping_bag" },
-            { label: "Daily Revenue", val: "$1,240", trend: "+8.2%", icon: "payments" },
-            { label: "Active Orders", val: "12", sub: "4 pending pickup", icon: "pending_actions" }
-          ].map((stat, i) => (
-            <div key={i} className="flex min-w-[160px] flex-1 flex-col gap-2 rounded-3xl p-5 border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900/50 shadow-sm border-b-4 border-b-primary/10">
-              <div className="flex justify-between items-start">
-                <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest">{stat.label}</p>
-                <MaterialIcon name={stat.icon} className="text-primary text-xl" />
-              </div>
-              <p className="text-slate-900 dark:text-white tracking-tighter text-3xl font-black leading-tight italic">{stat.val}</p>
-              {stat.trend ? (
-                <div className="flex items-center gap-1">
-                  <MaterialIcon name="trending_up" className="text-primary text-sm" />
-                  <p className="text-primary text-xs font-black">{stat.trend}</p>
-                </div>
-              ) : (
-                <p className="text-slate-400 text-xs font-bold leading-none">{stat.sub}</p>
-              )}
-            </div>
-          ))}
-        </div>
-
-        {/* Weekly Sales Chart Section */}
-        <section className="px-4 py-2">
-          <div className="bg-white dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800 rounded-[32px] p-6 shadow-sm">
-            <div className="flex justify-between items-end mb-8">
-              <div>
-                <h2 className="text-slate-900 dark:text-white text-lg font-black leading-tight font-sans">Weekly Sales</h2>
-                <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mt-1">Revenue overview</p>
-              </div>
-              <div className="text-right">
-                <p className="text-slate-900 dark:text-white text-2xl font-black tracking-tighter">$8,650</p>
-                <p className="text-primary text-[10px] font-black leading-normal uppercase tracking-tighter">+12.5% vs last week</p>
-              </div>
-            </div>
-            <div className="grid grid-cols-7 gap-3 items-end h-40 px-2 italic">
-              {[
-                { day: 'Mon', h: '40%' },
-                { day: 'Tue', h: '60%' },
-                { day: 'Wed', h: '85%' },
-                { day: 'Thu', h: '55%' },
-                { day: 'Fri', h: '100%', active: true },
-                { day: 'Sat', h: '75%' },
-                { day: 'Sun', h: '45%' }
-              ].map((d, i) => (
-                <div key={i} className="flex flex-col items-center gap-3 group">
-                  <div className={`w-full rounded-t-xl transition-all duration-500 ${d.active ? 'bg-primary shadow-[0_-4px_20px_rgba(19,236,109,0.3)]' : 'bg-primary/10 group-hover:bg-primary/40'}`} style={{ height: d.h }}></div>
-                  <span className={`text-[10px] font-black uppercase tracking-widest ${d.active ? 'text-primary' : 'text-slate-300 dark:text-slate-700'}`}>{d.day}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        {/* Best Selling Products List */}
-        <section className="p-4 mt-2">
-          <div className="flex items-center justify-between mb-6 px-2">
-            <h2 className="text-slate-900 dark:text-white text-xl font-black tracking-tighter">Best Sellers</h2>
-            <button className="text-primary text-xs font-black uppercase tracking-widest">See All</button>
-          </div>
-          <div className="space-y-4">
-            {[
-              { name: 'Paracetamol 500mg', cat: 'Healthcare & Wellness', sold: '124', price: '$496.00' },
-              { name: 'Vitamin C 1000mg', cat: 'Supplements', sold: '98', price: '$686.00' },
-              { name: 'Cough Syrup (Herbal)', cat: 'OTC Medicine', sold: '76', price: '$380.00' }
-            ].map((prod, i) => (
-              <div key={i} className="flex items-center gap-4 bg-white dark:bg-slate-900/50 p-4 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm group">
-                <div className="size-14 rounded-2xl bg-slate-50 dark:bg-slate-800 overflow-hidden shrink-0 flex items-center justify-center border border-slate-100 dark:border-white/5 transition-transform group-hover:scale-105">
-                  <MaterialIcon name="medication" className="text-primary/20 text-3xl" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <h3 className="text-slate-800 dark:text-white font-black truncate text-sm">{prod.name}</h3>
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-0.5">{prod.cat}</p>
-                </div>
-                <div className="text-right shrink-0">
-                  <p className="text-slate-900 dark:text-white font-black text-sm">{prod.sold} sold</p>
-                  <p className="text-primary text-[10px] font-black uppercase tracking-tighter mt-0.5 italic">{prod.price}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        {/* Quick Actions Grid */}
-        <section className="p-4 grid grid-cols-2 gap-4 mt-2">
-          <Link to="/merchant-orders" className="flex flex-col items-center justify-center gap-2 p-6 rounded-3xl bg-primary text-slate-900 font-black shadow-xl shadow-primary/20 hover:scale-[1.02] transition-transform active:scale-[0.98] uppercase tracking-tighter text-xs">
-            <MaterialIcon name="receipt_long" className="text-2xl" />
-            <span>Pedidos</span>
-          </Link>
-          <Link to="/merchant/inventory" className="flex flex-col items-center justify-center gap-2 p-6 rounded-3xl bg-white dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800 text-slate-900 dark:text-white font-black hover:bg-slate-50 dark:hover:bg-white/5 transition-colors uppercase tracking-tighter text-xs">
-            <MaterialIcon name="inventory_2" className="text-2xl text-primary" />
-            <span>Estoque</span>
-          </Link>
-        </section>
-      </main>
-
-      {/* Bottom Tab Bar */}
-      <nav className="fixed bottom-0 left-0 right-0 z-50 px-4 pb-8 pt-2 bg-gradient-to-t from-background-light dark:from-background-dark via-background-light/95 dark:via-background-dark/95 to-transparent backdrop-blur-sm">
-        <div className="max-w-md mx-auto flex items-center justify-around bg-slate-900 dark:bg-zinc-800 rounded-full py-2 px-6 shadow-2xl ring-1 ring-white/10">
-          <Link to="/merchant" className="flex flex-col items-center gap-1 text-primary p-2">
-            <MaterialIcon name="home" fill />
-            <span className="text-[9px] font-black uppercase tracking-widest">Início</span>
-          </Link>
-          <Link to="/merchant/financial" className="flex flex-col items-center gap-1 text-slate-400 p-2 opacity-50">
-            <MaterialIcon name="account_balance_wallet" />
-            <span className="text-[9px] font-black uppercase tracking-widest">Financeiro</span>
-          </Link>
-          <Link to="/merchant-orders" className="flex flex-col items-center gap-1 text-slate-400 p-2 opacity-50">
-            <MaterialIcon name="receipt_long" />
-            <span className="text-[9px] font-black uppercase tracking-widest">Pedidos</span>
-          </Link>
-          <Link to="/merchant/settings" className="flex flex-col items-center gap-1 text-slate-400 p-2 opacity-50">
-            <MaterialIcon name="settings" />
-            <span className="text-[9px] font-black uppercase tracking-widest">Ajustes</span>
-          </Link>
-        </div>
-      </nav>
-    </div>
-  );
-};
-
-const MerchantOrderManagement = () => {
-  const navigate = useNavigate();
-  return (
-    <div className="relative flex h-auto min-h-screen w-full flex-col bg-background-light dark:bg-background-dark overflow-x-hidden font-display pb-24">
-      {/* TopAppBar */}
-      <div className="sticky top-0 z-50 flex items-center bg-white dark:bg-[#1a2433] border-b border-[#cfd9e7] dark:border-slate-700 p-4 pb-2 justify-between">
-        <button onClick={() => navigate('/merchant')} className="text-[#0d131b] dark:text-slate-100 flex size-12 shrink-0 items-center">
-          <MaterialIcon name="menu" />
-        </button>
-        <h2 className="text-[#0d131b] dark:text-slate-100 text-lg font-black leading-tight tracking-[-0.015em] flex-1 text-center font-display">Gerenciamento de Pedidos</h2>
-        <div className="flex w-12 items-center justify-end">
-          <button className="flex cursor-pointer items-center justify-center rounded-lg h-12 bg-transparent text-[#0d131b] dark:text-slate-100">
-            <MaterialIcon name="search" />
-          </button>
-        </div>
-      </div>
-
-      {/* Tabs */}
-      <div className="bg-white dark:bg-[#1a2433] pb-1 sticky top-[62px] z-40">
-        <div className="flex border-b border-[#cfd9e7] dark:border-slate-700 px-4 gap-8">
-          <button className="flex flex-col items-center justify-center border-b-[3px] border-primary text-primary pb-[13px] pt-4">
-            <p className="text-sm font-black leading-normal tracking-[0.015em] font-display">Ativos (12)</p>
-          </button>
-          <button className="flex flex-col items-center justify-center border-b-[3px] border-b-transparent text-[#4c6c9a] dark:text-slate-400 pb-[13px] pt-4">
-            <p className="text-sm font-bold leading-normal tracking-[0.015em] font-display">Histórico</p>
-          </button>
-          <button className="flex flex-col items-center justify-center border-b-[3px] border-b-transparent text-[#4c6c9a] dark:text-slate-400 pb-[13px] pt-4">
-            <p className="text-sm font-bold leading-normal tracking-[0.015em] font-display">Agendados</p>
-          </button>
-        </div>
-      </div>
-
-      {/* Main Content (Orders List) */}
-      <main className="flex-1 p-4 space-y-4 max-w-md mx-auto w-full">
-        {/* Urgent Order Card */}
-        <div className="bg-white dark:bg-[#1a2433] rounded-2xl shadow-sm border border-[#cfd9e7] dark:border-slate-700 overflow-hidden">
-          <div className="flex items-center gap-4 px-4 min-h-[72px] py-4 justify-between">
-            <div className="flex items-center gap-4">
-              <div className="bg-slate-100 dark:bg-slate-800 rounded-full h-14 w-14 flex items-center justify-center overflow-hidden border border-slate-200 dark:border-slate-700">
-                <MaterialIcon name="person" className="text-slate-400 text-3xl" />
-              </div>
-              <div className="flex flex-col justify-center">
-                <p className="text-[#0d131b] dark:text-slate-100 text-base font-black leading-normal line-clamp-1 italic">João Silva • #4582</p>
-                <p className="text-orange-500 dark:text-orange-400 text-xs font-black uppercase tracking-widest">Pendente</p>
-              </div>
-            </div>
-            <div className="shrink-0">
-              <p className="text-[#4c6c9a] dark:text-slate-400 text-[10px] font-black uppercase tracking-widest">há 2 min</p>
-            </div>
-          </div>
-
-          {/* Prescription Alert */}
-          <div className="flex items-center gap-4 bg-primary/10 dark:bg-primary/20 mx-4 mb-2 rounded-xl px-4 min-h-12 justify-between py-2">
-            <div className="flex items-center gap-4">
-              <div className="text-primary flex items-center justify-center shrink-0 size-8">
-                <MaterialIcon name="description" />
-              </div>
-              <p className="text-primary dark:text-white text-xs font-black uppercase tracking-tight flex-1 truncate">Receita Pendente de Validação</p>
-            </div>
-            <div className="shrink-0">
-              <MaterialIcon name="info" className="text-primary" />
-            </div>
-          </div>
-
-          {/* Action Buttons */}
-          <div className="flex flex-1 gap-3 px-4 py-4 justify-between">
-            <Link to="/chat" className="flex size-12 items-center justify-center rounded-xl bg-slate-100 dark:bg-slate-800 text-primary transition-all active:scale-95 shadow-sm">
-              <MaterialIcon name="chat" />
-            </Link>
-            <button className="flex-1 min-w-[84px] cursor-pointer items-center justify-center overflow-hidden rounded-xl h-12 bg-slate-100 dark:bg-slate-800 text-[#0d131b] dark:text-slate-100 text-xs font-black uppercase tracking-widest transition-all active:scale-95 shadow-sm">
-              Recusar
-            </button>
-            <button className="flex-1 min-w-[84px] cursor-pointer items-center justify-center overflow-hidden rounded-xl h-12 bg-primary text-slate-900 text-xs font-black uppercase tracking-widest transition-all active:scale-95 shadow-lg shadow-primary/20">
-              Aprovar
-            </button>
-          </div>
-        </div>
-
-        {/* In Preparation Card */}
-        <div className="bg-white dark:bg-[#1a2433] rounded-2xl shadow-sm border border-[#cfd9e7] dark:border-slate-700 overflow-hidden">
-          <div className="flex items-center gap-4 px-4 min-h-[72px] py-4 justify-between">
-            <div className="flex items-center gap-4">
-              <div className="bg-slate-100 dark:bg-slate-800 rounded-full h-14 w-14 flex items-center justify-center overflow-hidden border border-slate-200 dark:border-slate-700">
-                <MaterialIcon name="person" className="text-slate-400 text-3xl" />
-              </div>
-              <div className="flex flex-col justify-center">
-                <p className="text-[#0d131b] dark:text-slate-100 text-base font-black leading-normal line-clamp-1 italic">Maria Souza • #4580</p>
-                <p className="text-blue-500 dark:text-blue-400 text-xs font-black uppercase tracking-widest">Em Preparo</p>
-              </div>
-            </div>
-            <div className="shrink-0">
-              <p className="text-[#4c6c9a] dark:text-slate-400 text-[10px] font-black uppercase tracking-widest">há 12 min</p>
-            </div>
-          </div>
-          <div className="px-4 py-4">
-            <button className="w-full cursor-pointer items-center justify-center overflow-hidden rounded-xl h-12 bg-primary/10 text-primary dark:text-white text-xs font-black uppercase tracking-widest border border-primary/20 transition-all active:scale-95">
-              Finalizar Pedido
-            </button>
-          </div>
-        </div>
-
-        {/* Pending Card Without Prescription */}
-        <div className="bg-white dark:bg-[#1a2433] rounded-2xl shadow-sm border border-[#cfd9e7] dark:border-slate-700 overflow-hidden opacity-90">
-          <div className="flex items-center gap-4 px-4 min-h-[72px] py-4 justify-between">
-            <div className="flex items-center gap-4">
-              <div className="bg-slate-100 dark:bg-slate-800 rounded-full h-14 w-14 flex items-center justify-center overflow-hidden border border-slate-200 dark:border-slate-700">
-                <MaterialIcon name="person" className="text-slate-400 text-3xl" />
-              </div>
-              <div className="flex flex-col justify-center">
-                <p className="text-[#0d131b] dark:text-slate-100 text-base font-black leading-normal line-clamp-1 italic">Ricardo M. • #4579</p>
-                <p className="text-orange-500 dark:text-orange-400 text-xs font-black uppercase tracking-widest">Pendente</p>
-              </div>
-            </div>
-            <div className="shrink-0">
-              <p className="text-[#4c6c9a] dark:text-slate-400 text-[10px] font-black uppercase tracking-widest">há 25 min</p>
-            </div>
-          </div>
-          <div className="flex flex-1 gap-3 px-4 py-4 justify-between">
-            <button className="flex-1 min-w-[84px] cursor-pointer items-center justify-center overflow-hidden rounded-xl h-12 bg-slate-100 dark:bg-slate-800 text-[#0d131b] dark:text-slate-100 text-xs font-black uppercase tracking-widest transition-all active:scale-95">
-              Recusar
-            </button>
-            <button className="flex-1 min-w-[84px] cursor-pointer items-center justify-center overflow-hidden rounded-xl h-12 bg-primary text-slate-900 text-xs font-black uppercase tracking-widest transition-all active:scale-95 shadow-lg shadow-primary/20">
-              Aprovar
-            </button>
-          </div>
-        </div>
-      </main>
-
-      {/* Floating Action Button */}
-      <div className="fixed bottom-28 right-6 z-50">
-        <Link to="/merchant/add-product" className="flex size-14 items-center justify-center rounded-2xl bg-primary text-slate-900 shadow-2xl shadow-primary/30 transition-all active:scale-90 hover:rotate-12">
-          <MaterialIcon name="add" className="scale-125" />
-        </Link>
-      </div>
-
-      {/* Bottom Tab Bar (iOS style) */}
-      <nav className="fixed bottom-0 left-0 right-0 z-50 px-4 pb-8 pt-2 bg-gradient-to-t from-background-light dark:from-background-dark via-background-light/95 dark:via-background-dark/95 to-transparent backdrop-blur-sm">
-        <div className="max-w-md mx-auto flex items-center justify-around bg-slate-900 dark:bg-zinc-800 rounded-full py-2 px-6 shadow-2xl ring-1 ring-white/10">
-          <Link to="/merchant" className="flex flex-col items-center gap-1 text-slate-400 p-2 opacity-50">
-            <MaterialIcon name="home" />
-            <span className="text-[9px] font-black uppercase tracking-widest">Início</span>
-          </Link>
-          <Link to="/merchant/financial" className="flex flex-col items-center gap-1 text-slate-400 p-2 opacity-50">
-            <MaterialIcon name="account_balance_wallet" />
-            <span className="text-[9px] font-black uppercase tracking-widest">Financeiro</span>
-          </Link>
-          <Link to="/merchant-orders" className="flex flex-col items-center gap-1 text-primary p-2">
-            <MaterialIcon name="receipt_long" fill />
-            <span className="text-[9px] font-black uppercase tracking-widest">Pedidos</span>
-          </Link>
-          <Link to="/merchant/settings" className="flex flex-col items-center gap-1 text-slate-400 p-2 opacity-50">
-            <MaterialIcon name="settings" />
-            <span className="text-[9px] font-black uppercase tracking-widest">Ajustes</span>
-          </Link>
-        </div>
-      </nav>
-    </div>
-  );
-};
-
-const AddProduct = () => {
-  const navigate = useNavigate();
-  return (
-    <div className="bg-background-light dark:bg-background-dark text-white min-h-screen flex flex-col font-display">
-      {/* Top Navigation Bar */}
-      <header className="sticky top-0 z-50 bg-background-light/80 dark:bg-background-dark/80 backdrop-blur-md border-b border-[#326748]/20">
-        <div className="flex items-center p-4 justify-between max-w-md mx-auto w-full">
-          <button onClick={() => navigate(-1)} className="text-white flex size-10 shrink-0 items-center justify-center cursor-pointer transition-transform active:scale-90">
-            <MaterialIcon name="arrow_back_ios" />
-          </button>
-          <h2 className="text-white text-lg font-black leading-tight tracking-tight flex-1 text-center italic">Cadastrar Produto</h2>
-          <div className="flex size-10 items-center justify-end cursor-pointer">
-            <span onClick={() => navigate(-1)} className="text-[#92c9a9] text-[10px] font-black uppercase tracking-widest">Cancelar</span>
-          </div>
-        </div>
-      </header>
-
-      <main className="flex-1 overflow-y-auto pb-32 max-w-md mx-auto w-full">
-        {/* Section: Media */}
-        <section>
-          <h3 className="text-white text-sm font-black px-4 pb-2 pt-6 uppercase tracking-widest">Imagens do Produto</h3>
-          <p className="text-[#92c9a9] text-[10px] px-4 pb-4 font-black uppercase-none italic">Adicione até 5 fotos nítidas da embalagem.</p>
-          <div className="flex gap-3 px-4 overflow-x-auto no-scrollbar pb-2">
-            {/* Add Image Button */}
-            <div className="flex flex-col shrink-0">
-              <div className="w-24 h-24 bg-[#193324]/50 border-2 border-dashed border-[#326748] rounded-2xl flex flex-col items-center justify-center gap-1 text-[#92c9a9] cursor-pointer hover:bg-[#193324] transition-colors group">
-                <MaterialIcon name="add_a_photo" className="text-2xl group-hover:scale-110 transition-transform" />
-                <span className="text-[8px] font-black uppercase tracking-widest">Adicionar</span>
-              </div>
-            </div>
-            {/* Image Placeholders */}
-            <div className="flex flex-col shrink-0">
-              <div className="w-24 h-24 bg-slate-800 rounded-2xl border border-[#326748] flex items-center justify-center">
-                <MaterialIcon name="medication" className="text-white/20 text-3xl" />
-              </div>
-            </div>
-            <div className="flex flex-col shrink-0">
-              <div className="w-24 h-24 bg-slate-800 rounded-2xl border border-[#326748] flex items-center justify-center">
-                <MaterialIcon name="info" className="text-white/20 text-3xl" />
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* Section: Basic Info */}
-        <section className="mt-6 space-y-4">
-          {/* TextField: Product Name */}
-          <div className="px-4">
-            <label className="flex flex-col w-full">
-              <p className="text-[#92c9a9] text-[10px] font-black uppercase tracking-widest pb-2 px-1">Nome do Produto</p>
-              <input className="flex w-full rounded-2xl text-white focus:outline-0 focus:ring-2 focus:ring-primary/20 border border-[#326748] bg-[#193324]/50 h-14 placeholder:text-[#92c9a9]/30 p-4 text-base font-bold italic shadow-sm" placeholder="Ex: Paracetamol 500mg (20 Comprimidos)" />
-            </label>
-          </div>
-          {/* TextField: Description */}
-          <div className="px-4">
-            <label className="flex flex-col w-full">
-              <p className="text-[#92c9a9] text-[10px] font-black uppercase tracking-widest pb-2 px-1">Descrição</p>
-              <textarea className="flex w-full resize-none rounded-2xl text-white focus:outline-0 focus:ring-2 focus:ring-primary/20 border border-[#326748] bg-[#193324]/50 min-h-28 placeholder:text-[#92c9a9]/30 p-4 text-base font-bold italic shadow-sm" placeholder="Descreva os benefícios, contraindicações e modo de uso..."></textarea>
-            </label>
-          </div>
-          {/* Dropdown: Category */}
-          <div className="px-4">
-            <label className="flex flex-col w-full">
-              <p className="text-[#92c9a9] text-[10px] font-black uppercase tracking-widest pb-2 px-1">Categoria</p>
-              <div className="relative">
-                <select className="w-full appearance-none rounded-2xl text-white focus:outline-0 focus:ring-2 focus:ring-primary/20 border border-[#326748] bg-[#193324]/50 h-14 px-4 text-base font-bold italic shadow-sm">
-                  <option disabled defaultValue="" value="">Selecione uma categoria</option>
-                  <option value="analgesicos">Analgésicos</option>
-                  <option value="vitaminas">Vitaminas e Suplementos</option>
-                  <option value="higiene">Higiene Pessoal</option>
-                  <option value="dermocosmeticos">Dermocosméticos</option>
-                  <option value="antibioticos">Antibióticos</option>
-                </select>
-                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-[#92c9a9]">
-                  <MaterialIcon name="expand_more" />
-                </div>
-              </div>
-            </label>
-          </div>
-        </section>
-
-        {/* Section: Price & Stock */}
-        <section className="mt-4 px-4 flex gap-4">
-          <div className="flex-1">
-            <label className="flex flex-col">
-              <p className="text-[#92c9a9] text-[10px] font-black uppercase tracking-widest pb-2 px-1">Preço (R$)</p>
-              <input className="w-full rounded-2xl text-white focus:outline-0 focus:ring-2 focus:ring-primary/20 border border-[#326748] bg-[#193324]/50 h-14 p-4 text-base font-black italic shadow-sm text-primary" placeholder="0,00" type="text" />
-            </label>
-          </div>
-          <div className="flex-1">
-            <label className="flex flex-col">
-              <p className="text-[#92c9a9] text-[10px] font-black uppercase tracking-widest pb-2 px-1">Estoque Inicial</p>
-              <input className="w-full rounded-2xl text-white focus:outline-0 focus:ring-2 focus:ring-primary/20 border border-[#326748] bg-[#193324]/50 h-14 p-4 text-base font-black italic shadow-sm" placeholder="0" type="number" />
-            </label>
-          </div>
-        </section>
-
-        {/* Section: Safety/Legal Toggle */}
-        <section className="mt-8 px-4">
-          <div className="bg-primary/5 border border-primary/20 p-6 rounded-3xl flex items-center justify-between gap-4 shadow-xl">
-            <div className="flex-1">
-              <div className="flex items-center gap-2 mb-2">
-                <MaterialIcon name="description" className="text-primary text-xl" />
-                <h4 className="text-white text-sm font-black uppercase tracking-tighter italic">Exige Receita Médica</h4>
-              </div>
-              <p className="text-[#4c9a6c] text-[10px] font-black italic leading-tight">O cliente precisará enviar uma foto da receita para concluir a compra.</p>
-            </div>
-            <label className="relative inline-flex items-center cursor-pointer">
-              <input type="checkbox" value="" className="sr-only peer" />
-              <div className="w-12 h-7 bg-[#326748] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[3px] after:start-[3px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary shadow-inner"></div>
-            </label>
-          </div>
-        </section>
-      </main>
-
-      {/* Fixed Footer Button */}
-      <footer className="fixed bottom-0 left-0 right-0 p-4 bg-background-light/95 dark:bg-background-dark/95 backdrop-blur-md border-t border-[#326748]/20 z-50">
-        <div className="max-w-md mx-auto">
-          <button className="w-full bg-primary hover:bg-primary/90 text-background-dark font-black text-sm uppercase tracking-tighter py-5 rounded-3xl shadow-2xl shadow-primary/20 flex items-center justify-center gap-2 transition-all active:scale-95 group">
-            <MaterialIcon name="save" className="group-hover:rotate-12 transition-transform" />
-            Salvar Produto
-          </button>
-        </div>
-      </footer>
-    </div>
-  );
-};
-
-const MerchantFinancial = () => {
-  const navigate = useNavigate();
-  return (
-    <div className="bg-background-light dark:bg-background-dark text-slate-900 dark:text-white min-h-screen pb-24 font-display transition-colors duration-200">
-      {/* Top Navigation Bar */}
-      <nav className="sticky top-0 z-50 bg-background-light/80 dark:bg-background-dark/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800">
-        <div className="flex items-center p-4 pb-2 justify-between max-w-md mx-auto w-full">
-          <button onClick={() => navigate(-1)} className="text-primary flex size-10 shrink-0 items-center justify-start active:scale-90 transition-transform">
-            <MaterialIcon name="arrow_back_ios" />
-          </button>
-          <h2 className="text-slate-900 dark:text-white text-lg font-black leading-tight tracking-tighter flex-1 text-center italic">Financeiro</h2>
-          <div className="flex size-10 shrink-0 items-center justify-end">
-            <MaterialIcon name="account_balance_wallet" className="text-primary" />
-          </div>
-        </div>
-      </nav>
-
-      <main className="max-w-md mx-auto">
-        {/* Main Stats Summary */}
-        <div className="flex flex-wrap gap-4 p-4">
-          <div className="flex min-w-[158px] flex-1 flex-col gap-2 rounded-3xl p-6 bg-slate-100 dark:bg-[#1a3526] border border-slate-200 dark:border-[#326748]/30 shadow-sm relative overflow-hidden group">
-            <p className="text-slate-500 dark:text-[#92c9a9] text-[10px] font-black uppercase tracking-widest leading-none">Saldo Disponível</p>
-            <p className="text-slate-900 dark:text-white tracking-tighter text-2xl font-black italic mt-1">R$ 12.450,00</p>
-            <div className="absolute -right-4 -bottom-4 size-16 bg-primary/5 rounded-full blur-2xl group-hover:scale-150 transition-transform"></div>
-          </div>
-          <div className="flex min-w-[158px] flex-1 flex-col gap-2 rounded-3xl p-6 bg-slate-100 dark:bg-[#1a3526] border border-slate-200 dark:border-[#326748]/30 shadow-sm relative overflow-hidden group">
-            <p className="text-slate-500 dark:text-[#92c9a9] text-[10px] font-black uppercase tracking-widest leading-none">Próximos Recebimentos</p>
-            <p className="text-slate-900 dark:text-white tracking-tighter text-2xl font-black italic mt-1">R$ 3.120,50</p>
-            <div className="absolute -right-4 -bottom-4 size-16 bg-primary/5 rounded-full blur-2xl group-hover:scale-150 transition-transform"></div>
-          </div>
-        </div>
-
-        {/* Withdrawal Action */}
-        <div className="flex px-4 py-2">
-          <button className="flex min-w-[84px] cursor-pointer items-center justify-center overflow-hidden rounded-3xl h-16 px-5 flex-1 bg-primary text-[#112218] text-sm font-black uppercase tracking-tighter shadow-2xl shadow-primary/20 active:scale-[0.98] transition-all group">
-            <MaterialIcon name="payments" className="mr-3 group-hover:rotate-12 transition-transform" />
-            <span className="truncate">Solicitar Saque</span>
-          </button>
-        </div>
-
-        {/* Performance Chart Section */}
-        <section className="mt-4">
-          <div className="flex items-center justify-between px-4 pb-2 pt-4">
-            <h3 className="text-slate-900 dark:text-white text-lg font-black tracking-tighter italic leading-none">Faturamento Mensal</h3>
-            <span className="text-[10px] font-black text-primary uppercase tracking-widest bg-primary/10 px-3 py-1 rounded-full border border-primary/20">Semestral</span>
-          </div>
-          <div className="flex flex-wrap gap-4 px-4 py-3">
-            <div className="flex min-w-full flex-1 flex-col gap-2 bg-slate-100 dark:bg-[#1a3526]/30 p-6 rounded-[32px] border border-slate-200 dark:border-[#326748]/20 shadow-inner">
-              <p className="text-slate-500 dark:text-[#92c9a9] text-[10px] font-black uppercase tracking-widest leading-none opacity-60">Total do Período</p>
-              <p className="text-slate-900 dark:text-white tracking-tighter text-[32px] font-black italic mt-1 truncate">R$ 45.000,00</p>
-              <div className="flex gap-2 items-center mb-6">
-                <MaterialIcon name="trending_up" className="text-primary text-sm" />
-                <p className="text-primary text-[10px] font-black uppercase tracking-widest">+12.5% vs mês anterior</p>
-              </div>
-              <div className="h-40 w-full relative">
-                <svg fill="none" height="100%" preserveAspectRatio="none" viewBox="0 0 478 150" width="100%" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M0 109C18.15 109 18.15 21 36.3 21C54.46 21 54.46 41 72.61 41C90.76 41 90.76 93 108.92 93C127.07 93 127.07 33 145.23 33C163.38 33 163.38 101 181.53 101C199.69 101 199.69 61 217.84 61C236 61 236 45 254.15 45C272.3 45 272.3 121 290.46 121C308.61 121 308.61 149 326.76 149C344.92 149 344.92 1 363.07 1C381.23 1 381.23 81 399.38 81C417.53 81 417.53 129 435.69 129C453.84 129 453.84 25 472 25V149H0V109Z" fill="url(#paint0_linear)"></path>
-                  <path d="M0 109C18.15 109 18.15 21 36.3 21C54.46 21 54.46 41 72.61 41C90.76 41 90.76 93 108.92 93C127.07 93 127.07 33 145.23 33C163.38 33 163.38 101 181.53 101C199.69 101 199.69 61 217.84 61C236 61 236 45 254.15 45C272.3 45 272.3 121 290.46 121C308.61 121 308.61 149 326.76 149C344.92 149 344.92 1 363.07 1C381.23 1 381.23 81 399.38 81C417.53 81 417.53 129 435.69 129C453.84 129 453.84 25 472 25" stroke="#13ec6d" strokeLinecap="round" strokeWidth="4"></path>
-                  <defs>
-                    <linearGradient gradientUnits="userSpaceOnUse" id="paint0_linear" x1="0" x2="0" y1="0" y2="1">
-                      <stop stopColor="#13ec6d" stopOpacity="0.4"></stop>
-                      <stop offset="1" stopColor="#13ec6d" stopOpacity="0"></stop>
-                    </linearGradient>
-                  </defs>
-                </svg>
-                <div className="flex justify-between mt-4 px-1">
-                  {['JAN', 'FEV', 'MAR', 'ABR', 'MAI', 'JUN'].map(m => (
-                    <p key={m} className="text-slate-400 dark:text-[#92c9a9]/40 text-[9px] font-black tracking-widest uppercase">{m}</p>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* Recent Transactions */}
-        <section className="mt-4 pb-10">
-          <div className="flex items-center justify-between px-4 pb-4">
-            <h3 className="text-slate-900 dark:text-white text-lg font-black tracking-tighter italic">Transações Recentes</h3>
-            <span className="text-primary text-[10px] font-black uppercase tracking-widest cursor-pointer hover:opacity-70 transition-opacity">Ver tudo</span>
-          </div>
-          <div className="flex flex-col gap-3 px-4">
-            {/* Transaction Items */}
-            {[
-              { id: "#59201", type: "Pedido", date: "Hoje, 14:35", amount: "+ R$ 145,20", icon: "shopping_cart", color: "primary" },
-              { id: "#59198", type: "Pedido", date: "Ontem, 18:20", amount: "+ R$ 82,00", icon: "shopping_cart", color: "primary" },
-              { id: "Transferência", type: "Saque Efetuado", date: "10 Out, 09:00", amount: "- R$ 5.000,00", icon: "outbound", color: "slate-400" }
-            ].map((t, i) => (
-              <div key={i} className="flex items-center justify-between p-5 bg-white dark:bg-[#1a2e22]/50 rounded-3xl border border-slate-100 dark:border-[#326748]/20 shadow-sm group hover:scale-[1.01] transition-transform">
-                <div className="flex items-center gap-4">
-                  <div className={`size-12 rounded-2xl bg-${t.color}/10 flex items-center justify-center border border-${t.color}/20 shadow-inner group-hover:rotate-6 transition-transform`}>
-                    <MaterialIcon name={t.icon} className={`text-${t.color} text-2xl`} />
-                  </div>
-                  <div>
-                    <p className="text-slate-900 dark:text-white font-black text-sm italic">{t.type} {t.id.startsWith('#') ? t.id : ''}</p>
-                    <p className="text-slate-400 dark:text-[#92c9a9]/60 text-[9px] font-black uppercase tracking-widest mt-0.5">{t.date}</p>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <p className={`text-${t.color} font-black text-sm italic`}>{t.amount}</p>
-                  <p className="text-slate-400 dark:text-[#92c9a9]/40 text-[8px] font-black uppercase tracking-widest mt-0.5">{t.id.startsWith('#') ? 'Líquido' : t.id}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-      </main>
-
-      {/* iOS Bottom Tab Bar */}
-      <nav className="fixed bottom-0 left-0 right-0 z-50 px-4 pb-8 pt-2 bg-gradient-to-t from-background-light dark:from-background-dark via-background-light/95 dark:via-background-dark/95 to-transparent backdrop-blur-sm">
-        <div className="max-w-md mx-auto flex justify-around items-center h-16 bg-slate-900 dark:bg-zinc-800 rounded-full px-6 shadow-2xl ring-1 ring-white/10">
-          <Link to="/merchant" className="flex flex-col items-center gap-1 text-slate-400 p-2 opacity-50">
-            <MaterialIcon name="home" />
-            <span className="text-[9px] font-black uppercase tracking-widest">Início</span>
-          </Link>
-          <button className="flex flex-col items-center gap-1 text-primary p-2">
-            <MaterialIcon name="account_balance_wallet" fill />
-            <span className="text-[9px] font-black uppercase tracking-widest">Financeiro</span>
-          </button>
-          <Link to="/merchant-orders" className="flex flex-col items-center gap-1 text-slate-400 p-2 opacity-50">
-            <MaterialIcon name="receipt_long" />
-            <span className="text-[9px] font-black uppercase tracking-widest">Pedidos</span>
-          </Link>
-          <Link to="/merchant/settings" className="flex flex-col items-center gap-1 text-slate-400 p-2 opacity-50">
-            <MaterialIcon name="settings" />
-            <span className="text-[9px] font-black uppercase tracking-widest">Ajustes</span>
-          </Link>
-        </div>
-      </nav>
-
-      {/* Home Indicator */}
-      <div className="fixed bottom-1.5 left-1/2 -translate-x-1/2 w-32 h-1 bg-white/20 rounded-full pointer-events-none z-[60]"></div>
-    </div>
-  );
-};
-
-const StoreCustomization = () => {
-  const navigate = useNavigate();
-  return (
-    <div className="bg-background-light dark:bg-background-dark text-slate-900 dark:text-white min-h-screen pb-24 font-display transition-colors duration-200">
-      {/* TopAppBar */}
-      <div className="sticky top-0 z-50 bg-background-light dark:bg-background-dark/95 backdrop-blur-md border-b border-white/10">
-        <div className="flex items-center p-4 justify-between max-w-md mx-auto">
-          <div className="flex items-center gap-3">
-            <button onClick={() => navigate(-1)} className="text-white flex items-center justify-center -ml-2 p-2 active:scale-90 transition-transform">
-              <MaterialIcon name="arrow_back_ios" />
-            </button>
-            <h2 className="text-white text-lg font-black leading-tight tracking-tighter italic">Personalização da Loja</h2>
-          </div>
-          <button className="text-primary font-black text-sm uppercase tracking-widest hover:scale-105 active:scale-95 transition-transform">Salvar</button>
-        </div>
-      </div>
-
-      <div className="max-w-md mx-auto">
-        {/* Section: Identidade Visual */}
-        <h3 className="text-white text-lg font-black leading-tight tracking-tighter px-4 pb-2 pt-6 italic">Identidade Visual</h3>
-        <div className="grid grid-cols-2 gap-4 p-4">
-          {/* Logo Upload */}
-          <div className="flex flex-col gap-3">
-            <div className="relative group cursor-pointer shadow-lg">
-              <div className="w-full aspect-square bg-white/5 border-2 border-dashed border-white/20 rounded-3xl flex items-center justify-center bg-center bg-no-repeat bg-cover overflow-hidden" style={{ backgroundImage: 'url("https://lh3.googleusercontent.com/aida-public/AB6AXuBpyVe5HQng67zwngMSblW7jDfnOcIw7KnB4L3Hl_SJGfIdWAkFN19eOxKN9snNAMvtkf929VGiE2tFpJedAV_9DhigNNcnnxgCY8_spfpcWdF7gNMBB0vaDPu0LDa0laHUL08HmszD7jjrQY0OguELKgPPZku6HmomE9MgUKMAPt2tGiVLe6HfldtKmxv5p4cEkXu_i8OqeEQs1irY7ogC06uOB6XE_1KegDOic0IZB2cOQyYcvG1GAfVzUPX9WDS44d_mpijfOw")' }}>
-              </div>
-              <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-3xl backdrop-blur-[2px]">
-                <MaterialIcon name="add_a_photo" className="text-white text-3xl" />
-              </div>
-            </div>
-            <div>
-              <p className="text-white text-xs font-black uppercase tracking-widest leading-none">Logo da Loja</p>
-              <p className="text-primary text-[9px] font-black uppercase tracking-widest mt-1">512x512px recomendado</p>
-            </div>
-          </div>
-          {/* Banner Upload */}
-          <div className="flex flex-col gap-3">
-            <div className="relative group cursor-pointer shadow-lg">
-              <div className="w-full aspect-square bg-white/5 border-2 border-dashed border-white/20 rounded-3xl flex items-center justify-center bg-center bg-no-repeat bg-cover overflow-hidden" style={{ backgroundImage: 'url("https://lh3.googleusercontent.com/aida-public/AB6AXuC7PtmZx8S6za3u-SsO2wsoWoDpWd0Sr7Xwlwgq7rZWlmd1sjt3CrlTuowPnwrfDliXsK-VVsmU3IbDaeIlWr_UY9c6l1ID2RMNWu9qLG5Pg6uBzukGIouu_LS_cxYr967OlQY9C44dZR_QgDfSGybsUq63-j5pgNaWnDGfRIxnbPjz-768Xwa3fCUqXhIM9qSQ8yBlI2QWkSRY3c4ZjmHt5FxGrc6v5nRrYnVGFmEISRqSmg0sFm0Po3C4Yt3g3TBghAv64658AA")' }}>
-              </div>
-              <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-3xl backdrop-blur-[2px]">
-                <MaterialIcon name="add_photo_alternate" className="text-white text-3xl" />
-              </div>
-            </div>
-            <div>
-              <p className="text-white text-xs font-black uppercase tracking-widest leading-none">Banner de Capa</p>
-              <p className="text-primary text-[9px] font-black uppercase tracking-widest mt-1">16:9 recomendado</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Section: Informações Gerais */}
-        <h3 className="text-white text-lg font-black leading-tight tracking-tighter px-4 pb-2 pt-6 italic">Informações Gerais</h3>
-        <div className="px-4 space-y-4">
-          <div className="flex flex-col gap-2">
-            <label className="text-white/40 text-[10px] font-black uppercase tracking-widest px-1">Descrição da Farmácia</label>
-            <textarea className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-white placeholder:text-white/10 focus:ring-primary/20 focus:border-primary font-bold italic shadow-inner" placeholder="Conte um pouco sobre sua farmácia e serviços..." rows={4}></textarea>
-          </div>
-          <div className="flex flex-col gap-2">
-            <label className="text-white/40 text-[10px] font-black uppercase tracking-widest px-1">Endereço Físico</label>
-            <div className="relative">
-              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-primary/60">
-                <MaterialIcon name="location_on" />
-              </span>
-              <input className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-12 pr-4 text-white placeholder:text-white/10 focus:ring-primary/20 focus:border-primary font-bold italic shadow-inner" placeholder="Ex: Av. Paulista, 1000 - São Paulo" type="text" defaultValue="São Paulo" />
-            </div>
-          </div>
-        </div>
-
-        {/* Section: Horários de Funcionamento */}
-        <div className="flex items-center justify-between px-4 pb-2 pt-8">
-          <h3 className="text-white text-lg font-black leading-tight tracking-tighter italic">Horário de Funcionamento</h3>
-          <MaterialIcon name="schedule" className="text-primary" />
-        </div>
-        <div className="px-4 space-y-3">
-          {[
-            { day: "Seg", time: "08:00 às 20:00", active: true },
-            { day: "Ter-Sex", info: "Mesmo de segunda", active: true },
-            { day: "Sáb", time: "08:00 às 14:00", active: true },
-            { day: "Dom", info: "Fechado", active: false }
-          ].map((item, i) => (
-            <div key={i} className={`flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/5 shadow-sm transition-opacity ${!item.active && 'opacity-40'}`}>
-              <div className="flex items-center gap-3">
-                <div className="w-14">
-                  <span className="text-white text-xs font-black uppercase tracking-widest">{item.day}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  {item.time ? (
-                    <div className="flex items-center gap-2">
-                      <input className="w-16 bg-white/5 border-b border-primary/30 text-white text-center text-xs font-black focus:border-primary p-1 rounded-t-sm" type="text" defaultValue={item.time.split(' às ')[0]} />
-                      <span className="text-white/40 text-[10px] font-black uppercase">às</span>
-                      <input className="w-16 bg-white/5 border-b border-primary/30 text-white text-center text-xs font-black focus:border-primary p-1 rounded-t-sm" type="text" defaultValue={item.time.split(' às ')[1]} />
-                    </div>
-                  ) : (
-                    <span className="text-white/40 text-[10px] font-black uppercase italic tracking-widest">{item.info}</span>
-                  )}
-                </div>
-              </div>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input defaultChecked={item.active} className="sr-only peer" type="checkbox" />
-                <div className="w-11 h-6 bg-white/10 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary shadow-inner"></div>
-              </label>
-            </div>
-          ))}
-        </div>
-        <div className="h-10"></div>
-      </div>
-
-      {/* Bottom Action Bar */}
-      <div className="fixed bottom-0 left-0 right-0 bg-background-dark/90 backdrop-blur-xl border-t border-white/10 p-4 z-50 shadow-2xl">
-        <div className="max-w-md mx-auto flex gap-3">
-          <button className="flex-1 flex items-center justify-center gap-2 py-4 bg-white/5 text-white text-xs font-black uppercase tracking-widest rounded-2xl active:scale-95 transition-transform border border-white/5 shadow-inner">
-            <MaterialIcon name="visibility" className="text-sm" />
-            Visualizar
-          </button>
-          <button className="flex-[1.5] py-4 bg-primary text-background-dark text-xs font-black uppercase tracking-widest rounded-2xl shadow-xl shadow-primary/20 active:scale-95 transition-transform">
-            Salvar Alterações
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-};
-
 const PharmacyChat = () => {
   const navigate = useNavigate();
   return (
@@ -1920,7 +1333,7 @@ const PharmacyChat = () => {
           </div>
           <div className="flex flex-col gap-1 items-start">
             <div className="text-sm font-bold leading-relaxed rounded-2xl px-4 py-2 bg-white dark:bg-[#1a2e22] text-[#0d1b13] dark:text-gray-100 shadow-sm rounded-bl-sm italic">
-              Olá! Recebemos sua receita. Gostaria de confirmar o endereço de entrega?
+              OlÃ¡! Recebemos sua receita. Gostaria de confirmar o endereÃ§o de entrega?
             </div>
             <p className="text-[10px] text-gray-400 font-bold ml-1 uppercase">14:18</p>
           </div>
@@ -1930,7 +1343,7 @@ const PharmacyChat = () => {
         <div className="flex items-end gap-2 justify-end">
           <div className="flex flex-col gap-1 items-end max-w-[85%]">
             <div className="text-sm font-black leading-relaxed rounded-2xl px-4 py-2 bg-primary text-[#0d1b13] shadow-sm rounded-br-sm italic">
-              Sim, é o mesmo do último pedido.
+              Sim, Ã© o mesmo do Ãºltimo pedido.
             </div>
             <div className="flex items-center gap-1 mr-1">
               <p className="text-[10px] text-gray-400 font-black uppercase">14:19</p>
@@ -1943,7 +1356,7 @@ const PharmacyChat = () => {
         <div className="flex items-end gap-2 justify-end">
           <div className="flex flex-col gap-1 items-end max-w-[85%] w-full">
             <div className="text-sm font-black leading-relaxed rounded-2xl px-4 py-2 bg-primary text-[#0d1b13] shadow-sm mb-1 rounded-br-sm italic">
-              Vou enviar uma foto do cartão de convênio.
+              Vou enviar uma foto do cartÃ£o de convÃªnio.
             </div>
             <div className="bg-slate-200 dark:bg-slate-800 aspect-video rounded-2xl w-full border-4 border-primary shadow-lg overflow-hidden flex items-center justify-center">
               <MaterialIcon name="image" className="text-4xl text-primary/30" />
@@ -1962,7 +1375,7 @@ const PharmacyChat = () => {
             <div className="w-1.5 h-1.5 bg-primary rounded-full animate-bounce [animation-delay:0.2s]"></div>
             <div className="w-1.5 h-1.5 bg-primary rounded-full animate-bounce [animation-delay:0.4s]"></div>
           </div>
-          <p className="text-[10px] text-[#4c9a6c] font-black uppercase tracking-widest italic">Farmácia está digitando...</p>
+          <p className="text-[10px] text-[#4c9a6c] font-black uppercase tracking-widest italic">FarmÃ¡cia estÃ¡ digitando...</p>
         </div>
       </main>
 
@@ -1982,121 +1395,11 @@ const PharmacyChat = () => {
       </footer>
 
       {/* iOS Home Indicator (Visual Only) */}
-      <div className="absolute bottom-1.5 left-1/2 -translate-x-1/2 w-32 h-1 bg-gray-300 dark:bg-gray-700 rounded-full opacity-50"></div>
     </div>
   );
 };
 
-const InventoryControl = () => {
-  const navigate = useNavigate();
-  return (
-    <div className="relative flex min-h-screen w-full flex-col max-w-md mx-auto bg-background-light dark:bg-background-dark shadow-2xl font-display">
-      {/* Sticky Header Section */}
-      <div className="sticky top-0 z-20 bg-background-light dark:bg-background-dark/95 backdrop-blur-md">
-        {/* TopAppBar */}
-        <div className="flex items-center p-4 pb-2 justify-between">
-          <button onClick={() => navigate(-1)} className="text-slate-900 dark:text-white flex size-12 shrink-0 items-center justify-start transition-transform active:scale-90">
-            <MaterialIcon name="arrow_back_ios" />
-          </button>
-          <h2 className="text-slate-900 dark:text-white text-lg font-black leading-tight tracking-tight flex-1 text-center italic">Estoque</h2>
-          <div className="flex w-12 items-center justify-end">
-            <button className="flex cursor-pointer items-center justify-center rounded-lg h-12 bg-transparent text-slate-900 dark:text-white p-0">
-              <MaterialIcon name="notifications" />
-            </button>
-          </div>
-        </div>
-        {/* SearchBar */}
-        <div className="px-4 py-2">
-          <label className="flex flex-col min-w-40 h-12 w-full">
-            <div className="flex w-full flex-1 items-stretch rounded-2xl h-full shadow-sm">
-              <div className="text-slate-400 dark:text-[#92c9a9] flex border-none bg-white dark:bg-[#234833] items-center justify-center pl-4 rounded-l-2xl">
-                <MaterialIcon name="search" />
-              </div>
-              <input className="form-input flex w-full min-w-0 flex-1 resize-none overflow-hidden rounded-r-2xl text-slate-900 dark:text-white focus:outline-0 focus:ring-0 border-none bg-white dark:bg-[#234833] h-full placeholder:text-slate-400 dark:placeholder:text-[#92c9a9] px-4 pl-2 text-base font-bold italic" placeholder="Buscar por nome ou código..." />
-            </div>
-          </label>
-        </div>
-        {/* Chips / Category Filters */}
-        <div className="flex gap-3 p-4 overflow-x-auto no-scrollbar">
-          <button className="flex h-9 shrink-0 items-center justify-center gap-x-2 rounded-full bg-primary px-5 cursor-pointer shadow-lg shadow-primary/20">
-            <p className="text-background-dark text-xs font-black uppercase tracking-widest">Todos</p>
-          </button>
-          {['Medicamentos', 'Higiene', 'Beleza', 'Infantil'].map(cat => (
-            <button key={cat} className="flex h-9 shrink-0 items-center justify-center gap-x-2 rounded-full bg-white dark:bg-[#234833] px-5 cursor-pointer hover:bg-slate-200 dark:hover:bg-[#2d5c41] transition-colors border border-black/5 dark:border-white/5">
-              <p className="text-slate-700 dark:text-white text-xs font-black uppercase tracking-widest leading-none">{cat}</p>
-            </button>
-          ))}
-        </div>
-        <div className="h-px bg-slate-200 dark:bg-white/10 mx-4"></div>
-      </div>
 
-      {/* Product List */}
-      <div className="flex flex-col pb-32">
-        {[
-          { name: "Paracetamol 500mg", price: "12,50", stock: 5, low: true, icon: "medication" },
-          { name: "Sabonete Líquido 250ml", price: "8,90", stock: 42, low: false, icon: "sanitizer" },
-          { name: "Vitamina C 1g", price: "24,90", stock: 15, low: false, icon: "pill" },
-          { name: "Fralda G 32un", price: "54,90", stock: 2, low: true, icon: "child_care" },
-          { name: "Escova Dental Macia", price: "15,00", stock: 28, low: false, icon: "brush" }
-        ].map((item, i) => (
-          <div key={i} className="flex gap-4 bg-transparent px-4 py-4 justify-between items-center border-b border-slate-100 dark:border-white/5 group">
-            <div className="flex items-start gap-4 flex-1">
-              <div className="bg-slate-200 dark:bg-[#234833] rounded-2xl size-[72px] shrink-0 shadow-inner flex items-center justify-center text-slate-400">
-                <MaterialIcon name={item.icon} className="text-3xl" />
-              </div>
-              <div className="flex flex-1 flex-col justify-center py-1">
-                <p className="text-slate-900 dark:text-white text-base font-black leading-tight mb-1 italic">{item.name}</p>
-                {item.low ? (
-                  <div className="flex items-center gap-1.5 mb-1">
-                    <MaterialIcon name="warning" className="text-red-500 text-[16px]" />
-                    <p className="text-red-500 text-[10px] font-black uppercase tracking-widest">Estoque Baixo</p>
-                  </div>
-                ) : (
-                  <p className="text-primary text-[10px] font-black uppercase tracking-widest mb-1">Em estoque</p>
-                )}
-                <p className="text-slate-500 dark:text-[#92c9a9] text-xs font-black italic">R$ {item.price}</p>
-              </div>
-            </div>
-            <div className="shrink-0 pl-2">
-              <div className="flex items-center gap-3 text-slate-900 dark:text-white bg-slate-100 dark:bg-[#1a3325] p-1.5 rounded-full shadow-inner">
-                <button className="text-lg font-black flex h-9 w-9 items-center justify-center rounded-full bg-white dark:bg-[#234833] shadow-sm cursor-pointer active:scale-90 transition-transform hover:rotate-6 border border-black/5 dark:border-white/5">-</button>
-                <span className="text-base font-black w-6 text-center italic">{item.stock}</span>
-                <button className="text-lg font-black flex h-9 w-9 items-center justify-center rounded-full bg-primary text-background-dark shadow-sm cursor-pointer active:scale-90 transition-transform hover:-rotate-6">+</button>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* Floating Action Button */}
-      <Link to="/merchant/add-product" className="fixed bottom-28 right-6 flex items-center justify-center w-14 h-14 rounded-[20px] bg-primary text-background-dark shadow-2xl shadow-primary/30 z-50 active:scale-90 transition-all hover:rotate-12">
-        <MaterialIcon name="add" className="scale-125" />
-      </Link>
-
-      {/* Bottom Tab Bar (iOS Style) */}
-      <nav className="fixed bottom-0 left-0 right-0 z-50 px-4 pb-8 pt-2 bg-gradient-to-t from-background-light dark:from-background-dark via-background-light/95 dark:via-background-dark/95 to-transparent backdrop-blur-sm">
-        <div className="max-w-md mx-auto flex items-center justify-around bg-slate-900 dark:bg-zinc-800 rounded-full py-2 px-6 shadow-2xl ring-1 ring-white/10">
-          <Link to="/merchant" className="flex flex-col items-center gap-1 text-slate-400 p-2 opacity-50">
-            <MaterialIcon name="home" />
-            <span className="text-[9px] font-black uppercase tracking-widest">Início</span>
-          </Link>
-          <Link to="/merchant/financial" className="flex flex-col items-center gap-1 text-slate-400 p-2 opacity-50">
-            <MaterialIcon name="account_balance_wallet" />
-            <span className="text-[9px] font-black uppercase tracking-widest">Financeiro</span>
-          </Link>
-          <Link to="/merchant-orders" className="flex flex-col items-center gap-1 text-slate-400 p-2 opacity-50">
-            <MaterialIcon name="receipt_long" />
-            <span className="text-[9px] font-black uppercase tracking-widest">Pedidos</span>
-          </Link>
-          <Link to="/merchant/settings" className="flex flex-col items-center gap-1 text-slate-400 p-2 opacity-50">
-            <MaterialIcon name="settings" />
-            <span className="text-[9px] font-black uppercase tracking-widest">Ajustes</span>
-          </Link>
-        </div>
-      </nav>
-    </div>
-  );
-};
 const AdminLayout = ({ children, activeTab, profile }: { children: React.ReactNode, activeTab: string, profile: any }) => {
 
   return (
@@ -2116,12 +1419,12 @@ const AdminLayout = ({ children, activeTab, profile }: { children: React.ReactNo
         <nav className="flex-1 px-4 py-4 space-y-2">
           {[
             { to: "/admin", icon: "dashboard", label: "Dashboard", id: "dash" },
-            { to: "/admin/users", icon: "group", label: "Usuários", id: "users" },
-            { to: "/admin/pharmacies", icon: "storefront", label: "Farmácias", id: "pharmacies" },
+            { to: "/admin/users", icon: "group", label: "UsuÃ¡rios", id: "users" },
+            { to: "/admin/pharmacies", icon: "storefront", label: "FarmÃ¡cias", id: "pharmacies" },
             { to: "/admin/motoboys", icon: "moped", label: "Motoboys", id: "motoboys" },
-            { to: "/admin/ads", icon: "campaign", label: "Anúncios", id: "ads" },
-            { to: "/admin/promotions", icon: "local_offer", label: "Promoções", id: "promos" },
-            { to: "/admin/settings", icon: "settings", label: "Configurações", id: "settings" },
+            { to: "/admin/ads", icon: "campaign", label: "AnÃºncios", id: "ads" },
+            { to: "/admin/promotions", icon: "local_offer", label: "PromoÃ§Ãµes", id: "promos" },
+            { to: "/admin/settings", icon: "settings", label: "ConfiguraÃ§Ãµes", id: "settings" },
           ].map((item) => (
             <Link
               key={item.id}
@@ -2140,8 +1443,8 @@ const AdminLayout = ({ children, activeTab, profile }: { children: React.ReactNo
               <MaterialIcon name="person" className="text-slate-400" />
             </div>
             <div className="min-w-0">
-              <p className="text-xs font-black text-white truncate italic">{profile?.full_name || 'Usuário'}</p>
-              <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest">{profile?.role === 'admin' ? 'Super Admin' : 'Usuário'}</p>
+              <p className="text-xs font-black text-white truncate italic">{profile?.full_name || 'UsuÃ¡rio'}</p>
+              <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest">{profile?.role === 'admin' ? 'Super Admin' : 'UsuÃ¡rio'}</p>
             </div>
           </div>
         </div>
@@ -2233,7 +1536,7 @@ const PharmacyManagement = ({ profile }: { profile: any }) => {
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Formatar o endereço completo antes de salvar
+    // Formatar o endereÃ§o completo antes de salvar
     const finalAddress = `${formData.addressBase || formData.address}${formData.number ? `, ${formData.number}` : ''}${formData.complement ? `, ${formData.complement}` : ''}`;
 
     const payload = {
@@ -2273,12 +1576,12 @@ const PharmacyManagement = ({ profile }: { profile: any }) => {
     if (cep.length !== 8) return;
 
     try {
-      // 1. Buscar endereço via ViaCEP
+      // 1. Buscar endereÃ§o via ViaCEP
       const viaCEPResponse = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
       const viaCEPData = await viaCEPResponse.json();
 
       if (viaCEPData.erro) {
-        alert("CEP não encontrado.");
+        alert("CEP nÃ£o encontrado.");
         return;
       }
 
@@ -2308,7 +1611,7 @@ const PharmacyManagement = ({ profile }: { profile: any }) => {
       setFormData(prev => ({
         ...prev,
         address: fullAddress,
-        addressBase: fullAddress, // Guardar o endereço base sem número/complemento
+        addressBase: fullAddress, // Guardar o endereÃ§o base sem nÃºmero/complemento
         latitude: lat,
         longitude: lng
       }));
@@ -2320,7 +1623,7 @@ const PharmacyManagement = ({ profile }: { profile: any }) => {
 
   const handleApprove = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation(); // Evita deletar ou editar se tiver handlers pai
-    if (window.confirm('Deseja APROVAR esta farmácia?')) {
+    if (window.confirm('Deseja APROVAR esta farmÃ¡cia?')) {
       const { error } = await supabase.from('pharmacies').update({ status: 'Aprovado' }).eq('id', id);
       if (error) alert(error.message);
       else fetchPharmacies();
@@ -2328,7 +1631,7 @@ const PharmacyManagement = ({ profile }: { profile: any }) => {
   };
 
   const handleDelete = async (id: string) => {
-    if (window.confirm('Tem certeza que deseja excluir esta farmácia?')) {
+    if (window.confirm('Tem certeza que deseja excluir esta farmÃ¡cia?')) {
       const { error } = await supabase.from('pharmacies').delete().eq('id', id);
       if (error) alert(error.message);
       else fetchPharmacies();
@@ -2341,7 +1644,7 @@ const PharmacyManagement = ({ profile }: { profile: any }) => {
       name: pharm.name,
       cep: '',
       address: pharm.address,
-      addressBase: pharm.address, // No edit, tratamos o endereço atual como base
+      addressBase: pharm.address, // No edit, tratamos o endereÃ§o atual como base
       number: '',
       complement: '',
       latitude: pharm.latitude?.toString() || '',
@@ -2364,7 +1667,7 @@ const PharmacyManagement = ({ profile }: { profile: any }) => {
         <div className="flex items-center p-5 justify-between w-full">
           <div className="flex items-center gap-3">
             <MaterialIcon name="storefront" className="text-primary md:hidden" />
-            <h1 className="text-xl font-black tracking-tighter italic">Gestão de Farmácias</h1>
+            <h1 className="text-xl font-black tracking-tighter italic">GestÃ£o de FarmÃ¡cias</h1>
           </div>
           <button
             onClick={() => {
@@ -2403,7 +1706,7 @@ const PharmacyManagement = ({ profile }: { profile: any }) => {
             <div className="absolute left-4 text-slate-400 dark:text-[#92c9a9] group-focus-within:text-primary transition-colors">
               <MaterialIcon name="search" />
             </div>
-            <input className="w-full h-14 pl-12 pr-4 bg-white dark:bg-[#1a2e23] border border-slate-200 dark:border-white/5 rounded-2xl text-base focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all placeholder:text-slate-400 dark:placeholder:text-[#92c9a9]/30 shadow-inner font-bold italic" placeholder="Buscar farmácia por nome..." type="text" />
+            <input className="w-full h-14 pl-12 pr-4 bg-white dark:bg-[#1a2e23] border border-slate-200 dark:border-white/5 rounded-2xl text-base focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all placeholder:text-slate-400 dark:placeholder:text-[#92c9a9]/30 shadow-inner font-bold italic" placeholder="Buscar farmÃ¡cia por nome..." type="text" />
           </label>
         </div>
 
@@ -2456,7 +1759,7 @@ const PharmacyManagement = ({ profile }: { profile: any }) => {
                 </div>
                 <div className="flex gap-2">
                   {pharm.status === 'Pendente' && (
-                    <button onClick={(e) => handleApprove(pharm.id, e)} className="p-2.5 flex items-center justify-center bg-green-500/10 text-green-500 rounded-xl transition-colors hover:bg-green-500 hover:text-white active:scale-90 shadow-sm border border-transparent" title="Aprovar Farmácia">
+                    <button onClick={(e) => handleApprove(pharm.id, e)} className="p-2.5 flex items-center justify-center bg-green-500/10 text-green-500 rounded-xl transition-colors hover:bg-green-500 hover:text-white active:scale-90 shadow-sm border border-transparent" title="Aprovar FarmÃ¡cia">
                       <MaterialIcon name="check_circle" className="text-sm" />
                     </button>
                   )}
@@ -2469,29 +1772,33 @@ const PharmacyManagement = ({ profile }: { profile: any }) => {
                 </div>
               </div>
 
-              <button className={`w-full flex items-center justify-center gap-2 bg-slate-50 dark:bg-white/5 text-slate-600 dark:text-white border border-black/5 dark:border-white/5 font-black text-[10px] uppercase tracking-widest h-12 rounded-2xl transition-all active:scale-95 shadow-sm`}>
-                <MaterialIcon name="star" className="text-lg" />
-                Destaque
+              <button onClick={async () => {
+                const newValue = !pharm.is_featured;
+                const { error } = await supabase.from('pharmacies').update({ is_featured: newValue }).eq('id', pharm.id);
+                if (!error) fetchPharmacies();
+              }} className={`w-full flex items-center justify-center gap-2 ${pharm.is_featured ? 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20' : 'bg-slate-50 dark:bg-white/5 text-slate-600 dark:text-white border-black/5 dark:border-white/5'} border font-black text-[10px] uppercase tracking-widest h-12 rounded-2xl transition-all active:scale-95 shadow-sm`}>
+                <MaterialIcon name={pharm.is_featured ? "star" : "star_border"} className="text-lg" fill={pharm.is_featured} />
+                {pharm.is_featured ? 'Em Destaque' : 'Destacar'}
               </button>
             </div>
           ))}
         </div>
       </main>
 
-      {/* Modal Cadastro/Edição */}
+      {/* Modal Cadastro/EdiÃ§Ã£o */}
       {showModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowModal(false)}></div>
           <div className="relative w-full max-w-lg bg-white dark:bg-[#1a2e22] rounded-[32px] shadow-2xl overflow-hidden border border-white/10">
             <form onSubmit={handleSave} className="p-8">
               <div className="flex justify-between items-center mb-6">
-                <h2 className="text-2xl font-black italic tracking-tighter">{editingPharm ? 'Editar Farmácia' : 'Nova Farmácia'}</h2>
+                <h2 className="text-2xl font-black italic tracking-tighter">{editingPharm ? 'Editar FarmÃ¡cia' : 'Nova FarmÃ¡cia'}</h2>
                 <button type="button" onClick={() => setShowModal(false)} className="size-10 rounded-full bg-slate-100 dark:bg-black/20 flex items-center justify-center hover:rotate-90 transition-transform"><MaterialIcon name="close" /></button>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <label className="col-span-2 flex flex-col gap-1">
-                  <span className="text-[10px] font-black uppercase text-slate-500">CEP (Busca endereço e localização)</span>
+                  <span className="text-[10px] font-black uppercase text-slate-500">CEP (Busca endereÃ§o e localizaÃ§Ã£o)</span>
                   <input
                     required
                     placeholder="00000-000"
@@ -2502,11 +1809,11 @@ const PharmacyManagement = ({ profile }: { profile: any }) => {
                   />
                 </label>
                 <label className="col-span-2 flex flex-col gap-1">
-                  <span className="text-[10px] font-black uppercase text-slate-500">Nome da Farmácia</span>
+                  <span className="text-[10px] font-black uppercase text-slate-500">Nome da FarmÃ¡cia</span>
                   <input required className="h-12 px-4 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 rounded-xl outline-none font-bold italic" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} />
                 </label>
                 <label className="col-span-2 flex flex-col gap-1">
-                  <span className="text-[10px] font-black uppercase text-slate-500">Endereço (Auto-preenchido pelo CEP)</span>
+                  <span className="text-[10px] font-black uppercase text-slate-500">EndereÃ§o (Auto-preenchido pelo CEP)</span>
                   <input required className="h-12 px-4 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 rounded-xl outline-none font-bold italic" value={formData.addressBase} onChange={e => setFormData({ ...formData, addressBase: e.target.value })} />
                 </label>
 
@@ -2520,16 +1827,16 @@ const PharmacyManagement = ({ profile }: { profile: any }) => {
                 </label>
 
                 <label className="col-span-1 flex flex-col gap-1">
-                  <span className="text-[10px] font-black uppercase text-slate-500">Nome do Responsável</span>
+                  <span className="text-[10px] font-black uppercase text-slate-500">Nome do ResponsÃ¡vel</span>
                   <input className="h-12 px-4 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 rounded-xl outline-none font-bold italic" value={formData.owner_name} onChange={e => setFormData({ ...formData, owner_name: e.target.value })} />
                 </label>
                 <label className="col-span-1 flex flex-col gap-1">
-                  <span className="text-[10px] font-black uppercase text-slate-500">Celular Responsável</span>
+                  <span className="text-[10px] font-black uppercase text-slate-500">Celular ResponsÃ¡vel</span>
                   <input className="h-12 px-4 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 rounded-xl outline-none font-bold italic" value={formData.owner_phone} onChange={e => setFormData({ ...formData, owner_phone: e.target.value })} />
                 </label>
 
                 <label className="flex flex-col gap-1">
-                  <span className="text-[10px] font-black uppercase text-slate-500">Nº</span>
+                  <span className="text-[10px] font-black uppercase text-slate-500">NÂº</span>
                   <input required placeholder="Ex: 06" className="h-12 px-4 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 rounded-xl outline-none font-bold italic" value={formData.number} onChange={e => setFormData({ ...formData, number: e.target.value })} />
                 </label>
                 <label className="flex flex-col gap-1">
@@ -2556,7 +1863,7 @@ const PharmacyManagement = ({ profile }: { profile: any }) => {
               </div>
 
               <button type="submit" className="w-full mt-8 bg-primary text-background-dark font-black py-4 rounded-2xl shadow-xl shadow-primary/20 active:scale-98 transition-all uppercase tracking-tighter">
-                {editingPharm ? 'Salvar Alterações' : 'Cadastrar Loja'}
+                {editingPharm ? 'Salvar AlteraÃ§Ãµes' : 'Cadastrar Loja'}
               </button>
             </form>
           </div>
@@ -2571,11 +1878,11 @@ const AdManagement = ({ profile }: { profile: any }) => {
     <AdminLayout activeTab="ads" profile={profile}>
       {/* Desktop Header */}
       <header className="hidden md:flex sticky top-0 z-30 bg-background-light/80 dark:bg-background-dark/80 backdrop-blur-md border-b border-slate-200 dark:border-white/10 p-5 items-center justify-between">
-        <h1 className="text-xl font-black tracking-tighter italic text-slate-900 dark:text-white">Anúncios e Destaques</h1>
+        <h1 className="text-xl font-black tracking-tighter italic text-slate-900 dark:text-white">AnÃºncios e Destaques</h1>
         <div className="flex gap-3">
           <button className="flex min-w-[84px] cursor-pointer items-center justify-center overflow-hidden rounded-2xl h-10 px-4 flex-1 bg-slate-200 dark:bg-[#234833] text-slate-900 dark:text-white gap-2 text-xs font-black uppercase tracking-widest shadow-sm border border-slate-300 dark:border-transparent hover:opacity-90 active:scale-95 transition-all">
             <MaterialIcon name="bar_chart" className="text-primary" />
-            <span className="truncate">Relatório</span>
+            <span className="truncate">RelatÃ³rio</span>
           </button>
           <button className="bg-primary hover:bg-primary/90 text-background-dark flex h-10 px-4 items-center justify-center rounded-2xl shadow-lg shadow-primary/20 transition-all active:scale-90 gap-2 text-xs font-black uppercase tracking-widest">
             <MaterialIcon name="add_photo_alternate" />
@@ -2589,7 +1896,7 @@ const AdManagement = ({ profile }: { profile: any }) => {
         <div className="flex items-center p-4 justify-between w-full">
           <div className="flex items-center gap-3">
             <MaterialIcon name="campaign" className="text-primary" />
-            <h1 className="text-lg font-black tracking-tighter italic">Anúncios e Destaques</h1>
+            <h1 className="text-lg font-black tracking-tighter italic">AnÃºncios e Destaques</h1>
           </div>
           <button className="flex items-center justify-center rounded-full w-10 h-10 bg-slate-200 dark:bg-white/10 active:scale-95 transition-transform">
             <MaterialIcon name="account_circle" />
@@ -2601,11 +1908,11 @@ const AdManagement = ({ profile }: { profile: any }) => {
         {/* Stats Row */}
         <div className="flex md:grid md:grid-cols-4 flex-nowrap gap-4 mb-8 overflow-x-auto no-scrollbar md:overflow-visible">
           {[
-            { label: 'CTR Médio', value: '1.2%', trend: '+0.2%', icon: 'trending_up' },
+            { label: 'CTR MÃ©dio', value: '1.2%', trend: '+0.2%', icon: 'trending_up' },
             { label: 'Cliques', value: '4.5k', trend: '+12%', icon: 'trending_up' },
-            { label: 'Impressões', value: '124k', trend: '+8%', icon: 'visibility' },
-            { label: 'Ocupação', value: '8/10', sub: '2 vago(s)', icon: 'space_dashboard' }
-          ].map((stat, i) => (stat.label !== 'Ocupação' ? (
+            { label: 'ImpressÃµes', value: '124k', trend: '+8%', icon: 'visibility' },
+            { label: 'OcupaÃ§Ã£o', value: '8/10', sub: '2 vago(s)', icon: 'space_dashboard' }
+          ].map((stat, i) => (stat.label !== 'OcupaÃ§Ã£o' ? (
             <div key={i} className="flex min-w-[140px] flex-1 flex-col gap-1 rounded-[24px] p-5 bg-white dark:bg-[#193324] border border-slate-200 dark:border-white/5 shadow-sm hover:shadow-md transition-all">
               <p className="text-slate-500 dark:text-[#92c9a9] text-[10px] font-black uppercase tracking-widest">{stat.label}</p>
               <p className="text-2xl font-black italic tracking-tighter mt-1">{stat.value}</p>
@@ -2646,7 +1953,7 @@ const AdManagement = ({ profile }: { profile: any }) => {
 
                 <button className="w-full bg-primary text-background-dark font-black py-4 rounded-2xl flex items-center justify-center gap-2 active:scale-95 transition-transform shadow-xl shadow-primary/20 uppercase tracking-tighter text-sm">
                   <MaterialIcon name="send" />
-                  Publicar Anúncio
+                  Publicar AnÃºncio
                 </button>
               </div>
             </div>
@@ -2662,7 +1969,7 @@ const AdManagement = ({ profile }: { profile: any }) => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {[
                 { title: "Ofertas Tech", expires: "4 dias", pos: "Topo", img: "https://lh3.googleusercontent.com/aida-public/AB6AXuAHACRZmVb42PYIBzLy7gmzY_q_YhSIHyvDau2dxOA2z_U3gzJacmOzSkMClFVtyAPzNlH27cJrWQpM1PuL4OyIxvy0xqPb7ciZMEphK-DxtyAMasGNk_ygqzjDeE6oQypV8mHEenKAbT6I7bNB2wPTaT8OcEeXrhSOafXQLuZd86KLf_yxEamRbwRwi05Tz9om_4LYDcczkBt3TTytmpDwheSDLPu8aaqducBjhg2KlO2jzvJQUKxHOM_tGl4B-cyfui7Ny7moCg", perf: 80, ctr: "0.8%" },
-                { title: "Coleção Verão", expires: "12 dias", pos: "Meio", img: "https://lh3.googleusercontent.com/aida-public/AB6AXuCQ04Sw1VT5QvkJqYdvfTJoDG5ErpqPQ69kAw-tdAxZpJT7XLhmtP-knbT84AGm3FPtM-kMBGE_gdXbWQVY18kE6c7R7GO2VIi9u5pjxpNJV74ueHwVitIAqdcozVScJTaothKpmn_sUpDHDS3yrsssaDL2PbnTYf9JUHsG8bFogG0EiHPAX9y8FdvOrXQ9Zd-mSE25shiGXTlR_cXmjlZlgZ5s520e-23FzsUNLVOeE0_QZomXX2L72Aw4o38jHCC9qy3bR0k0kQ", perf: 100, ctr: "1.4%" },
+                { title: "ColeÃ§Ã£o VerÃ£o", expires: "12 dias", pos: "Meio", img: "https://lh3.googleusercontent.com/aida-public/AB6AXuCQ04Sw1VT5QvkJqYdvfTJoDG5ErpqPQ69kAw-tdAxZpJT7XLhmtP-knbT84AGm3FPtM-kMBGE_gdXbWQVY18kE6c7R7GO2VIi9u5pjxpNJV74ueHwVitIAqdcozVScJTaothKpmn_sUpDHDS3yrsssaDL2PbnTYf9JUHsG8bFogG0EiHPAX9y8FdvOrXQ9Zd-mSE25shiGXTlR_cXmjlZlgZ5s520e-23FzsUNLVOeE0_QZomXX2L72Aw4o38jHCC9qy3bR0k0kQ", perf: 100, ctr: "1.4%" },
                 { title: "Semana da Beleza", expires: "20 dias", pos: "Base", img: "https://lh3.googleusercontent.com/aida-public/AB6AXuAc3-5o_8tY_y_9f9o-o-Y_8-t9_y_9f9o-o-Y_8-t9_y_9f9o-o-Y_8-t9_y_9f9o-o-Y_8-t9_y_9f9o-o-Y_8-t9", perf: 45, ctr: "0.5%" },
               ].map((ad, i) => (
                 <div key={i} className="flex flex-col gap-4 rounded-[32px] bg-white dark:bg-[#193324] p-5 shadow-sm border border-slate-200 dark:border-white/5 group hover:scale-[1.01] transition-transform">
@@ -2735,7 +2042,7 @@ const UserWallet = () => {
             <div className="relative z-10">
               <div className="flex justify-between items-start mb-10">
                 <div className="flex flex-col gap-1">
-                  <span className="text-white/70 text-[10px] font-black uppercase tracking-widest leading-none">Saldo Disponível</span>
+                  <span className="text-white/70 text-[10px] font-black uppercase tracking-widest leading-none">Saldo DisponÃ­vel</span>
                   <div className="flex items-center gap-2 mt-1">
                     <h2 className="text-white text-4xl font-black italic tracking-tighter">R$ 150,00</h2>
                     <MaterialIcon name="visibility" className="text-white/50 text-xl cursor-pointer hover:text-white/80 transition-colors" />
@@ -2772,7 +2079,7 @@ const UserWallet = () => {
                 <MaterialIcon name="add" className="text-2xl" />
               </div>
               <div className="flex-1">
-                <p className="font-black text-sm italic">Novo Cartão</p>
+                <p className="font-black text-sm italic">Novo CartÃ£o</p>
                 <p className="text-[10px] text-slate-400 dark:text-slate-400 font-bold uppercase tracking-widest mt-0.5">Compre com mais agilidade</p>
               </div>
               <MaterialIcon name="chevron_right" className="text-slate-300 dark:text-white/20" />
@@ -2787,7 +2094,7 @@ const UserWallet = () => {
                 <p className="font-black text-sm italic">Visa Final 4432</p>
                 <p className="text-[10px] text-slate-400 dark:text-slate-400 font-bold uppercase tracking-widest mt-0.5">Expira em 10/27</p>
               </div>
-              <span className="text-[8px] font-black px-3 py-1 bg-primary/20 text-primary rounded-full uppercase tracking-widest border border-primary/20">Padrão</span>
+              <span className="text-[8px] font-black px-3 py-1 bg-primary/20 text-primary rounded-full uppercase tracking-widest border border-primary/20">PadrÃ£o</span>
             </div>
           </div>
         </section>
@@ -2798,7 +2105,7 @@ const UserWallet = () => {
             <h3 className="text-lg font-black tracking-tighter italic">Meus Cupons</h3>
             <div className="flex items-center gap-1.5 text-primary">
               <MaterialIcon name="confirmation_number" className="text-xl" />
-              <span className="text-[10px] font-black uppercase tracking-widest italic">2 Disponíveis</span>
+              <span className="text-[10px] font-black uppercase tracking-widest italic">2 DisponÃ­veis</span>
             </div>
           </div>
           <div className="px-4 flex flex-col gap-4">
@@ -2830,14 +2137,14 @@ const UserWallet = () => {
 
               <div className="bg-green-500/20 text-green-500 p-4 rounded-xl flex flex-col items-center justify-center min-w-[80px] border border-green-500/10">
                 <MaterialIcon name="local_shipping" className="text-xl" />
-                <span className="text-[10px] font-black uppercase tracking-widest mt-1">GRÁTIS</span>
+                <span className="text-[10px] font-black uppercase tracking-widest mt-1">GRÃTIS</span>
               </div>
               <div className="flex-1 overflow-hidden">
                 <p className="font-black text-sm italic truncate">Entrega Gratis</p>
                 <p className="text-[10px] text-slate-400 dark:text-slate-400 font-bold uppercase tracking-widest mt-0.5 truncate">Toda linha de higiene</p>
                 <div className="flex items-center gap-1 mt-2">
                   <MaterialIcon name="event" className="text-xs text-slate-500" />
-                  <span className="text-[9px] text-slate-500 font-black uppercase tracking-widest">Até 30 Outubro</span>
+                  <span className="text-[9px] text-slate-500 font-black uppercase tracking-widest">AtÃ© 30 Outubro</span>
                 </div>
               </div>
               <button className="bg-green-500 text-white text-[10px] font-black px-5 py-2.5 rounded-full active:scale-95 transition-all shadow-lg shadow-green-500/10 uppercase tracking-tighter">USAR</button>
@@ -2850,9 +2157,9 @@ const UserWallet = () => {
           <h3 className="text-lg font-black tracking-tighter italic px-6 mb-5">Atividade Recente</h3>
           <div className="mx-4 bg-white dark:bg-[#161f28] rounded-2xl border border-slate-100 dark:border-white/5 shadow-sm overflow-hidden divide-y divide-black/5 dark:divide-white/5">
             {[
-              { title: "Farmácia Central", date: "Hoje, 14:20", amount: "- R$ 45,90", icon: "shopping_bag", color: "red-500" },
+              { title: "FarmÃ¡cia Central", date: "Hoje, 14:20", amount: "- R$ 45,90", icon: "shopping_bag", color: "red-500" },
               { title: "Recarga de Saldo", date: "Ontem, 09:15", amount: "+ R$ 50,00", icon: "add_card", color: "primary" },
-              { title: "Drogaria Saúde", date: "22 de Out, 18:45", amount: "- R$ 12,30", icon: "medical_services", color: "red-500" }
+              { title: "Drogaria SaÃºde", date: "22 de Out, 18:45", amount: "- R$ 12,30", icon: "medical_services", color: "red-500" }
             ].map((tx, i) => (
               <div key={i} className="flex items-center gap-4 p-5 hover:bg-slate-50 dark:hover:bg-white/5 transition-colors cursor-pointer">
                 <div className={`size-11 rounded-full ${tx.color === 'primary' ? 'bg-primary/20 text-primary' : 'bg-slate-800 dark:bg-slate-800 text-red-400'} flex items-center justify-center shadow-inner`}>
@@ -2866,7 +2173,7 @@ const UserWallet = () => {
               </div>
             ))}
           </div>
-          <button className="w-full mt-4 text-[10px] font-black text-slate-400 uppercase tracking-widest italic hover:opacity-70 transition-opacity">Ver histórico completo</button>
+          <button className="w-full mt-4 text-[10px] font-black text-slate-400 uppercase tracking-widest italic hover:opacity-70 transition-opacity">Ver histÃ³rico completo</button>
         </section>
       </main>
 
@@ -2908,7 +2215,7 @@ const UserManagement = ({ profile }: { profile: any }) => {
             <button onClick={() => navigate(-1)} className="text-slate-900 dark:text-white flex size-12 shrink-0 items-center justify-start transition-transform active:scale-90">
               <MaterialIcon name="arrow_back_ios" />
             </button>
-            <h2 className="text-slate-900 dark:text-white text-lg font-black leading-tight tracking-tighter italic">Gestão de Usuários</h2>
+            <h2 className="text-slate-900 dark:text-white text-lg font-black leading-tight tracking-tighter italic">GestÃ£o de UsuÃ¡rios</h2>
           </div>
           <div className="flex w-12 items-center justify-end">
             <button className="flex cursor-pointer items-center justify-center rounded-lg h-12 bg-transparent text-slate-900 dark:text-white p-0 overflow-hidden">
@@ -2920,7 +2227,7 @@ const UserManagement = ({ profile }: { profile: any }) => {
 
       {/* Desktop Header */}
       <header className="hidden md:flex sticky top-0 z-30 bg-background-light/80 dark:bg-background-dark/80 backdrop-blur-md border-b border-slate-200 dark:border-white/10 p-5 items-center justify-between">
-        <h1 className="text-xl font-black tracking-tighter italic text-slate-900 dark:text-white">Gestão de Usuários</h1>
+        <h1 className="text-xl font-black tracking-tighter italic text-slate-900 dark:text-white">GestÃ£o de UsuÃ¡rios</h1>
         <div className="flex gap-3">
           <button className="flex min-w-[84px] cursor-pointer items-center justify-center overflow-hidden rounded-2xl h-10 px-4 bg-slate-200 dark:bg-[#234833] text-slate-900 dark:text-white gap-2 text-xs font-black uppercase tracking-widest shadow-sm border border-slate-300 dark:border-transparent hover:opacity-90 active:scale-95 transition-all">
             <MaterialIcon name="download" className="text-primary" />
@@ -2928,7 +2235,7 @@ const UserManagement = ({ profile }: { profile: any }) => {
           </button>
           <button className="bg-primary hover:bg-primary/90 text-background-dark flex h-10 px-4 items-center justify-center rounded-2xl shadow-lg shadow-primary/20 transition-all active:scale-90 gap-2 text-xs font-black uppercase tracking-widest">
             <MaterialIcon name="person_add" />
-            <span>Novo Usuário</span>
+            <span>Novo UsuÃ¡rio</span>
           </button>
         </div>
       </header>
@@ -2971,7 +2278,7 @@ const UserManagement = ({ profile }: { profile: any }) => {
           {/* List Section */}
           <div className="px-4 md:px-5">
             <div className="flex items-center justify-between pb-4 pt-2">
-              <h3 className="text-slate-900 dark:text-white text-lg font-black tracking-tighter italic">Lista de Usuários</h3>
+              <h3 className="text-slate-900 dark:text-white text-lg font-black tracking-tighter italic">Lista de UsuÃ¡rios</h3>
               <span className="text-[10px] font-black text-slate-400 dark:text-[#92c9a9] uppercase tracking-widest">Total: 482</span>
             </div>
 
@@ -2979,7 +2286,7 @@ const UserManagement = ({ profile }: { profile: any }) => {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
               {[
                 { name: "Ricardo Almeida", email: "ricardo.a@email.com", status: "Ativo", date: "12/10/2023", color: "primary" },
-                { name: "Ana Clara Mendonça", email: "anaclara@gmail.com", status: "Bloqueado", date: "08/10/2023", color: "red-500" },
+                { name: "Ana Clara MendonÃ§a", email: "anaclara@gmail.com", status: "Bloqueado", date: "08/10/2023", color: "red-500" },
                 { name: "Bruno Ferreira", email: "bruno.dev@outlook.com", status: "Ativo", date: "05/09/2023", color: "primary" },
                 { name: "Mariana Souza", email: "mariana.s@web.com", status: "Ativo", date: "28/08/2023", color: "primary" },
                 { name: "Carlos Eduardo", email: "carlos.e@email.com", status: "Pendente", date: "01/11/2023", color: "orange-500" },
@@ -3033,11 +2340,11 @@ const PromotionManagement = ({ profile }: { profile: any }) => {
     <AdminLayout activeTab="promos" profile={profile}>
       {/* Desktop Header */}
       <header className="hidden md:flex sticky top-0 z-30 bg-background-light/80 dark:bg-background-dark/80 backdrop-blur-md border-b border-slate-200 dark:border-white/10 p-5 items-center justify-between">
-        <h1 className="text-xl font-black tracking-tighter italic text-slate-900 dark:text-white">Gestão de Promoções</h1>
+        <h1 className="text-xl font-black tracking-tighter italic text-slate-900 dark:text-white">GestÃ£o de PromoÃ§Ãµes</h1>
         <div className="flex gap-3">
           <button className="flex min-w-[84px] cursor-pointer items-center justify-center overflow-hidden rounded-2xl h-10 px-4 flex-1 bg-slate-200 dark:bg-[#234833] text-slate-900 dark:text-white gap-2 text-xs font-black uppercase tracking-widest shadow-sm border border-slate-300 dark:border-transparent hover:opacity-90 active:scale-95 transition-all">
             <MaterialIcon name="history" className="text-primary" />
-            <span className="truncate">Histórico</span>
+            <span className="truncate">HistÃ³rico</span>
           </button>
           <button className="bg-primary hover:bg-primary/90 text-background-dark flex h-10 px-4 items-center justify-center rounded-2xl shadow-lg shadow-primary/20 transition-all active:scale-90 gap-2 text-xs font-black uppercase tracking-widest">
             <MaterialIcon name="rocket_launch" />
@@ -3052,7 +2359,7 @@ const PromotionManagement = ({ profile }: { profile: any }) => {
           <button onClick={() => navigate(-1)} className="text-white flex size-10 shrink-0 items-center justify-center rounded-full hover:bg-white/10 transition-colors cursor-pointer active:scale-90">
             <MaterialIcon name="arrow_back_ios_new" />
           </button>
-          <h2 className="text-white text-lg font-black leading-tight tracking-tighter flex-1 text-center italic">Gestão de Promoções</h2>
+          <h2 className="text-white text-lg font-black leading-tight tracking-tighter flex-1 text-center italic">GestÃ£o de PromoÃ§Ãµes</h2>
           <div className="text-white flex size-10 shrink-0 items-center justify-center rounded-full hover:bg-white/10 transition-colors cursor-pointer">
             <MaterialIcon name="more_horiz" />
           </div>
@@ -3066,27 +2373,27 @@ const PromotionManagement = ({ profile }: { profile: any }) => {
             <div className="sticky top-24">
               <div className="px-1 md:hidden">
                 <h2 className="text-white text-[22px] font-black leading-tight tracking-tighter pt-5 pb-2 italic">Nova Campanha</h2>
-                <p className="text-[#92c9a9] text-sm font-medium mb-4 italic opacity-70">Preencha os detalhes para lançar uma nova oferta na rede.</p>
+                <p className="text-[#92c9a9] text-sm font-medium mb-4 italic opacity-70">Preencha os detalhes para lanÃ§ar uma nova oferta na rede.</p>
               </div>
 
               {/* Campaign Form Container */}
               <div className="bg-[#193324]/30 border border-[#326748]/50 rounded-[32px] overflow-hidden shadow-xl md:bg-white md:dark:bg-[#193324] md:border-slate-200 md:dark:border-white/5">
                 <div className="hidden md:block p-6 border-b border-black/5 dark:border-white/5">
                   <h2 className="text-slate-900 dark:text-white text-xl font-black italic">Nova Campanha</h2>
-                  <p className="text-slate-500 dark:text-[#92c9a9] text-xs font-bold mt-1">Configure o lançamento</p>
+                  <p className="text-slate-500 dark:text-[#92c9a9] text-xs font-bold mt-1">Configure o lanÃ§amento</p>
                 </div>
 
                 <div className="flex flex-col gap-4 p-5 md:p-6">
                   {/* Name Field */}
                   <label className="flex flex-col w-full">
                     <p className="text-white md:text-slate-600 md:dark:text-white text-[10px] font-black uppercase tracking-widest pb-2 px-1">Nome da Campanha</p>
-                    <input className="form-input flex w-full rounded-2xl text-white md:text-slate-900 md:dark:text-white focus:outline-0 focus:ring-2 focus:ring-primary/20 border border-[#326748] md:border-slate-300 md:dark:border-white/10 bg-[#193324]/50 md:bg-slate-50 md:dark:bg-black/20 focus:border-primary h-14 placeholder:text-[#92c9a9]/30 md:placeholder:text-slate-400 p-4 text-base font-bold italic transition-all shadow-sm" placeholder="Ex: Black Friday Farmácias" />
+                    <input className="form-input flex w-full rounded-2xl text-white md:text-slate-900 md:dark:text-white focus:outline-0 focus:ring-2 focus:ring-primary/20 border border-[#326748] md:border-slate-300 md:dark:border-white/10 bg-[#193324]/50 md:bg-slate-50 md:dark:bg-black/20 focus:border-primary h-14 placeholder:text-[#92c9a9]/30 md:placeholder:text-slate-400 p-4 text-base font-bold italic transition-all shadow-sm" placeholder="Ex: Black Friday FarmÃ¡cias" />
                   </label>
 
                   {/* Dates Row */}
                   <div className="flex gap-4">
                     <label className="flex flex-col flex-1">
-                      <p className="text-white md:text-slate-600 md:dark:text-white text-[10px] font-black uppercase tracking-widest pb-2 px-1">Data Início</p>
+                      <p className="text-white md:text-slate-600 md:dark:text-white text-[10px] font-black uppercase tracking-widest pb-2 px-1">Data InÃ­cio</p>
                       <input className="form-input flex w-full rounded-2xl text-white md:text-slate-900 md:dark:text-white border border-[#326748] md:border-slate-300 md:dark:border-white/10 bg-[#193324]/50 md:bg-slate-50 md:dark:bg-black/20 h-14 p-4 text-sm font-bold focus:ring-primary/20 focus:border-primary shadow-sm" type="date" />
                     </label>
                     <label className="flex flex-col flex-1">
@@ -3106,10 +2413,10 @@ const PromotionManagement = ({ profile }: { profile: any }) => {
 
                   {/* Participating Pharmacies */}
                   <div className="flex flex-col w-full">
-                    <p className="text-white md:text-slate-600 md:dark:text-white text-[10px] font-black uppercase tracking-widest pb-2 px-1">Farmácias Participantes</p>
+                    <p className="text-white md:text-slate-600 md:dark:text-white text-[10px] font-black uppercase tracking-widest pb-2 px-1">FarmÃ¡cias Participantes</p>
                     <div className="flex flex-wrap gap-2 mb-2">
                       <span className="inline-flex items-center gap-2 px-4 py-2 bg-primary/10 text-primary border border-primary/20 rounded-full text-[10px] font-black uppercase tracking-widest italic shadow-sm">
-                        Todas as Farmácias
+                        Todas as FarmÃ¡cias
                         <MaterialIcon name="close" className="text-[14px] cursor-pointer hover:rotate-90 transition-transform" />
                       </span>
                       <button className="flex items-center gap-1 px-4 py-2 border border-[#326748] md:border-slate-300 md:dark:border-white/10 rounded-full text-[#92c9a9] md:text-slate-500 text-[10px] font-black uppercase tracking-widest hover:border-primary transition-colors italic">
@@ -3122,7 +2429,7 @@ const PromotionManagement = ({ profile }: { profile: any }) => {
                   {/* Create Button */}
                   <button className="w-full bg-primary text-background-dark font-black py-4 rounded-3xl shadow-2xl shadow-primary/20 hover:scale-[1.01] active:scale-[0.98] transition-all flex items-center justify-center gap-2 mt-2 uppercase tracking-tighter text-sm">
                     <MaterialIcon name="rocket_launch" className="hover:rotate-12 transition-transform" />
-                    Criar Promoção
+                    Criar PromoÃ§Ã£o
                   </button>
                 </div>
               </div>
@@ -3135,13 +2442,13 @@ const PromotionManagement = ({ profile }: { profile: any }) => {
 
             <div className="px-1 pb-4">
               <div className="flex justify-between items-center mb-6 pt-4 md:pt-0">
-                <h2 className="text-white md:text-slate-900 md:dark:text-white text-xl font-black tracking-tighter italic">Promoções Ativas</h2>
+                <h2 className="text-white md:text-slate-900 md:dark:text-white text-xl font-black tracking-tighter italic">PromoÃ§Ãµes Ativas</h2>
                 <span className="bg-primary/10 text-primary text-[10px] px-3 py-1 rounded-full font-black uppercase tracking-widest italic border border-primary/20">04 Ativas</span>
               </div>
 
               <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
                 {[
-                  { title: "Festival de Verão", date: "30 Dez, 2023", reach: "12 Lojas", icon: "sunny" },
+                  { title: "Festival de VerÃ£o", date: "30 Dez, 2023", reach: "12 Lojas", icon: "sunny" },
                   { title: "Semana Bio-Natural", date: "15 Out, 2023", reach: "Todas as Lojas", icon: "eco" },
                   { title: "Check-up Preventivo", date: "22 Out, 2023", reach: "5 Lojas SP", icon: "health_and_safety" },
                   { title: "Desconto Progressivo", date: "01 Nov, 2023", reach: "Rede Sul", icon: "percent" }
@@ -3152,7 +2459,7 @@ const PromotionManagement = ({ profile }: { profile: any }) => {
                     </div>
                     <div className="flex-1 min-w-0">
                       <h4 className="text-white md:text-slate-900 md:dark:text-white font-black text-base truncate italic">{promo.title}</h4>
-                      <p className="text-[#92c9a9] md:text-slate-500 md:dark:text-[#92c9a9] text-[10px] font-bold uppercase tracking-widest mt-1 opacity-60">Válido até {promo.date}</p>
+                      <p className="text-[#92c9a9] md:text-slate-500 md:dark:text-[#92c9a9] text-[10px] font-bold uppercase tracking-widest mt-1 opacity-60">VÃ¡lido atÃ© {promo.date}</p>
                       <div className="flex gap-2 mt-3">
                         <span className="text-[9px] font-black uppercase tracking-widest bg-black/30 md:bg-slate-100 md:dark:bg-black/30 text-[#92c9a9] px-3 py-1 rounded-full border border-[#326748] md:border-transparent italic">{promo.reach}</span>
                       </div>
@@ -3174,6 +2481,71 @@ const PromotionManagement = ({ profile }: { profile: any }) => {
 
 const MotoboyManagement = ({ profile }: { profile: any }) => {
   const [showAddForm, setShowAddForm] = useState(false);
+  const [motoboys, setMotoboys] = useState<any[]>([]);
+  const [pharmacies, setPharmacies] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [formData, setFormData] = useState({
+    name: '',
+    cpf: '',
+    phone: '', // login
+    pharmacy_id: '',
+    vehicle_plate: '',
+    vehicle_model: '',
+    cnh_url: '',
+    password: ''
+  });
+
+  const fetchData = async () => {
+    setLoading(true);
+    // Fetch Motoboys
+    const { data: boys } = await supabase
+      .from('motoboys')
+      .select('*, pharmacy:pharmacies(name)')
+      .order('name');
+    if (boys) setMotoboys(boys);
+
+    // Fetch Pharmacies for dropdown
+    const { data: pharms } = await supabase
+      .from('pharmacies')
+      .select('id, name')
+      .order('name');
+    if (pharms) setPharmacies(pharms);
+
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const handleSave = async () => {
+    if (!formData.name || !formData.pharmacy_id) return alert("Preencha os campos obrigatórios");
+
+    const { error } = await supabase.from('motoboys').insert([{
+      name: formData.name,
+      cpf: formData.cpf,
+      phone: formData.phone,
+      pharmacy_id: formData.pharmacy_id,
+      vehicle_plate: formData.vehicle_plate,
+      vehicle_model: formData.vehicle_model,
+      cnh_url: formData.cnh_url,
+      status: 'Disponível'
+      // Password logic omitted for now as it requires Auth API interaction
+    }]);
+
+    if (error) alert("Erro ao salvar: " + error.message);
+    else {
+      setShowAddForm(false);
+      setFormData({ name: '', cpf: '', phone: '', pharmacy_id: '', vehicle_plate: '', vehicle_model: '', cnh_url: '', password: '' });
+      fetchData();
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm("Tem certeza?")) return;
+    await supabase.from('motoboys').delete().eq('id', id);
+    fetchData();
+  };
 
   return (
     <AdminLayout activeTab="motoboys" profile={profile}>
@@ -3196,10 +2568,10 @@ const MotoboyManagement = ({ profile }: { profile: any }) => {
         {/* Stats Row */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           {[
-            { label: 'Total Motoboys', value: '24', icon: 'moped', color: 'primary' },
-            { label: 'Em Entrega', value: '14', icon: 'local_shipping', color: 'blue-500' },
-            { label: 'Disponíveis', value: '8', icon: 'check_circle', color: 'green-500' },
-            { label: 'Bloqueados', value: '2', icon: 'block', color: 'red-500' }
+            { label: 'Total Motoboys', value: motoboys.length.toString(), icon: 'moped', color: 'primary' },
+            { label: 'Em Entrega', value: motoboys.filter(m => m.status === 'Em Rota').length.toString(), icon: 'local_shipping', color: 'blue-500' },
+            { label: 'Disponíveis', value: motoboys.filter(m => m.status === 'Disponível').length.toString(), icon: 'check_circle', color: 'green-500' },
+            { label: 'Bloqueados', value: motoboys.filter(m => m.status === 'Bloqueado').length.toString(), icon: 'block', color: 'red-500' }
           ].map((stat, i) => (
             <div key={i} className="bg-white dark:bg-[#1a2e23] p-5 rounded-[28px] border border-slate-200 dark:border-white/5 shadow-sm">
               <div className={`p-3 rounded-2xl bg-${stat.color}/10 text-${stat.color} w-fit mb-3`}>
@@ -3211,78 +2583,56 @@ const MotoboyManagement = ({ profile }: { profile: any }) => {
           ))}
         </div>
 
-        {/* Search & Filters */}
-        <div className="flex flex-col md:flex-row gap-4 mb-8">
-          <label className="relative flex items-center group flex-1">
-            <div className="absolute left-4 text-slate-400 group-focus-within:text-primary transition-colors">
-              <MaterialIcon name="search" />
-            </div>
-            <input
-              className="w-full h-14 pl-12 pr-4 bg-white dark:bg-[#1a2e23] border border-slate-200 dark:border-white/5 rounded-2xl text-base focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all placeholder:text-slate-400 font-bold italic"
-              placeholder="Buscar motoboy por nome ou telefone..."
-              type="text"
-            />
-          </label>
-          <div className="flex gap-2">
-            {['Disponíveis', 'Ocupados', 'Inativos'].map(filter => (
-              <button key={filter} className="h-14 px-6 bg-white dark:bg-[#1a2e23] border border-slate-200 dark:border-white/5 rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-primary/10 hover:text-primary transition-all">
-                {filter}
-              </button>
+        {/* List Section */}
+        {loading ? (
+          <div className="py-20 flex justify-center"><div className="animate-spin size-8 border-4 border-primary border-t-transparent rounded-full"></div></div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+            {motoboys.map((moto, i) => (
+              <div key={i} className="bg-white dark:bg-[#1a2e23] rounded-[32px] border border-slate-200 dark:border-white/5 p-6 shadow-md flex flex-col gap-6 group hover:scale-[1.02] transition-all hover:shadow-xl">
+                <div className="flex items-start gap-4">
+                  <div className="size-16 rounded-2xl bg-primary/10 text-primary flex items-center justify-center font-black text-xl italic shadow-inner shrink-0 border border-primary/20">
+                    {moto.name ? moto.name.charAt(0) : 'M'}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <h3 className="font-black text-lg italic truncate leading-tight">{moto.name || 'Sem Nome'}</h3>
+                        <p className="text-[10px] text-slate-500 dark:text-[#92c9a9] font-bold uppercase tracking-widest mt-1 opacity-70">{moto.phone}</p>
+                      </div>
+                      <div className={`px-3 py-1 bg-slate-100 dark:bg-white/5 rounded-full`}>
+                        <span className={`text-slate-500 dark:text-white text-[8px] font-black uppercase tracking-widest`}>{moto.status || 'Offline'}</span>
+                      </div>
+                    </div>
+                    <div className="mt-3 flex items-center gap-2 text-slate-600 dark:text-gray-300">
+                      <MaterialIcon name="store" className="text-sm opacity-50" />
+                      <span className="text-xs font-bold italic truncate">{moto.pharmacy?.name || 'Sem vínculo'}</span>
+                    </div>
+                    {moto.vehicle_plate && (
+                      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-2">{moto.vehicle_model} • {moto.vehicle_plate}</p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex gap-2 pt-4 border-t border-slate-50 dark:border-white/5">
+                  <button className="flex-1 flex items-center justify-center gap-2 h-11 bg-slate-100 dark:bg-white/5 hover:bg-primary/20 hover:text-primary rounded-xl text-[10px] font-black uppercase tracking-widest transition-all">
+                    <MaterialIcon name="edit" className="text-base" />
+                    Editar
+                  </button>
+                  <button
+                    onClick={() => handleDelete(moto.id)}
+                    className="h-11 w-11 flex items-center justify-center bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white rounded-xl transition-all"
+                  >
+                    <MaterialIcon name="delete" className="text-base" />
+                  </button>
+                </div>
+              </div>
             ))}
           </div>
-        </div>
-
-        {/* List Section */}
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-          {[
-            { name: "João Silva", phone: "(11) 98765-4321", pharmacy: "Farmácia Central", status: "Em Rota", color: "blue-500", img: "JS" },
-            { name: "Marcos Oliveira", phone: "(11) 91234-5678", pharmacy: "BioSaúde Farma", status: "Disponível", color: "green-500", img: "MO" },
-            { name: "André Santos", phone: "(11) 97766-5544", pharmacy: "Droga Popular", status: "Bloqueado", color: "red-500", img: "AS" },
-            { name: "Carlos Souza", phone: "(11) 95544-3322", pharmacy: "Drogasil Matriz", status: "Offline", color: "slate-400", img: "CS" },
-            { name: "Pedro Rocha", phone: "(11) 94433-2211", pharmacy: "Pague Menos", status: "Disponível", color: "green-500", img: "PR" },
-            { name: "Roberto Lima", phone: "(11) 93322-1100", pharmacy: "São Paulo Farma", status: "Em Rota", color: "blue-500", img: "RL" }
-          ].map((moto, i) => (
-            <div key={i} className="bg-white dark:bg-[#1a2e23] rounded-[32px] border border-slate-200 dark:border-white/5 p-6 shadow-md flex flex-col gap-6 group hover:scale-[1.02] transition-all hover:shadow-xl">
-              <div className="flex items-start gap-4">
-                <div className="size-16 rounded-2xl bg-primary/10 text-primary flex items-center justify-center font-black text-xl italic shadow-inner shrink-0 border border-primary/20">
-                  {moto.img}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <h3 className="font-black text-lg italic truncate leading-tight">{moto.name}</h3>
-                      <p className="text-[10px] text-slate-500 dark:text-[#92c9a9] font-bold uppercase tracking-widest mt-1 opacity-70">{moto.phone}</p>
-                    </div>
-                    <div className={`px-3 py-1 bg-${moto.color}/10 border border-${moto.color}/20 rounded-full`}>
-                      <span className={`text-${moto.color} text-[8px] font-black uppercase tracking-widest`}>{moto.status}</span>
-                    </div>
-                  </div>
-                  <div className="mt-3 flex items-center gap-2 text-slate-600 dark:text-gray-300">
-                    <MaterialIcon name="store" className="text-sm opacity-50" />
-                    <span className="text-xs font-bold italic truncate">{moto.pharmacy}</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex gap-2 pt-4 border-t border-slate-50 dark:border-white/5">
-                <button className="flex-1 flex items-center justify-center gap-2 h-11 bg-slate-100 dark:bg-white/5 hover:bg-primary/20 hover:text-primary rounded-xl text-[10px] font-black uppercase tracking-widest transition-all">
-                  <MaterialIcon name="edit" className="text-base" />
-                  Editar
-                </button>
-                <button className="flex-1 flex items-center justify-center gap-2 h-11 bg-slate-100 dark:bg-white/5 hover:bg-orange-500/20 hover:text-orange-500 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all">
-                  <MaterialIcon name="block" className="text-base" />
-                  Bloquear
-                </button>
-                <button className="h-11 w-11 flex items-center justify-center bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white rounded-xl transition-all">
-                  <MaterialIcon name="delete" className="text-base" />
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
+        )}
       </main>
 
-      {/* Registration Modal (Mockup) */}
+      {/* Registration Modal */}
       {showAddForm && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
           <div
@@ -3290,7 +2640,7 @@ const MotoboyManagement = ({ profile }: { profile: any }) => {
             onClick={() => setShowAddForm(false)}
           ></div>
           <div className="relative w-full max-w-md bg-white dark:bg-[#1a2e23] rounded-[40px] shadow-2xl overflow-hidden border border-white/10">
-            <div className="p-8">
+            <div className="p-8 max-h-[90vh] overflow-y-auto">
               <div className="flex justify-between items-center mb-6">
                 <h2 className="text-2xl font-black italic tracking-tighter">Novo Motoboy</h2>
                 <button
@@ -3304,28 +2654,48 @@ const MotoboyManagement = ({ profile }: { profile: any }) => {
               <div className="space-y-4">
                 <label className="flex flex-col gap-2">
                   <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 px-1">Nome Completo</span>
-                  <input className="h-14 px-5 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 rounded-2xl focus:ring-2 focus:ring-primary/20 outline-none font-bold italic" placeholder="Ex: Roberto Carlos" />
+                  <input value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} className="h-14 px-5 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 rounded-2xl focus:ring-2 focus:ring-primary/20 outline-none font-bold italic" placeholder="Ex: Roberto Carlos" />
                 </label>
-                <label className="flex flex-col gap-2">
-                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 px-1">Telefone (Login)</span>
-                  <input className="h-14 px-5 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 rounded-2xl focus:ring-2 focus:ring-primary/20 outline-none font-bold italic" placeholder="(00) 00000-0000" />
-                </label>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <label className="flex flex-col gap-2">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 px-1">CPF</span>
+                    <input value={formData.cpf} onChange={e => setFormData({ ...formData, cpf: e.target.value })} className="h-14 px-5 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 rounded-2xl focus:ring-2 focus:ring-primary/20 outline-none font-bold italic" placeholder="000.000.000-00" />
+                  </label>
+                  <label className="flex flex-col gap-2">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 px-1">Telefone</span>
+                    <input value={formData.phone} onChange={e => setFormData({ ...formData, phone: e.target.value })} className="h-14 px-5 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 rounded-2xl focus:ring-2 focus:ring-primary/20 outline-none font-bold italic" placeholder="(00) 00000-0000" />
+                  </label>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <label className="flex flex-col gap-2">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 px-1">Placa</span>
+                    <input value={formData.vehicle_plate} onChange={e => setFormData({ ...formData, vehicle_plate: e.target.value })} className="h-14 px-5 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 rounded-2xl focus:ring-2 focus:ring-primary/20 outline-none font-bold italic" placeholder="ABC-1234" />
+                  </label>
+                  <label className="flex flex-col gap-2">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 px-1">Modelo</span>
+                    <input value={formData.vehicle_model} onChange={e => setFormData({ ...formData, vehicle_model: e.target.value })} className="h-14 px-5 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 rounded-2xl focus:ring-2 focus:ring-primary/20 outline-none font-bold italic" placeholder="Ex: Fan 160" />
+                  </label>
+                </div>
+
                 <label className="flex flex-col gap-2">
                   <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 px-1">Vincular a Farmácia</span>
-                  <select className="h-14 px-5 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 rounded-2xl focus:ring-2 focus:ring-primary/20 outline-none font-bold italic appearance-none">
-                    <option>Selecione uma farmácia...</option>
-                    <option>Farmácia Central</option>
-                    <option>BioSaúde Farma</option>
-                    <option>Droga Popular</option>
+                  <select value={formData.pharmacy_id} onChange={e => setFormData({ ...formData, pharmacy_id: e.target.value })} className="h-14 px-5 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 rounded-2xl focus:ring-2 focus:ring-primary/20 outline-none font-bold italic appearance-none">
+                    <option value="">Selecione uma farmácia...</option>
+                    {pharmacies.map(p => (
+                      <option key={p.id} value={p.id}>{p.name}</option>
+                    ))}
                   </select>
                 </label>
+
                 <label className="flex flex-col gap-2">
-                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 px-1">Senha Provisória</span>
-                  <input className="h-14 px-5 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 rounded-2xl focus:ring-2 focus:ring-primary/20 outline-none font-bold italic" type="password" placeholder="••••••••" />
+                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 px-1">Foto CNH (URL)</span>
+                  <input value={formData.cnh_url} onChange={e => setFormData({ ...formData, cnh_url: e.target.value })} className="h-14 px-5 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 rounded-2xl focus:ring-2 focus:ring-primary/20 outline-none font-bold italic" placeholder="https://..." />
                 </label>
               </div>
 
-              <button className="w-full mt-8 bg-primary text-background-dark font-black py-5 rounded-3xl shadow-xl shadow-primary/20 active:scale-95 transition-all uppercase tracking-tighter">
+              <button onClick={handleSave} className="w-full mt-8 bg-primary text-background-dark font-black py-5 rounded-3xl shadow-xl shadow-primary/20 active:scale-95 transition-all uppercase tracking-tighter">
                 Finalizar Cadastro
               </button>
             </div>
@@ -3369,12 +2739,12 @@ const SystemSettings = ({ profile }: { profile: any }) => {
       .upsert({
         key: 'google_maps_api_key',
         value: mapsKey,
-        description: 'Chave da API do Google Maps para Geocodificação Reversa'
+        description: 'Chave da API do Google Maps para GeocodificaÃ§Ã£o Reversa'
       });
 
     if (error) {
-      console.error("Erro ao salvar configurações:", error);
-      alert("Erro ao salvar: Verifique se você tem permissão de administrador.");
+      console.error("Erro ao salvar configuraÃ§Ãµes:", error);
+      alert("Erro ao salvar: Verifique se vocÃª tem permissÃ£o de administrador.");
     } else {
       setSuccess(true);
       setTimeout(() => setSuccess(false), 3000);
@@ -3386,7 +2756,7 @@ const SystemSettings = ({ profile }: { profile: any }) => {
     <AdminLayout activeTab="settings" profile={profile}>
       {/* Desktop Header */}
       <header className="hidden md:flex sticky top-0 z-30 bg-background-light/80 dark:bg-background-dark/80 backdrop-blur-md border-b border-slate-200 dark:border-white/10 p-5 items-center justify-between">
-        <h1 className="text-xl font-black tracking-tighter italic text-slate-900 dark:text-white">Configurações do Sistema</h1>
+        <h1 className="text-xl font-black tracking-tighter italic text-slate-900 dark:text-white">ConfiguraÃ§Ãµes do Sistema</h1>
         <div className="flex gap-3">
           <button
             onClick={handleSave}
@@ -3394,7 +2764,7 @@ const SystemSettings = ({ profile }: { profile: any }) => {
             className={`bg-primary hover:bg-primary/90 text-background-dark flex h-10 px-4 items-center justify-center rounded-2xl shadow-lg shadow-primary/20 transition-all active:scale-90 gap-2 text-xs font-black uppercase tracking-widest ${isSaving ? 'opacity-50' : ''}`}
           >
             <MaterialIcon name={success ? "check_circle" : (isSaving ? "sync" : "save")} className={isSaving ? "animate-spin" : ""} />
-            <span>{success ? "Salvo!" : (isSaving ? "Salvando..." : "Salvar Alterações")}</span>
+            <span>{success ? "Salvo!" : (isSaving ? "Salvando..." : "Salvar AlteraÃ§Ãµes")}</span>
           </button>
         </div>
       </header>
@@ -3403,7 +2773,7 @@ const SystemSettings = ({ profile }: { profile: any }) => {
       <header className="sticky top-0 z-50 bg-background-light/80 dark:bg-background-dark/80 backdrop-blur-md border-b border-slate-200 dark:border-white/10 flex justify-between items-center p-4 md:hidden">
         <div className="flex items-center gap-3">
           <MaterialIcon name="settings" className="text-primary" />
-          <h1 className="text-lg font-black tracking-tighter italic">Configurações</h1>
+          <h1 className="text-lg font-black tracking-tighter italic">ConfiguraÃ§Ãµes</h1>
         </div>
       </header>
 
@@ -3428,7 +2798,7 @@ const SystemSettings = ({ profile }: { profile: any }) => {
                   </div>
                   <div className="flex flex-col justify-center">
                     <p className="text-slate-900 dark:text-white text-xs font-black uppercase tracking-widest">Logo Principal</p>
-                    <p className="text-slate-500 dark:text-[#92c9a9] text-[8px] font-black uppercase tracking-widest opacity-60">SVG, PNG (máx. 2MB)</p>
+                    <p className="text-slate-500 dark:text-[#92c9a9] text-[8px] font-black uppercase tracking-widest opacity-60">SVG, PNG (mÃ¡x. 2MB)</p>
                   </div>
                 </div>
                 <div className="shrink-0">
@@ -3444,14 +2814,14 @@ const SystemSettings = ({ profile }: { profile: any }) => {
               <h3 className="text-slate-900 dark:text-white text-lg font-black leading-tight tracking-tighter pb-4 italic border-b border-slate-100 dark:border-white/5 mb-4">Identidade Visual</h3>
               <div className="flex gap-4 py-2">
                 <div className="flex-1">
-                  <p className="text-slate-500 dark:text-[#92c9a9] text-[10px] font-black uppercase tracking-widest pb-2 px-1">Primária</p>
+                  <p className="text-slate-500 dark:text-[#92c9a9] text-[10px] font-black uppercase tracking-widest pb-2 px-1">PrimÃ¡ria</p>
                   <div className="flex items-center gap-2 bg-slate-50 dark:bg-[#193324] border border-slate-200 dark:border-[#326748] rounded-2xl p-3 shadow-inner">
                     <div className="size-8 rounded-lg bg-primary shadow-sm border border-black/5 dark:border-white/10"></div>
                     <input className="bg-transparent border-none p-0 text-sm w-full focus:ring-0 text-slate-900 dark:text-white font-black italic tracking-tighter" type="text" defaultValue="#13EC6D" />
                   </div>
                 </div>
                 <div className="flex-1">
-                  <p className="text-slate-500 dark:text-[#92c9a9] text-[10px] font-black uppercase tracking-widest pb-2 px-1">Secundária</p>
+                  <p className="text-slate-500 dark:text-[#92c9a9] text-[10px] font-black uppercase tracking-widest pb-2 px-1">SecundÃ¡ria</p>
                   <div className="flex items-center gap-2 bg-slate-50 dark:bg-[#193324] border border-slate-200 dark:border-[#326748] rounded-2xl p-3 shadow-inner">
                     <div className="size-8 rounded-lg bg-[#234833] shadow-sm border border-black/5 dark:border-white/10"></div>
                     <input className="bg-transparent border-none p-0 text-sm w-full focus:ring-0 text-slate-900 dark:text-white font-black italic tracking-tighter" type="text" defaultValue="#234833" />
@@ -3464,7 +2834,7 @@ const SystemSettings = ({ profile }: { profile: any }) => {
           {/* Column 3: External Services */}
           <div className="bg-white dark:bg-[#193324] rounded-[32px] border border-slate-200 dark:border-white/5 shadow-sm p-6 lg:col-span-2">
             <section>
-              <h3 className="text-slate-900 dark:text-white text-lg font-black leading-tight tracking-tighter pb-4 italic border-b border-slate-100 dark:border-white/5 mb-4">Serviços Externos</h3>
+              <h3 className="text-slate-900 dark:text-white text-lg font-black leading-tight tracking-tighter pb-4 italic border-b border-slate-100 dark:border-white/5 mb-4">ServiÃ§os Externos</h3>
               <div className="py-2">
                 <label className="flex flex-col w-full">
                   <div className="flex justify-between items-end pb-2 px-1">
@@ -3485,7 +2855,7 @@ const SystemSettings = ({ profile }: { profile: any }) => {
                     />
                   </div>
                   <p className="text-slate-400 text-[8px] font-bold mt-2 px-1 italic">
-                    * Necessária para converter coordenadas em endereços reais e habilitar mapas avançados.
+                    * NecessÃ¡ria para converter coordenadas em endereÃ§os reais e habilitar mapas avanÃ§ados.
                   </p>
                 </label>
               </div>
@@ -3498,7 +2868,7 @@ const SystemSettings = ({ profile }: { profile: any }) => {
       <div className="fixed bottom-20 left-0 right-0 p-6 bg-gradient-to-t from-background-dark/80 via-background-dark/40 to-transparent z-50 md:hidden">
         <div className="max-w-md mx-auto">
           <button className="w-full bg-primary text-background-dark font-black text-sm h-14 rounded-2xl shadow-2xl shadow-primary/30 active:scale-[0.98] transition-all uppercase tracking-tighter">
-            Salvar Todas as Alterações
+            Salvar Todas as AlteraÃ§Ãµes
           </button>
         </div>
       </div>
@@ -3514,7 +2884,7 @@ const AdminDashboard = ({ profile }: { profile: any }) => {
       <header className="sticky top-0 z-30 bg-background-light/80 dark:bg-background-dark/80 backdrop-blur-md p-5 border-b border-slate-200 dark:border-white/10 flex justify-between items-center md:hidden">
         <div>
           <h1 className="text-xl font-black tracking-tighter italic text-slate-900 dark:text-white">Dashboard</h1>
-          <p className="text-[10px] text-slate-500 dark:text-[#92c9a9] font-black uppercase tracking-widest">Visão Geral</p>
+          <p className="text-[10px] text-slate-500 dark:text-[#92c9a9] font-black uppercase tracking-widest">VisÃ£o Geral</p>
         </div>
         <div className="flex gap-2">
           <button className="size-10 rounded-full bg-slate-100 dark:bg-white/5 flex items-center justify-center text-slate-600 dark:text-white">
@@ -3527,7 +2897,7 @@ const AdminDashboard = ({ profile }: { profile: any }) => {
       <header className="hidden md:flex sticky top-0 z-30 bg-background-light/80 dark:bg-background-dark/80 backdrop-blur-md p-5 border-b border-slate-200 dark:border-white/10 justify-between items-center">
         <div>
           <h1 className="text-2xl font-black tracking-tighter italic text-slate-900 dark:text-white">Bem-vindo, {profile?.full_name?.split(' ')[0] || 'Admin'}</h1>
-          <p className="text-xs text-slate-500 dark:text-[#92c9a9] font-black uppercase tracking-widest mt-1">Aqui está o resumo de hoje.</p>
+          <p className="text-xs text-slate-500 dark:text-[#92c9a9] font-black uppercase tracking-widest mt-1">Aqui estÃ¡ o resumo de hoje.</p>
         </div>
         <div className="flex gap-4">
           <div className="flex items-center gap-2 bg-white dark:bg-[#1a2e23] border border-slate-200 dark:border-white/5 rounded-2xl px-4 py-2 shadow-sm">
@@ -3545,9 +2915,9 @@ const AdminDashboard = ({ profile }: { profile: any }) => {
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {[
             { label: 'Total Vendas', val: 'R$ 142k', trend: '+12%', color: 'primary', icon: 'payments' },
-            { label: 'Novos Usuários', val: '1.2k', trend: '+8%', color: 'blue-500', icon: 'group_add' },
+            { label: 'Novos UsuÃ¡rios', val: '1.2k', trend: '+8%', color: 'blue-500', icon: 'group_add' },
             { label: 'Pedidos Ativos', val: '48', trend: '-2%', color: 'orange-500', icon: 'shopping_cart' },
-            { label: 'Farmácias', val: '156', trend: '+5', color: 'purple-500', icon: 'store' }
+            { label: 'FarmÃ¡cias', val: '156', trend: '+5', color: 'purple-500', icon: 'store' }
           ].map((kpi, i) => (
             <div key={i} className="bg-white dark:bg-[#1a2e23] p-5 rounded-[28px] border border-slate-200 dark:border-white/5 shadow-sm hover:shadow-md transition-shadow">
               <div className="flex justify-between items-start mb-4">
@@ -3571,7 +2941,7 @@ const AdminDashboard = ({ profile }: { profile: any }) => {
           <div className="flex-1 bg-white dark:bg-[#1a2e23] rounded-[32px] p-6 border border-slate-200 dark:border-white/5 shadow-sm">
             <div className="flex justify-between items-center mb-6">
               <h3 className="text-lg font-black italic text-slate-900 dark:text-white">Crescimento Mensal</h3>
-              <button className="text-primary text-[10px] font-black uppercase tracking-widest bg-primary/10 px-3 py-1.5 rounded-xl hover:bg-primary/20 transition-colors">Ver Relatório</button>
+              <button className="text-primary text-[10px] font-black uppercase tracking-widest bg-primary/10 px-3 py-1.5 rounded-xl hover:bg-primary/20 transition-colors">Ver RelatÃ³rio</button>
             </div>
             {/* Mock Chart Visual */}
             <div className="h-64 flex items-end justify-between gap-2 px-2">
@@ -3593,10 +2963,10 @@ const AdminDashboard = ({ profile }: { profile: any }) => {
             <h3 className="text-lg font-black italic text-slate-900 dark:text-white mb-6">Atividade Recente</h3>
             <div className="flex-1 space-y-6 overflow-y-auto max-h-[300px] pr-2 custom-scrollbar">
               {[
-                { user: 'Ricardo A.', action: 'Realizou um pedido', time: '2 min atrás', icon: 'shopping_bag', color: 'primary' },
-                { user: 'Farma Bem', action: 'Cadastrou novo produto', time: '15 min atrás', icon: 'inventory_2', color: 'orange-500' },
-                { user: 'Sistema', action: 'Backup automático', time: '1h atrás', icon: 'cloud_sync', color: 'blue-500' },
-                { user: 'Ana Clara', action: 'Avaliou um pedido', time: '3h atrás', icon: 'star', color: 'yellow-500' }
+                { user: 'Ricardo A.', action: 'Realizou um pedido', time: '2 min atrÃ¡s', icon: 'shopping_bag', color: 'primary' },
+                { user: 'Farma Bem', action: 'Cadastrou novo produto', time: '15 min atrÃ¡s', icon: 'inventory_2', color: 'orange-500' },
+                { user: 'Sistema', action: 'Backup automÃ¡tico', time: '1h atrÃ¡s', icon: 'cloud_sync', color: 'blue-500' },
+                { user: 'Ana Clara', action: 'Avaliou um pedido', time: '3h atrÃ¡s', icon: 'star', color: 'yellow-500' }
               ].map((item, i) => (
                 <div key={i} className="flex gap-4">
                   <div className={`size-10 rounded-full bg-${item.color}/10 text-${item.color} flex items-center justify-center shrink-0`}>
@@ -3612,7 +2982,7 @@ const AdminDashboard = ({ profile }: { profile: any }) => {
               ))}
             </div>
             <button className="mt-4 w-full py-3 rounded-2xl bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-300 text-[10px] font-black uppercase tracking-widest hover:bg-slate-200 dark:hover:bg-white/10 transition-colors">
-              Ver Todo Histórico
+              Ver Todo HistÃ³rico
             </button>
           </div>
         </div>
@@ -3669,7 +3039,7 @@ function App() {
             lng: position.coords.longitude
           });
         },
-        (error) => console.warn("Erro ao obter localização ou permissão negada:", error)
+        (error) => console.warn("Erro ao obter localizaÃ§Ã£o ou permissÃ£o negada:", error)
       );
     }
   }, []);
@@ -3677,7 +3047,12 @@ function App() {
   // Fetch all pharmacies
   useEffect(() => {
     const fetchPharmacies = async () => {
-      const { data, error } = await supabase.from('pharmacies').select('*');
+      // Filter for approved pharmacies only
+      const { data, error } = await supabase
+        .from('pharmacies')
+        .select('*')
+        .eq('status', 'Aprovado');
+
       if (error) console.error("Error fetching pharmacies:", error);
       else setAllPharmacies(data || []);
     };
@@ -3687,6 +3062,8 @@ function App() {
   // Process and sort nearby pharmacies (with fallback)
   const sortedPharmacies = useMemo(() => {
     const referenceLoc = userLocation || { lat: -22.8269, lng: -43.0539 };
+    const now = new Date();
+    const isNewThreshold = 90 * 24 * 60 * 60 * 1000; // 90 days in ms
 
     return allPharmacies.map(p => {
       let distance = Infinity;
@@ -3698,7 +3075,12 @@ function App() {
           Number(p.longitude)
         );
       }
-      return { ...p, distance };
+
+      // Calculate if pharmacy is new
+      const createdDate = new Date(p.created_at);
+      const isNew = (now.getTime() - createdDate.getTime()) < isNewThreshold;
+
+      return { ...p, distance, isNew };
     }).sort((a, b) => a.distance - b.distance);
   }, [allPharmacies, userLocation]);
 
@@ -3746,11 +3128,13 @@ function App() {
           <Route path="/admin/settings" element={<AdminRoute session={session} profile={profile}><SystemSettings profile={profile} /></AdminRoute>} />
 
           {/* Protected Merchant Routes */}
+          <Route path="/merchant/login" element={<MerchantLogin />} />
           <Route path="/merchant" element={<MerchantRoute session={session} profile={profile}><MerchantDashboard /></MerchantRoute>} />
           <Route path="/merchant/orders" element={<MerchantRoute session={session} profile={profile}><MerchantOrderManagement /></MerchantRoute>} />
           <Route path="/merchant/products" element={<MerchantRoute session={session} profile={profile}><InventoryControl /></MerchantRoute>} />
           <Route path="/merchant/financial" element={<MerchantRoute session={session} profile={profile}><MerchantFinancial /></MerchantRoute>} />
           <Route path="/merchant/settings" element={<MerchantRoute session={session} profile={profile}><StoreCustomization /></MerchantRoute>} />
+          <Route path="/merchant/motoboys" element={<MerchantRoute session={session} profile={profile}><MerchantMotoboys /></MerchantRoute>} />
 
           {/* Motoboy Routes */}
           <Route path="/motoboy-login" element={<MotoboyLogin />} />

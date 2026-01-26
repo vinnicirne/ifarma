@@ -146,3 +146,15 @@ BEGIN
         CREATE POLICY "Gerenciamento total para autenticados" ON pharmacies FOR ALL USING (auth.role() = 'authenticated');
     END IF;
 END c:\Users\THINKPAD\Desktop\Ifarma;
+test
+
+-- Admin Highlights & Motoboy Expansion
+ALTER TABLE pharmacies ADD COLUMN IF NOT EXISTS is_featured BOOLEAN DEFAULT false;
+
+ALTER TABLE motoboys ADD COLUMN IF NOT EXISTS name TEXT;
+ALTER TABLE motoboys ADD COLUMN IF NOT EXISTS cpf TEXT;
+ALTER TABLE motoboys ADD COLUMN IF NOT EXISTS cnh_url TEXT;
+ALTER TABLE motoboys ADD COLUMN IF NOT EXISTS vehicle_plate TEXT;
+ALTER TABLE motoboys ADD COLUMN IF NOT EXISTS vehicle_model TEXT;
+ALTER TABLE motoboys ADD COLUMN IF NOT EXISTS pharmacy_id UUID REFERENCES pharmacies(id);
+
