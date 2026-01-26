@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, useNavigate, useLocation } from 'react-router-dom';
 import HelpSupport from './pages/HelpSupport';
 import UserProfile from './pages/UserProfile';
+import PartnerRegistration from './pages/PartnerRegistration';
 import PrivacyData from './pages/PrivacyData';
 import Favorites from './pages/Favorites';
 import Notifications from './pages/Notifications';
@@ -3631,6 +3632,7 @@ function App() {
           <Route path="/help" element={<HelpSupport />} />
           <Route path="/login" element={<Auth view="login" />} />
           <Route path="/signup" element={<Auth view="signup" />} />
+          <Route path="/partner/register" element={<PartnerRegistration />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
 
           {/* Protected Client Routes */}
