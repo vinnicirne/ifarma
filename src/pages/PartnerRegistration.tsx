@@ -97,7 +97,7 @@ const PartnerRegistration = () => {
                 delivery_enabled: formData.delivery_enabled === 'true'
             };
 
-            const { data, error } = await supabase.from('pharmacies').insert([payload]).select();
+            const { error } = await supabase.from('pharmacies').insert([payload]).select();
 
             if (error) throw error;
 
