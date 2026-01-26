@@ -10,6 +10,7 @@ const PartnerRegistration = () => {
     const navigate = useNavigate();
     const [step, setStep] = useState(1);
     const [loading, setLoading] = useState(false);
+    const [cnpjLoading, setCnpjLoading] = useState(false);
     const [formData, setFormData] = useState({
         // Step 1: Owner Info
         owner_email: '',
@@ -61,6 +62,37 @@ const PartnerRegistration = () => {
             }
         } catch (error) {
             console.error("Erro CEP", error);
+        }
+    };
+
+    const handleCNPJBlur = async () => {
+        const cnpj = formData.cnpj.replace(/\D/g, '');
+        if (cnpj.length !== 14) return;
+
+        setCnpjLoading(true);
+        try {
+            const response = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cnpj}`);
+            if (!response.ok) throw new Error('CNPJ não encontrado');
+            const data = await response.json();
+
+            setFormData(prev => ({
+                ...prev,
+                legal_name: data.razao_social || '',
+                trade_name: data.nome_fantasia || data.razao_social || '',
+                establishment_phone: data.ddd_telefone_1 ? `(${data.ddd_telefone_1.slice(0, 2)}) ${data.ddd_telefone_1.slice(2)}` : '',
+                // Tenta preencher endereço se disponível (BrasilAPI retorna isso também)
+                cep: data.cep ? data.cep.replace(/\D/g, '') : prev.cep,
+                address: data.logradouro || prev.address,
+                address_number: data.numero || prev.address_number,
+                address_complement: data.complemento || prev.address_complement,
+                neighborhood: data.bairro || prev.neighborhood,
+                city: data.municipio || prev.city,
+                state: data.uf || prev.state
+            }));
+        } catch (error) {
+            console.error("Erro CNPJ", error);
+        } finally {
+            setCnpjLoading(false);
         }
     };
 
@@ -191,8 +223,11 @@ const PartnerRegistration = () => {
 
                             <div className="grid md:grid-cols-2 gap-6">
                                 <div className="md:col-span-2">
-                                    <label className="block text-xs font-bold uppercase text-slate-500 mb-1">CNPJ</label>
-                                    <input required name="cnpj" value={formData.cnpj} onChange={handleChange} className="w-full h-12 px-4 rounded-xl bg-slate-50 dark:bg-zinc-900 border-none focus:ring-2 focus:ring-primary outline-none" placeholder="00.000.000/0000-00" />
+                                    <label className="block text-xs font-bold uppercase text-slate-500 mb-1 flex justify-between">
+                                        CNPJ
+                                        {cnpjLoading && <span className="text-primary animate-pulse">Buscando...</span>}
+                                    </label>
+                                    <input required name="cnpj" value={formData.cnpj} onChange={handleChange} onBlur={handleCNPJBlur} className="w-full h-12 px-4 rounded-xl bg-slate-50 dark:bg-zinc-900 border-none focus:ring-2 focus:ring-primary outline-none" placeholder="00.000.000/0000-00" />
                                 </div>
                                 <div className="md:col-span-2">
                                     <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Razão Social</label>
