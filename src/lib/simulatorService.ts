@@ -1,0 +1,157 @@
+import { supabase } from './supabase';
+
+export const simulatorService = {
+    /**
+     * Simula um fluxo completo de pedido:
+     * 1. Escolhe uma farmácia aleatória aprovada
+     * 2. Escolhe 1-3 produtos dessa farmácia
+     * 3. Cria um pedido com status 'pendente'
+     * 4. Adiciona os itens ao pedido
+     */
+    simulateCompleteOrder: async () => {
+        try {
+            // 1. Buscar farmácias aprovadas
+            const { data: pharmacies, error: pharmaError } = await supabase
+                .from('pharmacies')
+                .select('id, name')
+                .eq('status', 'Aprovado')
+                .limit(10);
+
+            if (pharmaError || !pharmacies || pharmacies.length === 0) {
+                throw new Error('Nenhuma farmácia aprovada encontrada para simulação.');
+            }
+
+            const randomPharma = pharmacies[Math.floor(Math.random() * pharmacies.length)];
+
+            // 2. Buscar produtos da farmácia (ou globais se não houver específicos)
+            const { data: products, error: prodError } = await supabase
+                .from('products')
+                .select('*')
+                .limit(20);
+
+            if (prodError || !products || products.length === 0) {
+                throw new Error('Nenhum produto encontrado para simulação.');
+            }
+
+            // Escolher 1 a 3 itens aleatórios
+            const numItems = Math.floor(Math.random() * 3) + 1;
+            const selectedProducts = products
+                .sort(() => 0.5 - Math.random())
+                .slice(0, numItems);
+
+            const customers = ['Ana Silva', 'Pedro Oliveira', 'Mariana Costa', 'Juliana Lima', 'Rodrigo Santos'];
+            const randomCustomer = customers[Math.floor(Math.random() * customers.length)];
+
+            const subtotal = selectedProducts.reduce((acc, p) => acc + (Math.random() * 50 + 10), 0);
+            const deliveryFee = 0; // Grátis na simulação
+
+            // 3. Criar o pedido
+            const { data: newOrder, error: orderError } = await supabase
+                .from('orders')
+                .insert([{
+                    pharmacy_id: randomPharma.id,
+                    customer_name: randomCustomer,
+                    address: 'Rua das Flores, 123 - Centro, Rio de Janeiro',
+                    total_price: subtotal + deliveryFee,
+                    status: 'pendente',
+                    created_at: new Date().toISOString()
+                }])
+                .select()
+                .single();
+
+            if (orderError) throw orderError;
+
+            // 4. Criar Itens do Pedido
+            const orderItems = selectedProducts.map(p => ({
+                order_id: newOrder.id,
+                product_id: p.id,
+                quantity: Math.floor(Math.random() * 2) + 1,
+                price: (Math.random() * 50 + 10).toFixed(2)
+            }));
+
+            const { error: itemsError } = await supabase
+                .from('order_items')
+                .insert(orderItems);
+
+            if (itemsError) throw itemsError;
+
+            return {
+                success: true,
+                orderId: newOrder.id,
+                customer: randomCustomer,
+                pharmacy: randomPharma.name,
+                total: (subtotal + deliveryFee).toFixed(2)
+            };
+        } catch (error: any) {
+            console.error('Erro na simulação de pedido:', error);
+            return { success: false, error: error.message };
+        }
+    },
+
+    /**
+     * Avança o status de um pedido específico
+     */
+    advanceOrderStatus: async (orderId: string) => {
+        const statusFlow = ['pendente', 'preparando', 'em_rota', 'entregue'];
+
+        try {
+            const { data: order, error: fetchError } = await supabase
+                .from('orders')
+                .select('status')
+                .eq('id', orderId)
+                .single();
+
+            if (fetchError || !order) throw new Error('Pedido não encontrado.');
+
+            const currentIndex = statusFlow.indexOf(order.status);
+            if (currentIndex === -1 || currentIndex === statusFlow.length - 1) {
+                return { success: false, message: 'Pedido já está no status final ou status inválido.' };
+            }
+
+            const nextStatus = statusFlow[currentIndex + 1];
+            const { error: updateError } = await supabase
+                .from('orders')
+                .update({ status: nextStatus })
+                .eq('id', orderId);
+
+            if (updateError) throw updateError;
+
+            return { success: true, newStatus: nextStatus };
+        } catch (error: any) {
+            console.error('Erro ao avançar status:', error);
+            return { success: false, error: error.message };
+        }
+    },
+
+    /**
+     * Simula o registro de uma nova farmácia parceira
+     */
+    simulateNewPharmacyRegistration: async () => {
+        const names = ['Droga Life', 'Pharma Rio', 'Medic Center', 'Saúde & Bem-Estar', 'Farmácia do Povo'];
+        const randomName = names[Math.floor(Math.random() * names.length)];
+
+        try {
+            const { data, error } = await supabase
+                .from('pharmacies')
+                .insert([{
+                    name: randomName + ' (Simulado)',
+                    address: 'Av. Brasil, 500 - Rio de Janeiro, RJ',
+                    latitude: -22.9068 + (Math.random() - 0.5) * 0.1,
+                    longitude: -43.1729 + (Math.random() - 0.5) * 0.1,
+                    status: 'Pendente',
+                    plan: 'Bronze',
+                    rating: 5.0,
+                    is_open: true,
+                    created_at: new Date().toISOString()
+                }])
+                .select()
+                .single();
+
+            if (error) throw error;
+            return { success: true, pharmacy: data };
+        } catch (error: any) {
+            console.error('Erro ao simular cadastro de farmácia:', error);
+            return { success: false, error: error.message };
+        }
+    }
+};

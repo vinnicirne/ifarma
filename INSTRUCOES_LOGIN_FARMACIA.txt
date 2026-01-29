@@ -1,0 +1,85 @@
+// INSTRUÇÕES PARA ADICIONAR CAMPOS DE LOGIN NO FORMULÁRIO DE FARMÁCIA
+
+// 1. Os campos já foram adicionados no formData (linhas 1605-1607):
+//    merchant_email: '',
+//    merchant_password: ''
+
+// 2. ADICIONE ESTE CÓDIGO ANTES DO BOTÃO "Cadastrar Loja" (linha 1949):
+
+{/* Seção de Login - Apenas ao cadastrar nova farmácia */}
+{!editingPharm && (
+  <>
+    <div className="col-span-2 border-t border-slate-200 dark:border-white/10 my-4"></div>
+    <h3 className="col-span-2 text-sm font-black uppercase text-primary mb-2">🔐 Dados de Acesso</h3>
+    
+    <label className="col-span-2 flex flex-col gap-1">
+      <span className="text-[10px] font-black uppercase text-slate-500">Email de Login</span>
+      <input 
+        type="email"
+        required
+        placeholder="email@farmacia.com"
+        className="h-12 px-4 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 rounded-xl outline-none font-bold italic" 
+        value={formData.merchant_email} 
+        onChange={e => setFormData({ ...formData, merchant_email: e.target.value })} 
+      />
+    </label>
+    
+    <label className="col-span-2 flex flex-col gap-1">
+      <span className="text-[10px] font-black uppercase text-slate-500">Senha Provisória</span>
+      <input 
+        type="text"
+        required
+        minLength={6}
+        placeholder="Senha temporária (mínimo 6 caracteres)"
+        className="h-12 px-4 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 rounded-xl outline-none font-bold italic" 
+        value={formData.merchant_password} 
+        onChange={e => setFormData({ ...formData, merchant_password: e.target.value })} 
+      />
+      <span className="text-[9px] text-slate-400 italic">⚠️ A farmácia deverá trocar esta senha no primeiro acesso</span>
+    </label>
+  </>
+)}
+
+// 3. MODIFIQUE A FUNÇÃO handleSave (linha 1622) para criar o usuário:
+// Substitua o bloco "else" (linhas 1647-1650) por:
+
+} else {
+  const { data, error: err } = await supabase.from('pharmacies').insert([payload]).select().single();
+  error = err;
+  
+  // Criar usuário merchant se email e senha foram fornecidos
+  if (!error && data && formData.merchant_email && formData.merchant_password) {
+    try {
+      // Criar usuário no Supabase Auth usando Admin API
+      const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+        email: formData.merchant_email,
+        password: formData.merchant_password,
+        email_confirm: true
+      });
+
+      if (authError) {
+        console.error('Erro ao criar usuário:', authError);
+        alert(`Farmácia criada, mas erro ao criar login: ${authError.message}`);
+      } else if (authData.user) {
+        // Criar perfil merchant
+        const { error: profileError } = await supabase.from('profiles').insert({
+          id: authData.user.id,
+          email: formData.merchant_email,
+          full_name: formData.owner_name || formData.name,
+          role: 'merchant',
+          phone: formData.owner_phone,
+          pharmacy_id: data.id
+        });
+
+        if (profileError) {
+          console.error('Erro ao criar perfil:', profileError);
+          alert(`Login criado, mas erro ao vincular: ${profileError.message}`);
+        } else {
+          alert(`✅ Farmácia e login criados com sucesso!\n\nEmail: ${formData.merchant_email}\nSenha: ${formData.merchant_password}\n\n⚠️ Informe a farmácia para trocar a senha no primeiro acesso!`);
+        }
+      }
+    } catch (err) {
+      console.error('Erro ao criar merchant:', err);
+    }
+  }
+}

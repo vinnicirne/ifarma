@@ -41,7 +41,29 @@ const PartnerRegistration = () => {
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
-        setFormData(prev => ({ ...prev, [name]: value }));
+        let maskedValue = value;
+
+        if (name === 'cnpj') {
+            const val = value.replace(/\D/g, '').substring(0, 14);
+            maskedValue = val.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, "$1.$2.$3/$4-$5")
+                .replace(/^(\d{2})(\d{3})(\d{3})(\d{4})/, "$1.$2.$3/$4")
+                .replace(/^(\d{2})(\d{3})(\d{3})/, "$1.$2.$3")
+                .replace(/^(\d{2})(\d{3})/, "$1.$2");
+        } else if (name === 'owner_cpf') {
+            const val = value.replace(/\D/g, '').substring(0, 11);
+            maskedValue = val.replace(/^(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4")
+                .replace(/^(\d{3})(\d{3})(\d{3})/, "$1.$2.$3")
+                .replace(/^(\d{3})(\d{3})/, "$1.$2");
+        } else if (name === 'owner_phone' || name === 'establishment_phone') {
+            const val = value.replace(/\D/g, '').substring(0, 11);
+            if (val.length > 10) {
+                maskedValue = val.replace(/^(\d{2})(\d{5})(\d{4})/, "($1) $2-$3");
+            } else if (val.length > 2) {
+                maskedValue = val.replace(/^(\d{2})(\d{0,8})/, "($1) $2");
+            }
+        }
+
+        setFormData(prev => ({ ...prev, [name]: maskedValue }));
     };
 
     const handleCEPBlur = async () => {

@@ -1,0 +1,133 @@
+import { initializeApp } from 'firebase/app';
+import { getMessaging, getToken, onMessage, isSupported } from 'firebase/messaging';
+
+const firebaseConfig = {
+    apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+    authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+    projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+    storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+    messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+    appId: import.meta.env.VITE_FIREBASE_APP_ID
+};
+
+// Validar configuração
+const isFirebaseConfigValid = Object.values(firebaseConfig).every(value => value !== undefined && value !== '');
+
+let app: any = null;
+let messaging: any = null;
+let messagingInitialized = false;
+
+// Inicializar Firebase App
+if (isFirebaseConfigValid) {
+    try {
+        app = initializeApp(firebaseConfig);
+        console.log('Firebase App inicializado com sucesso');
+    } catch (error) {
+        console.error('Erro ao inicializar Firebase App:', error);
+    }
+} else {
+    console.warn('Configuração do Firebase incompleta. Notificações push desabilitadas.');
+    console.log('Variáveis disponíveis:', {
+        apiKey: !!import.meta.env.VITE_FIREBASE_API_KEY,
+        authDomain: !!import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+        projectId: !!import.meta.env.VITE_FIREBASE_PROJECT_ID,
+        storageBucket: !!import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+        messagingSenderId: !!import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+        appId: !!import.meta.env.VITE_FIREBASE_APP_ID,
+        vapidKey: !!import.meta.env.VITE_FIREBASE_VAPID_KEY
+    });
+}
+
+/**
+ * Inicializa Firebase Messaging de forma assíncrona
+ */
+const initializeMessaging = async () => {
+    if (!app) {
+        console.warn('Firebase App não está disponível');
+        return null;
+    }
+
+    try {
+        const supported = await isSupported();
+        if (supported) {
+            messaging = getMessaging(app);
+            messagingInitialized = true;
+            console.log('Firebase Messaging inicializado com sucesso');
+            return messaging;
+        } else {
+            console.warn('Firebase Messaging não é suportado neste navegador');
+            return null;
+        }
+    } catch (error) {
+        console.error('Erro ao inicializar Firebase Messaging:', error);
+        return null;
+    }
+};
+
+/**
+ * Solicita permissão de notificação e retorna o token FCM
+ */
+export const requestNotificationPermission = async (): Promise<string | null> => {
+    try {
+        // Garantir que messaging está inicializado
+        if (!messagingInitialized) {
+            await initializeMessaging();
+        }
+
+        if (!messaging) {
+            console.warn('Firebase Messaging não está disponível');
+            return null;
+        }
+
+        const permission = await Notification.requestPermission();
+
+        if (permission === 'granted') {
+            console.log('Permissão de notificação concedida');
+
+            const vapidKey = import.meta.env.VITE_FIREBASE_VAPID_KEY;
+            if (!vapidKey) {
+                console.error('VAPID Key não configurada');
+                return null;
+            }
+
+            const token = await getToken(messaging, { vapidKey });
+
+            console.log('Token FCM obtido:', token);
+            return token;
+        } else {
+            console.log('Permissão de notificação negada');
+            return null;
+        }
+    } catch (error) {
+        console.error('Erro ao obter token FCM:', error);
+        return null;
+    }
+};
+
+/**
+ * Escuta mensagens em foreground
+ */
+export const onMessageListener = async () => {
+    // Garantir que messaging está inicializado
+    if (!messagingInitialized) {
+        await initializeMessaging();
+    }
+
+    if (!messaging) {
+        throw new Error('Firebase Messaging não está disponível');
+    }
+
+    return new Promise((resolve) => {
+        onMessage(messaging, (payload) => {
+            console.log('Mensagem recebida em foreground:', payload);
+            resolve(payload);
+        });
+    });
+};
+
+// Inicializar messaging automaticamente
+if (typeof window !== 'undefined') {
+    initializeMessaging();
+}
+
+export { messaging };

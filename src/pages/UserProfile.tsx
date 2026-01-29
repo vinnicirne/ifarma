@@ -6,15 +6,26 @@ const MaterialIcon = ({ name, className = "", style = {} }: { name: string, clas
     <span className={`material-symbols-outlined ${className}`} style={style}>{name}</span>
 );
 
+import BottomNavigation from '../components/BottomNavigation';
+
 const UserProfile = ({ session, profile }: { session: any, profile: any }) => {
     const navigate = useNavigate();
-    const [isEditing, setIsEditing] = useState(false);
+    const [addresses, setAddresses] = useState<any[]>([]);
+    const [isAddingAddress, setIsAddingAddress] = useState(false);
+    const [addressForm, setAddressForm] = useState({
+        label: '',
+        address: '',
+        is_default: false
+    });
     const [loading, setLoading] = useState(false);
+    const [isEditing, setIsEditing] = useState(false);
+    const [cepLoading, setCepLoading] = useState(false);
     const [formData, setFormData] = useState({
         full_name: '',
         cpf: '',
         phone: '',
-        avatar_url: ''
+        avatar_url: '',
+        address: ''
     });
 
     useEffect(() => {
@@ -23,10 +34,70 @@ const UserProfile = ({ session, profile }: { session: any, profile: any }) => {
                 full_name: profile.full_name || '',
                 cpf: profile.cpf || '',
                 phone: profile.phone || '',
-                avatar_url: profile.avatar_url || ''
+                avatar_url: profile.avatar_url || '',
+                address: profile.address || ''
             });
+            fetchAddresses();
         }
     }, [profile]);
+
+    const fetchAddresses = async () => {
+        const { data } = await supabase
+            .from('user_addresses')
+            .select('*')
+            .order('is_default', { ascending: false });
+        if (data) setAddresses(data);
+    };
+
+    const handleCEPBlur = async () => {
+        const cep = addressForm.address.replace(/\D/g, '');
+        if (cep.length !== 8) return;
+
+        setCepLoading(true);
+        try {
+            const response = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
+            const data = await response.json();
+            if (!data.erro) {
+                setAddressForm(prev => ({
+                    ...prev,
+                    address: `${data.logradouro}, ${data.bairro}, ${data.localidade} - ${data.uf}`
+                }));
+            }
+        } catch (error) {
+            console.error('Erro ao buscar CEP:', error);
+        } finally {
+            setCepLoading(false);
+        }
+    };
+
+    const handleAddAddress = async () => {
+        setLoading(true);
+        try {
+            const { error } = await supabase
+                .from('user_addresses')
+                .insert({
+                    user_id: session.user.id,
+                    ...addressForm
+                });
+            if (error) throw error;
+            setIsAddingAddress(false);
+            setAddressForm({ label: '', address: '', is_default: false });
+            fetchAddresses();
+        } catch (error) {
+            console.error('Erro ao adicionar endereço:', error);
+            alert('Erro ao adicionar endereço.');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleDeleteAddress = async (id: string) => {
+        const { error } = await supabase
+            .from('user_addresses')
+            .delete()
+            .eq('id', id);
+        if (!error) fetchAddresses();
+    };
 
     const handleLogout = async () => {
         await supabase.auth.signOut();
@@ -42,15 +113,14 @@ const UserProfile = ({ session, profile }: { session: any, profile: any }) => {
                     full_name: formData.full_name,
                     cpf: formData.cpf,
                     phone: formData.phone,
-                    avatar_url: formData.avatar_url
+                    avatar_url: formData.avatar_url,
+                    address: formData.address
                 })
                 .eq('id', session.user.id);
 
             if (error) throw error;
             setIsEditing(false);
-            // O ideal seria recarregar o profile via contexto, mas por enquanto o banco atualiza
-            // e se o App.tsx observar changes ou recarregar, vai funcionar.
-            window.location.reload(); // Forçar refresh simples para ver dados novos
+            window.location.reload();
         } catch (error) {
             console.error('Erro ao atualizar perfil:', error);
             alert('Erro ao atualizar perfil.');
@@ -107,15 +177,45 @@ const UserProfile = ({ session, profile }: { session: any, profile: any }) => {
                     </div>
                 </section>
 
-                {/* Addresses Section (Placeholder) */}
+                {/* Addresses Section */}
                 <section className="mt-4">
                     <div className="flex items-center justify-between px-4 mb-2">
                         <h3 className="text-slate-900 dark:text-white text-lg font-bold tracking-tight">Meus Endereços</h3>
-                        <button className="text-primary text-sm font-semibold hover:opacity-80 transition-opacity">Adicionar</button>
+                        <button onClick={() => setIsAddingAddress(true)} className="text-primary text-sm font-semibold hover:opacity-80 transition-opacity flex items-center gap-1">
+                            <MaterialIcon name="add_circle" className="text-sm" /> Adicionar
+                        </button>
                     </div>
-                    <div className="px-4 py-8 flex flex-col items-center justify-center text-slate-400 bg-slate-50 dark:bg-slate-800/20 rounded-2xl mx-4 border border-slate-100 dark:border-slate-800">
-                        <MaterialIcon name="location_off" className="text-4xl mb-2 opacity-50" />
-                        <p className="text-sm font-medium text-center">Nenhum endereço cadastrado</p>
+
+                    <div className="px-4 space-y-3">
+                        {addresses.length > 0 ? (
+                            addresses.map((addr) => (
+                                <div key={addr.id} className="p-4 bg-white dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800 flex items-center justify-between group">
+                                    <div className="flex items-center gap-4">
+                                        <div className={`p-3 rounded-xl ${addr.is_default ? 'bg-primary text-background-dark' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'}`}>
+                                            <MaterialIcon name={addr.label === 'Trabalho' ? 'work' : 'home'} />
+                                        </div>
+                                        <div className="flex flex-col min-w-0">
+                                            <div className="flex items-center gap-2">
+                                                <p className="text-slate-900 dark:text-white text-sm font-bold">{addr.label}</p>
+                                                {addr.is_default && <span className="text-[8px] bg-primary/20 text-primary px-1.5 py-0.5 rounded-full font-black uppercase">Padrão</span>}
+                                            </div>
+                                            <p className="text-slate-500 dark:text-slate-400 text-xs mt-0.5 truncate max-w-[200px]">{addr.address}</p>
+                                        </div>
+                                    </div>
+                                    <button
+                                        onClick={() => handleDeleteAddress(addr.id)}
+                                        className="opacity-0 group-hover:opacity-100 p-2 text-red-500 hover:bg-red-500/10 rounded-lg transition-all"
+                                    >
+                                        <MaterialIcon name="delete" className="text-lg" />
+                                    </button>
+                                </div>
+                            ))
+                        ) : (
+                            <div className="py-8 flex flex-col items-center justify-center text-slate-400 bg-slate-50 dark:bg-slate-800/20 rounded-2xl border border-slate-100 dark:border-slate-800">
+                                <MaterialIcon name="location_off" className="text-4xl mb-2 opacity-50" />
+                                <p className="text-sm font-medium">Nenhum endereço cadastrado</p>
+                            </div>
+                        )}
                     </div>
                 </section>
 
@@ -172,6 +272,62 @@ const UserProfile = ({ session, profile }: { session: any, profile: any }) => {
                 </section>
             </main>
 
+            {/* Add Address Modal */}
+            {isAddingAddress && (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+                    <div className="bg-white dark:bg-zinc-900 rounded-2xl w-full max-w-sm p-6 shadow-2xl">
+                        <div className="flex justify-between items-center mb-6">
+                            <h3 className="text-xl font-bold text-slate-900 dark:text-white">Novo Endereço</h3>
+                            <button onClick={() => setIsAddingAddress(false)} className="text-slate-400">
+                                <MaterialIcon name="close" />
+                            </button>
+                        </div>
+
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Apelido (ex: Casa, Trabalho)</label>
+                                <input
+                                    type="text"
+                                    value={addressForm.label}
+                                    onChange={(e) => setAddressForm({ ...addressForm, label: e.target.value })}
+                                    className="w-full bg-slate-50 dark:bg-zinc-800 border-none rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary outline-none"
+                                    placeholder="Ex: Trabalho"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Endereço (ou digite o CEP)</label>
+                                <textarea
+                                    value={addressForm.address}
+                                    onChange={(e) => setAddressForm({ ...addressForm, address: e.target.value })}
+                                    onBlur={handleCEPBlur}
+                                    className="w-full bg-slate-50 dark:bg-zinc-800 border-none rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary outline-none h-24 resize-none"
+                                    placeholder="Rua, Número, Bairro, Cidade ou CEP..."
+                                />
+                                {cepLoading && <p className="text-[10px] text-primary animate-pulse mt-1">Buscando endereço...</p>}
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <input
+                                    type="checkbox"
+                                    id="is_default"
+                                    checked={addressForm.is_default}
+                                    onChange={(e) => setAddressForm({ ...addressForm, is_default: e.target.checked })}
+                                    className="accent-primary"
+                                />
+                                <label htmlFor="is_default" className="text-sm font-medium text-slate-600 dark:text-slate-400">Tornar endereço padrão</label>
+                            </div>
+
+                            <button
+                                onClick={handleAddAddress}
+                                disabled={loading || !addressForm.address || !addressForm.label}
+                                className="w-full bg-primary text-black font-bold py-3 rounded-xl mt-4 hover:opacity-90 transition-opacity disabled:opacity-50"
+                            >
+                                {loading ? 'Salvando...' : 'Cadastrar Endereço'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Edit Profile Modal */}
             {isEditing && (
                 <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
@@ -223,6 +379,16 @@ const UserProfile = ({ session, profile }: { session: any, profile: any }) => {
                                     placeholder="(00) 00000-0000"
                                 />
                             </div>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Endereço de Entrega</label>
+                                <input
+                                    type="text"
+                                    value={formData.address}
+                                    onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                                    className="w-full bg-slate-50 dark:bg-zinc-800 border-none rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary outline-none"
+                                    placeholder="Rua, Número, Bairro, Cidade"
+                                />
+                            </div>
 
                             <button
                                 onClick={handleSave}
@@ -236,33 +402,8 @@ const UserProfile = ({ session, profile }: { session: any, profile: any }) => {
                 </div>
             )}
 
-            {/* Bottom Navigation Bar (iOS Style) */}
-            <nav className="fixed bottom-0 left-0 right-0 bg-white/80 dark:bg-background-dark/80 backdrop-blur-xl border-t border-slate-200 dark:border-slate-800 pb-safe shadow-2xl z-50">
-                <div className="max-w-md mx-auto flex justify-around items-center h-16">
-                    <Link to="/" className="flex flex-col items-center gap-0.5 text-slate-400 hover:text-primary transition-colors">
-                        <MaterialIcon name="home" />
-                        <span className="text-[10px] font-medium">Início</span>
-                    </Link>
-                    <Link to="/pharmacies" className="flex flex-col items-center gap-0.5 text-slate-400 hover:text-primary transition-colors">
-                        <MaterialIcon name="search" />
-                        <span className="text-[10px] font-medium">Busca</span>
-                    </Link>
-                    <Link to="/cart" className="flex flex-col items-center gap-0.5 text-slate-400 hover:text-primary transition-colors">
-                        <MaterialIcon name="shopping_cart" />
-                        <span className="text-[10px] font-medium">Carrinho</span>
-                    </Link>
-                    <Link to="/order-tracking" className="flex flex-col items-center gap-0.5 text-slate-400 hover:text-primary transition-colors">
-                        <MaterialIcon name="receipt_long" />
-                        <span className="text-[10px] font-medium">Pedidos</span>
-                    </Link>
-                    <Link to="/profile" className="flex flex-col items-center gap-0.5 text-primary">
-                        <MaterialIcon name="person" style={{ fontVariationSettings: "'FILL' 1" }} />
-                        <span className="text-[10px] font-medium">Perfil</span>
-                    </Link>
-                </div>
-                {/* iOS Home Indicator Space */}
-                <div className="h-6 w-full pointer-events-none"></div>
-            </nav>
+            {/* Bottom Navigation Bar */}
+            <BottomNavigation />
         </div>
     );
 };

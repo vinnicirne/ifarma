@@ -1,5 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { supabase } from '../lib/supabase';
+import { useNotifications } from '../hooks/useNotifications';
 
 const MaterialIcon = ({ name, className = "", style = {} }: { name: string, className?: string, style?: React.CSSProperties }) => (
     <span className={`material-symbols-outlined ${className}`} style={style}>{name}</span>
@@ -7,7 +9,16 @@ const MaterialIcon = ({ name, className = "", style = {} }: { name: string, clas
 
 const Notifications = () => {
     const navigate = useNavigate();
+    const [userId, setUserId] = useState<string | null>(null);
     const [activeFilter, setActiveFilter] = useState<'Todas' | 'Promoções' | 'Pedidos' | 'Saúde'>('Todas');
+
+    useEffect(() => {
+        supabase.auth.getSession().then(({ data: { session } }) => {
+            if (session) setUserId(session.user.id);
+        });
+    }, []);
+
+    const { notifications, markAsRead, markAllAsRead, loading } = useNotifications(userId);
 
     const filters = [
         { id: 'Todas', label: 'Todas', icon: 'notifications' },
@@ -15,6 +26,23 @@ const Notifications = () => {
         { id: 'Pedidos', label: 'Pedidos', icon: 'package_2' },
         { id: 'Saúde', label: 'Saúde', icon: 'favorite' }
     ];
+
+    const filteredNotifications = notifications.filter(n => {
+        if (activeFilter === 'Todas') return true;
+        if (activeFilter === 'Promoções') return n.type === 'promo';
+        if (activeFilter === 'Pedidos') return n.type === 'order';
+        if (activeFilter === 'Saúde') return n.type === 'health';
+        return true;
+    });
+
+    const getIcon = (type: string) => {
+        switch (type) {
+            case 'promo': return { icon: 'local_offer', color: 'text-orange-500', bg: 'bg-orange-500/20' };
+            case 'order': return { icon: 'package_2', color: 'text-blue-500', bg: 'bg-blue-500/20' };
+            case 'health': return { icon: 'favorite', color: 'text-rose-500', bg: 'bg-rose-500/20' };
+            default: return { icon: 'notifications', color: 'text-primary', bg: 'bg-primary/20' };
+        }
+    };
 
     return (
         <div className="flex flex-col min-h-screen w-full max-w-[480px] mx-auto bg-background-light dark:bg-background-dark shadow-2xl relative font-display text-slate-900 dark:text-slate-100 antialiased transition-colors duration-200">
@@ -28,7 +56,10 @@ const Notifications = () => {
                         <MaterialIcon name="arrow_back_ios" className="text-slate-900 dark:text-white" />
                         <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">Notificações</h1>
                     </button>
-                    <button className="text-primary text-sm font-semibold hover:opacity-80 transition-opacity">
+                    <button
+                        onClick={markAllAsRead}
+                        className="text-primary text-sm font-semibold hover:opacity-80 transition-opacity"
+                    >
                         Marcar todas
                     </button>
                 </div>
@@ -52,89 +83,48 @@ const Notifications = () => {
             </div>
 
             {/* Notification List */}
-            <main className="flex-1 px-4 space-y-1 pb-24">
-                {/* Category Label */}
-                <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mt-4 mb-2 ml-1">Novas</p>
+            <main className="flex-1 px-4 space-y-3 pb-24">
+                {loading && (
+                    <div className="flex flex-col items-center justify-center py-20 opacity-50 italic">
+                        <div className="animate-spin size-8 border-4 border-primary border-t-transparent rounded-full mb-4"></div>
+                        <p>Buscando alertas...</p>
+                    </div>
+                )}
 
-                {/* Notification Item 1 - Promoções */}
-                {(activeFilter === 'Todas' || activeFilter === 'Promoções') && (
-                    <div className="flex items-start gap-4 bg-white dark:bg-[#1a2333] p-4 rounded-xl border border-slate-100 dark:border-slate-800/50 shadow-sm relative group hover:bg-slate-50 dark:hover:bg-[#1a2333]/80 transition-colors cursor-pointer">
-                        <div className="absolute right-4 top-4 w-2 h-2 rounded-full bg-primary animate-pulse"></div>
-                        <div className="text-white flex items-center justify-center rounded-lg bg-orange-500/20 text-orange-500 shrink-0 size-12">
-                            <MaterialIcon name="local_offer" style={{ fontVariationSettings: "'FILL' 1" }} />
-                        </div>
-                        <div className="flex flex-col flex-1 pr-4">
-                            <div className="flex justify-between items-start">
-                                <p className="text-slate-900 dark:text-white text-base font-semibold leading-tight">Cupom de 20% disponível!</p>
+                {!loading && filteredNotifications.length === 0 && (
+                    <div className="flex flex-col items-center justify-center py-20 text-slate-400">
+                        <MaterialIcon name="notifications_off" className="text-6xl mb-4 opacity-20" />
+                        <p className="font-bold italic">Nenhuma notificação encontrada</p>
+                    </div>
+                )}
+
+                {filteredNotifications.map((notif) => {
+                    const style = getIcon(notif.type);
+                    return (
+                        <div
+                            key={notif.id}
+                            onClick={() => !notif.is_read && markAsRead(notif.id)}
+                            className={`flex items-start gap-4 p-4 rounded-xl border shadow-sm relative transition-all cursor-pointer ${notif.is_read ? 'bg-slate-50/50 dark:bg-[#1a2333]/40 border-transparent opacity-80' : 'bg-white dark:bg-[#1a2333] border-slate-100 dark:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-[#1a2333]/80'}`}
+                        >
+                            {!notif.is_read && (
+                                <div className="absolute right-4 top-4 w-2 h-2 rounded-full bg-primary animate-pulse"></div>
+                            )}
+                            <div className={`${style.bg} ${style.color} flex items-center justify-center rounded-lg shrink-0 size-12`}>
+                                <MaterialIcon name={style.icon} style={{ fontVariationSettings: "'FILL' 1" }} />
                             </div>
-                            <p className="text-slate-600 dark:text-slate-400 text-sm mt-1 leading-snug">Aproveite o desconto em toda a linha de dermocosméticos até meia-noite.</p>
-                            <p className="text-slate-400 dark:text-slate-500 text-xs mt-2 font-medium">Há 5 min</p>
+                            <div className="flex flex-col flex-1 pr-4">
+                                <p className="text-slate-900 dark:text-white text-base font-semibold leading-tight">{notif.title}</p>
+                                <p className="text-slate-600 dark:text-slate-400 text-sm mt-1 leading-snug">{notif.message}</p>
+                                <p className="text-slate-400 dark:text-slate-500 text-xs mt-2 font-medium">
+                                    {new Date(notif.created_at).toLocaleDateString()} {new Date(notif.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                </p>
+                            </div>
                         </div>
-                    </div>
-                )}
-
-                {/* Notification Item 2 - Pedidos */}
-                {(activeFilter === 'Todas' || activeFilter === 'Pedidos') && (
-                    <div className="flex items-start gap-4 bg-white dark:bg-[#1a2333] p-4 rounded-xl border border-slate-100 dark:border-slate-800/50 shadow-sm relative hover:bg-slate-50 dark:hover:bg-[#1a2333]/80 transition-colors cursor-pointer">
-                        <div className="absolute right-4 top-4 w-2 h-2 rounded-full bg-primary animate-pulse"></div>
-                        <div className="text-white flex items-center justify-center rounded-lg bg-blue-500/20 text-blue-500 shrink-0 size-12">
-                            <MaterialIcon name="package_2" style={{ fontVariationSettings: "'FILL' 1" }} />
-                        </div>
-                        <div className="flex flex-col flex-1 pr-4">
-                            <p className="text-slate-900 dark:text-white text-base font-semibold leading-tight">Pedido em rota de entrega</p>
-                            <p className="text-slate-600 dark:text-slate-400 text-sm mt-1 leading-snug">O entregador João está a caminho do seu endereço com o seu pedido #4492.</p>
-                            <p className="text-slate-400 dark:text-slate-500 text-xs mt-2 font-medium">Há 15 min</p>
-                        </div>
-                    </div>
-                )}
-
-                {/* Category Label */}
-                <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mt-8 mb-2 ml-1">Anteriores</p>
-
-                {/* Notification Item 3 - Saúde */}
-                {(activeFilter === 'Todas' || activeFilter === 'Saúde') && (
-                    <div className="flex items-start gap-4 bg-slate-50/50 dark:bg-[#1a2333]/40 p-4 rounded-xl border border-transparent dark:border-slate-800/30 opacity-80 hover:opacity-100 transition-opacity cursor-pointer">
-                        <div className="text-white flex items-center justify-center rounded-lg bg-emerald-500/20 text-emerald-500 shrink-0 size-12">
-                            <MaterialIcon name="alarm" style={{ fontVariationSettings: "'FILL' 1" }} />
-                        </div>
-                        <div className="flex flex-col flex-1">
-                            <p className="text-slate-900 dark:text-white text-base font-semibold leading-tight">Hora do seu remédio</p>
-                            <p className="text-slate-600 dark:text-slate-400 text-sm mt-1 leading-snug">Não esqueça de tomar o seu Multivitamínico A-Z agora.</p>
-                            <p className="text-slate-400 dark:text-slate-500 text-xs mt-2 font-medium">Há 1h</p>
-                        </div>
-                    </div>
-                )}
-
-                {/* Notification Item 4 - Saúde */}
-                {(activeFilter === 'Todas' || activeFilter === 'Saúde') && (
-                    <div className="flex items-start gap-4 bg-slate-50/50 dark:bg-[#1a2333]/40 p-4 rounded-xl border border-transparent dark:border-slate-800/30 opacity-80 hover:opacity-100 transition-opacity cursor-pointer">
-                        <div className="text-white flex items-center justify-center rounded-lg bg-rose-500/20 text-rose-500 shrink-0 size-12">
-                            <MaterialIcon name="favorite" style={{ fontVariationSettings: "'FILL' 1" }} />
-                        </div>
-                        <div className="flex flex-col flex-1">
-                            <p className="text-slate-900 dark:text-white text-base font-semibold leading-tight">Dica de Saúde</p>
-                            <p className="text-slate-600 dark:text-slate-400 text-sm mt-1 leading-snug">Mantenha-se hidratado! Beber água ajuda na absorção dos seus suplementos.</p>
-                            <p className="text-slate-400 dark:text-slate-500 text-xs mt-2 font-medium">Há 3h</p>
-                        </div>
-                    </div>
-                )}
-
-                {/* Notification Item 5 - Pedidos */}
-                {(activeFilter === 'Todas' || activeFilter === 'Pedidos') && (
-                    <div className="flex items-start gap-4 bg-slate-50/50 dark:bg-[#1a2333]/40 p-4 rounded-xl border border-transparent dark:border-slate-800/30 opacity-80 hover:opacity-100 transition-opacity cursor-pointer">
-                        <div className="text-white flex items-center justify-center rounded-lg bg-blue-500/20 text-blue-500 shrink-0 size-12">
-                            <MaterialIcon name="check_circle" style={{ fontVariationSettings: "'FILL' 1" }} />
-                        </div>
-                        <div className="flex flex-col flex-1">
-                            <p className="text-slate-900 dark:text-white text-base font-semibold leading-tight">Pagamento aprovado</p>
-                            <p className="text-slate-600 dark:text-slate-400 text-sm mt-1 leading-snug">Recebemos a confirmação do seu pagamento para o pedido #4492.</p>
-                            <p className="text-slate-400 dark:text-slate-500 text-xs mt-2 font-medium">Ontem</p>
-                        </div>
-                    </div>
-                )}
+                    );
+                })}
             </main>
 
-            {/* Navigation Bar (iOS Style) - Simulated specific to page as requested, though App.tsx has global nav */}
+            {/* Navigation Bar */}
             <nav className="fixed bottom-0 w-full max-w-[480px] bg-background-light/90 dark:bg-background-dark/90 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 px-6 py-3 flex justify-between items-center z-50">
                 <Link to="/" className="flex flex-col items-center gap-1 text-slate-400 dark:text-slate-500 hover:text-primary transition-colors">
                     <MaterialIcon name="home" />
@@ -147,10 +137,6 @@ const Notifications = () => {
                 <button className="flex flex-col items-center gap-1 text-primary">
                     <div className="relative">
                         <MaterialIcon name="notifications" style={{ fontVariationSettings: "'FILL' 1" }} />
-                        <span className="absolute -top-1 -right-1 flex h-3 w-3">
-                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
-                            <span className="relative inline-flex rounded-full h-3 w-3 bg-primary border-2 border-background-dark"></span>
-                        </span>
                     </div>
                     <span className="text-[10px] font-bold">Alertas</span>
                 </button>

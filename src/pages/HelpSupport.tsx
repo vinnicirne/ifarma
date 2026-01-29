@@ -5,6 +5,8 @@ const MaterialIcon = ({ name, className = "" }: { name: string, className?: stri
     <span className={`material-symbols-outlined ${className}`}>{name}</span>
 );
 
+import BottomNavigation from '../components/BottomNavigation';
+
 const HelpSupport = () => {
     const navigate = useNavigate();
 
@@ -99,32 +101,8 @@ const HelpSupport = () => {
                 <span className="font-bold text-sm">Falar com Atendente</span>
             </button>
 
-            {/* Bottom Tab Bar (iOS style) */}
-            <nav className="fixed bottom-0 left-0 right-0 bg-white/80 dark:bg-background-dark/80 backdrop-blur-xl border-t border-slate-200 dark:border-white/5 px-6 pb-8 pt-3 flex justify-between items-center z-40">
-                <Link to="/" className="flex flex-col items-center gap-1 text-slate-400 hover:text-primary transition-colors">
-                    <MaterialIcon name="home" />
-                    <span className="text-[10px]">Início</span>
-                </Link>
-                <button className="flex flex-col items-center gap-1 text-slate-400 hover:text-primary transition-colors">
-                    <MaterialIcon name="search" />
-                    <span className="text-[10px]">Buscar</span>
-                </button>
-                <Link to="/orders" className="flex flex-col items-center gap-1 text-slate-400 hover:text-primary transition-colors">
-                    <MaterialIcon name="receipt_long" />
-                    <span className="text-[10px]">Pedidos</span>
-                </Link>
-                <Link to="/help" className="flex flex-col items-center gap-1 text-primary">
-                    <MaterialIcon name="help" className="fill-[1]" />
-                    <span className="text-[10px] font-medium">Ajuda</span>
-                </Link>
-                <Link to="/profile" className="flex flex-col items-center gap-1 text-slate-400 hover:text-primary transition-colors">
-                    <MaterialIcon name="person" />
-                    <span className="text-[10px]">Perfil</span>
-                </Link>
-            </nav>
-
-            {/* Home Indicator (iOS) */}
-            <div className="fixed bottom-1.5 left-1/2 -translate-x-1/2 w-32 h-1 bg-black/20 dark:bg-white/20 rounded-full pointer-events-none z-[60]"></div>
+            {/* Bottom Navigation Bar */}
+            <BottomNavigation />
         </div>
     );
 };

@@ -17,6 +17,7 @@ const MerchantMotoboys = () => { // Assuming session/profile context or fetching
 
     const [formData, setFormData] = useState({
         name: '',
+        email: '',
         cpf: '',
         phone: '',
         cnh_url: '',
@@ -32,29 +33,56 @@ const MerchantMotoboys = () => { // Assuming session/profile context or fetching
         setLoading(true);
         // 1. Get current user
         const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
+        if (!user) {
+            setLoading(false);
+            return;
+        }
 
-        // 2. Find pharmacy owned by user (assuming 1 pharmacy per owner for now)
-        const { data: pharmacy } = await supabase.from('pharmacies').select('id').eq('user_id', user.id).single();
-        // If user_id is not on pharmacies table directly, might need to query profiles -> role -> etc.
-        // Assuming 'user_id' or linking via 'owner_phone' or similar. 
-        // BACKUP: check if 'profiles' has pharmacy_id or similar.
-        // Let's assume for now we can find it. If not, we might need to adjust schema or query.
-        // Actually, in previous steps we saw 'pharmacies' has 'owner_phone' etc but maybe not 'user_id'.
-        // Let's try to find pharmacy where owner_name matches profile name or use a specific link.
-        // FOR NOW: Fetch all motoboys for testing or use a mock ID if real auth is complex.
-
-        // BETTER: Retrieve pharmacy ID from session metadata if available.
-        // Let's assume we store pharmacy_id in profile or can query it.
+        // 2. Find pharmacy owned by user
+        const { data: pharmacy } = await supabase
+            .from('pharmacies')
+            .select('id')
+            .eq('user_id', user.id)
+            .single();
 
         if (pharmacy) {
             setPharmacyId(pharmacy.id);
-            const { data: boys } = await supabase.from('motoboys').select('*').eq('pharmacy_id', pharmacy.id);
-            setMotoboys(boys || []);
-        } else {
-            // Fallback: Fetch any motoboy properly linked (for demo)
-            // Or try to link via 'profiles' table if it has 'pharmacy_id'
         }
+
+        // 3. Buscar motoboys
+        let query = supabase
+            .from('profiles')
+            .select('id, full_name, phone, email, is_active, is_online, created_at, pharmacy_id')
+            .eq('role', 'motoboy');
+
+        // Se tem pharmacy_id, filtrar por ela. Senão, mostrar todos
+        if (pharmacy?.id) {
+            query = query.eq('pharmacy_id', pharmacy.id);
+        }
+
+        const { data: boys, error } = await query;
+
+        console.log('=== DEBUG MOTOBOYS ===');
+        console.log('Pharmacy ID:', pharmacy?.id);
+        console.log('Motoboys encontrados:', boys);
+        console.log('Quantidade:', boys?.length);
+        console.log('Erro:', error);
+
+        // Mapear para formato esperado pelo componente
+        const formattedMotoboys = (boys || []).map(boy => ({
+            id: boy.id,
+            name: boy.full_name,
+            phone: boy.phone,
+            email: boy.email,
+            cpf: 'N/A',
+            cnh_url: '',
+            vehicle_plate: 'N/A',
+            vehicle_model: 'N/A',
+            status: boy.is_online ? 'Disponível' : 'Offline',
+            pharmacy_id: boy.pharmacy_id
+        }));
+
+        setMotoboys(formattedMotoboys);
         setLoading(false);
     };
 
@@ -64,22 +92,46 @@ const MerchantMotoboys = () => { // Assuming session/profile context or fetching
             alert("Erro: Farmácia não identificada.");
             return;
         }
+
         setSaving(true);
         try {
-            const { error } = await supabase.from('motoboys').insert([{
-                ...formData,
-                pharmacy_id: pharmacyId,
-                status: 'Disponível'
-                // We are NOT creating a real 'auth user' here yet as per request "vincular motoboy e criar usuário"
-                // Usually creating a real user requires admin rights or specific Auth API calls.
-                // For this step ("Cadastro de Motoboy pelo Lojista") we insert into 'motoboys' table.
-                // If the user wants a LOGIN, we'd need to signUp them.
-                // Let's assume just DB record for now, or use a trigger/edge function for Auth User creation later.
-            }]);
+            // 1. Criar usuário Auth primeiro
+            const tempPassword = Math.random().toString(36).slice(-8) + 'Aa1!'; // Senha temporária
 
-            if (error) throw error;
+            const { data: authData, error: authError } = await supabase.auth.signUp({
+                email: formData.email,
+                password: tempPassword,
+                options: {
+                    data: {
+                        full_name: formData.name,
+                        role: 'motoboy'
+                    }
+                }
+            });
+
+            if (authError) throw new Error(`Erro ao criar usuário: ${authError.message}`);
+            if (!authData.user) throw new Error('Usuário não foi criado');
+
+            // 2. Criar/Atualizar perfil com pharmacy_id
+            const { error: profileError } = await supabase
+                .from('profiles')
+                .upsert({
+                    id: authData.user.id,
+                    email: formData.email,
+                    full_name: formData.name,
+                    phone: formData.phone,
+                    role: 'motoboy',
+                    pharmacy_id: pharmacyId, // ← Atribuir automaticamente
+                    is_active: true,
+                    is_online: false
+                });
+
+            if (profileError) throw new Error(`Erro ao criar perfil: ${profileError.message}`);
+
+            alert(`Motoboy cadastrado com sucesso!\nEmail: ${formData.email}\nSenha temporária: ${tempPassword}\n\nEnvie essas credenciais para o motoboy.`);
+
             setShowModal(false);
-            setFormData({ name: '', cpf: '', phone: '', cnh_url: '', vehicle_plate: '', vehicle_model: '' });
+            setFormData({ name: '', email: '', cpf: '', phone: '', cnh_url: '', vehicle_plate: '', vehicle_model: '' });
             fetchPharmacyAndMotoboys();
         } catch (error: any) {
             alert("Erro ao salvar: " + error.message);
@@ -161,6 +213,17 @@ const MerchantMotoboys = () => { // Assuming session/profile context or fetching
                                         onChange={e => setFormData({ ...formData, name: e.target.value })}
                                         className="w-full h-12 px-4 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 rounded-xl outline-none font-bold italic"
                                         placeholder="Ex: Carlos Silva"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-black uppercase text-slate-500 pl-1 block mb-1">Email</label>
+                                    <input
+                                        required
+                                        type="email"
+                                        value={formData.email}
+                                        onChange={e => setFormData({ ...formData, email: e.target.value })}
+                                        className="w-full h-12 px-4 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 rounded-xl outline-none font-bold italic"
+                                        placeholder="Ex: carlos@exemplo.com"
                                     />
                                 </div>
                                 <div className="grid grid-cols-2 gap-4">

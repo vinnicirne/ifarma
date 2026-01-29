@@ -37,7 +37,8 @@
 /* Base styles from the provided HTML */
 body {
   min-height: max(884px, 100dvh);
-  @apply bg-background-light dark:bg-background-dark font-display text-[#0d161b] dark:text-white;
+  background-color: #060a08;
+  @apply font-display text-[#0d161b] dark:text-white;
 }
 
 @keyframes slide-up {
