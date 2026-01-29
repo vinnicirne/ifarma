@@ -12,7 +12,7 @@ const MerchantLayout = ({ children, activeTab, title }: { children: React.ReactN
 
     const handleLogout = async () => {
         await supabase.auth.signOut();
-        navigate('/login');
+        navigate('/merchant/login');
     };
 
     const navItems = [
@@ -33,7 +33,7 @@ const MerchantLayout = ({ children, activeTab, title }: { children: React.ReactN
                     </div>
                     <div>
                         <h1 className="text-xl font-black italic tracking-tighter text-slate-900 dark:text-white leading-none">ifarma</h1>
-                        <span className="text-[10px] font-bold uppercase tracking-widest text-primary">Para Parceiros</span>
+                        <span className="text-[10px] font-bold uppercase tracking-widest text-primary">Portal Gestor</span>
                     </div>
                 </div>
 
@@ -43,8 +43,8 @@ const MerchantLayout = ({ children, activeTab, title }: { children: React.ReactN
                             key={item.id}
                             to={item.path}
                             className={`flex items-center gap-3 px-4 py-3.5 rounded-2xl transition-all group ${activeTab === item.id
-                                    ? 'bg-primary text-background-dark shadow-lg shadow-primary/20'
-                                    : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-white/5 hover:text-slate-900 dark:hover:text-white'
+                                ? 'bg-primary text-background-dark shadow-lg shadow-primary/20'
+                                : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-white/5 hover:text-slate-900 dark:hover:text-white'
                                 }`}
                         >
                             <MaterialIcon name={item.icon} className={activeTab === item.id ? "" : "group-hover:scale-110 transition-transform"} />

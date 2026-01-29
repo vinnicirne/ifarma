@@ -218,7 +218,7 @@ const ProtectedRoute = ({ children, session }: { children: React.ReactNode, sess
   return <>{children}</>;
 };
 
-const MerchantRoute = ({ children, session, profile }: { children: React.ReactNode, session: any, profile: any }) => {
+const GestorRoute = ({ children, session, profile }: { children: React.ReactNode, session: any, profile: any }) => {
   if (!session) return <MerchantLogin />;
   // Check if role is 'merchant' OR 'admin' (admins can view merchant panels for support)
   if (profile?.role !== 'merchant' && profile?.role !== 'admin') {
@@ -229,7 +229,7 @@ const MerchantRoute = ({ children, session, profile }: { children: React.ReactNo
         </div>
         <h2 className="text-2xl font-black italic text-slate-900 dark:text-white">Acesso Restrito</h2>
         <p className="text-slate-500 dark:text-slate-400 text-sm mt-2 max-w-xs font-medium">
-          Esta área é exclusiva para parceiros lojistas.
+          Esta área é exclusiva para parceiros gestores.
         </p>
         <div className="mt-8 flex gap-4">
           <Link to="/merchant/login" className="px-6 py-3 bg-slate-200 dark:bg-white/10 text-slate-700 dark:text-white rounded-xl font-black uppercase tracking-widest text-xs hover:scale-105 transition-transform">

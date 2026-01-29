@@ -46,9 +46,9 @@ const MerchantLogin = () => {
                     <div className="size-16 bg-primary rounded-2xl flex items-center justify-center mb-4 shadow-lg shadow-primary/20">
                         <MaterialIcon name="storefront" className="text-background-dark text-3xl" />
                     </div>
-                    <h1 className="text-2xl font-black italic text-slate-900 dark:text-white tracking-tighter">Área do Parceiro</h1>
+                    <h1 className="text-2xl font-black italic text-slate-900 dark:text-white tracking-tighter">Portal do Gestor</h1>
                     <p className="text-slate-500 dark:text-slate-400 text-sm font-bold uppercase tracking-widest mt-2">
-                        Gerencie sua farmácia
+                        Gestão da sua farmácia
                     </p>
                 </div>
 
