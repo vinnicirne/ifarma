@@ -20,18 +20,21 @@ import MerchantOrderManagement from './pages/merchant/MerchantOrderManagement';
 import InventoryControl from './pages/merchant/InventoryControl';
 import StoreCustomization from './pages/merchant/StoreCustomization';
 import MerchantFinancial from './pages/merchant/MerchantFinancial';
-import MerchantMotoboys from './pages/merchant/MerchantMotoboys';
+import TeamManagement from './pages/merchant/TeamManagement';
 import AdminLayout from './layouts/AdminLayout';
 import AdminDashboard from './pages/admin/AdminDashboard';
 import OrderTracking from './pages/admin/OrderTracking';
+import PharmacyManagement from './pages/admin/PharmacyManagement';
+import PharmacyDetails from './pages/admin/PharmacyDetails';
 import { supabase } from './lib/supabase';
 import AdminMap from './components/admin/AdminMap';
 import { useNotifications } from './hooks/useNotifications';
 import DiagnosticPage from './pages/DiagnosticPage';
 import { initAppContext, getAppContext } from './lib/appContext';
+import Checkout from './pages/client/Checkout';
 
 // --- Shared Components & Icons ---
-const MaterialIcon = ({ name, className = "", fill = false }: { name: string, className?: string, fill?: boolean }) => (
+export const MaterialIcon = ({ name, className = "", fill = false }: { name: string, className?: string, fill?: boolean }) => (
   <span className={`material-symbols-outlined ${className} ${fill ? 'FILL-1' : ''}`} style={fill ? { fontVariationSettings: "'FILL' 1" } : {}}>
     {name}
   </span>
@@ -140,7 +143,7 @@ const Auth = ({ view = 'login' }: { view?: 'login' | 'signup' }) => {
               <input
                 required
                 className="h-14 px-5 bg-black/20 border border-white/5 rounded-2xl text-white outline-none focus:ring-2 focus:ring-primary/20 font-bold italic"
-                placeholder="Ex: JoÃ£o Silva"
+                placeholder="Ex: João Silva"
                 value={fullName}
                 onChange={e => setFullName(e.target.value)}
               />
@@ -183,7 +186,7 @@ const Auth = ({ view = 'login' }: { view?: 'login' | 'signup' }) => {
             onClick={() => setIsLogin(!isLogin)}
             className="text-slate-400 text-[10px] font-black uppercase tracking-widest hover:text-primary transition-colors block w-full"
           >
-            {isLogin ? 'NÃ£o tem uma conta? Cadastre-se' : 'JÃ¡ tem uma conta? Entre agora'}
+            {isLogin ? 'Não tem uma conta? Cadastre-se' : 'Já tem uma conta? Entre agora'}
           </button>
 
           <div className="w-full h-px bg-white/5 my-4"></div>
@@ -205,7 +208,7 @@ const AdminRoute = ({ children, session, profile }: { children: React.ReactNode,
       <div className="min-h-screen bg-background-dark flex flex-col items-center justify-center p-6 text-center">
         <MaterialIcon name="block" className="text-red-500 text-6xl mb-4" />
         <h2 className="text-xl font-black italic text-white">Acesso Negado</h2>
-        <p className="text-slate-400 text-sm mt-2 max-w-xs">Esta Ã¡rea Ã© restrita para administradores da plataforma.</p>
+        <p className="text-slate-400 text-sm mt-2 max-w-xs">Esta área é restrita para administradores da plataforma.</p>
         <Link to="/" className="mt-8 text-primary font-black uppercase tracking-widest text-xs hover:underline">Voltar para a Home</Link>
       </div>
     );
@@ -261,7 +264,7 @@ const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: numbe
 
 const TopAppBar = ({ onSearch, userLocation }: { onSearch: (query: string) => void, userLocation: { lat: number, lng: number } | null }) => {
   const [query, setQuery] = useState('');
-  const [address, setAddress] = useState('LocalizaÃ§Ã£o Atual');
+  const [address, setAddress] = useState('Localização Atual');
 
   useEffect(() => {
     const fetchAddress = async () => {
@@ -280,14 +283,14 @@ const TopAppBar = ({ onSearch, userLocation }: { onSearch: (query: string) => vo
           );
           const data = await response.json();
           if (data.results && data.results[0]) {
-            // Pegar o endereÃ§o formatado mais curto ou relevante
+            // Pegar o endereço formatado mais curto ou relevante
             const fullAddress = data.results[0].formatted_address;
             const shortAddress = fullAddress.split(',').slice(0, 2).join(',');
             setAddress(shortAddress);
           }
         }
       } catch (error) {
-        console.error("Erro na geocodificaÃ§Ã£o reversa:", error);
+        console.error("Erro na geocodificação reversa:", error);
       }
     };
     fetchAddress();
@@ -309,7 +312,7 @@ const TopAppBar = ({ onSearch, userLocation }: { onSearch: (query: string) => vo
           <div className="flex flex-col">
             <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400">Entregar em</span>
             <h2 className="text-[#0d161b] dark:text-white text-sm font-bold leading-tight flex items-center gap-1">
-              {address || 'LocalizaÃ§Ã£o Atual'}
+              {address || 'Localização Atual'}
               <MaterialIcon name="keyboard_arrow_down" className="text-sm" />
             </h2>
           </div>
@@ -336,7 +339,7 @@ const TopAppBar = ({ onSearch, userLocation }: { onSearch: (query: string) => vo
               value={query}
               onChange={handleInputChange}
               className="form-input flex w-full min-w-0 flex-1 resize-none overflow-hidden rounded-r-xl text-[#0d161b] dark:text-white focus:outline-0 focus:ring-0 border-none bg-slate-100 dark:bg-slate-800 focus:border-none h-full placeholder:text-[#4c799a] px-4 pl-2 text-base font-normal leading-normal"
-              placeholder="Buscar remÃ©dios ou farmÃ¡cias"
+              placeholder="Buscar remédios ou farmácias"
             />
           </div>
         </label>
@@ -353,7 +356,7 @@ const PromoCarousel = () => (
           style={{ background: 'linear-gradient(135deg, #1392ec 0%, #0056b3 100%)' }}>
           <div className="p-4 flex flex-col justify-center h-full text-white">
             <p className="text-xs font-bold uppercase tracking-widest opacity-80">Ofertas da Semana</p>
-            <p className="text-xl font-bold leading-tight">Itens selecionados com atÃ© 50% OFF</p>
+            <p className="text-xl font-bold leading-tight">Itens selecionados com até 50% OFF</p>
           </div>
         </div>
       </div>
@@ -361,7 +364,7 @@ const PromoCarousel = () => (
         <div className="w-full bg-center bg-no-repeat aspect-[21/9] bg-cover rounded-xl flex flex-col relative overflow-hidden"
           style={{ background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)' }}>
           <div className="p-4 flex flex-col justify-center h-full text-white">
-            <p className="text-xs font-bold uppercase tracking-widest opacity-80">SaÃºde em Dia</p>
+            <p className="text-xs font-bold uppercase tracking-widest opacity-80">Saúde em Dia</p>
             <p className="text-xl font-bold leading-tight">Suplementos 20% OFF. Aproveite agora!</p>
           </div>
         </div>
@@ -402,7 +405,7 @@ const FeaturedPharmacies = ({ pharmacies }: { pharmacies: any[] }) => (
     <div className="flex overflow-x-auto hide-scrollbar">
       <div className="flex items-stretch p-4 gap-4">
         {pharmacies.filter(p => p.is_featured).map(pharma => (
-          <Link to="/pharmacy/1" key={pharma.id} className="min-w-[160px] flex flex-col gap-2">
+          <Link to={`/pharmacy/${pharma.id}`} key={pharma.id} className="min-w-[160px] flex flex-col gap-2">
             <div className="w-full aspect-square rounded-2xl bg-slate-100 flex items-center justify-center p-4 border border-slate-100 dark:border-slate-800 dark:bg-slate-900 overflow-hidden relative shadow-sm">
               {pharma.logo_url ? (
                 <img src={pharma.logo_url} alt={pharma.name} className="w-full h-full object-cover" />
@@ -434,12 +437,12 @@ const FeaturedPharmacies = ({ pharmacies }: { pharmacies: any[] }) => (
 const NearbyPharmacies = ({ pharmacies }: { pharmacies: any[] }) => (
   <>
     <div className="px-4 pt-6 pb-2 flex justify-between items-center">
-      <h3 className="text-[#0d161b] dark:text-white text-lg font-bold leading-tight tracking-[-0.015em]">FarmÃ¡cias PrÃ³ximas</h3>
+      <h3 className="text-[#0d161b] dark:text-white text-lg font-bold leading-tight tracking-[-0.015em]">Farmácias Próximas</h3>
       <Link to="/pharmacies" className="text-primary text-sm font-bold">Ver tudo</Link>
     </div>
     <div className="px-4 flex flex-col gap-4 pb-20">
       {pharmacies.map(pharma => (
-        <Link to="/pharmacy/1" key={pharma.id} className="flex gap-4 p-4 rounded-xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900/30 items-start shadow-sm hover:border-primary/30 transition-colors">
+        <Link to={`/pharmacy/${pharma.id}`} key={pharma.id} className="flex gap-4 p-4 rounded-xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900/30 items-start shadow-sm hover:border-primary/30 transition-colors">
           <div className="size-16 rounded-lg bg-slate-50 dark:bg-slate-800 flex items-center justify-center shrink-0 border border-slate-100 dark:border-slate-700 overflow-hidden">
             {pharma.logo_url ? (
               <img src={pharma.logo_url} alt={pharma.name} className="w-full h-full object-cover" />
@@ -472,7 +475,7 @@ const NearbyPharmacies = ({ pharmacies }: { pharmacies: any[] }) => (
   </>
 );
 
-const PharmacyList = ({ pharmacies }: { pharmacies: any[] }) => {
+const PharmacyList = ({ pharmacies, session }: { pharmacies: any[], session: any }) => {
   return (
     <div className="relative flex min-h-screen w-full max-w-[430px] mx-auto flex-col bg-background-light dark:bg-background-dark overflow-x-hidden shadow-2xl pb-24">
       <header className="sticky top-0 z-50 bg-background-light/80 dark:bg-background-dark/80 backdrop-blur-md px-4 pt-6 pb-2">
@@ -481,7 +484,7 @@ const PharmacyList = ({ pharmacies }: { pharmacies: any[] }) => {
             <MaterialIcon name="location_on" className="text-[#0d1b13] dark:text-white" />
             <div className="flex flex-col">
               <span className="text-[10px] uppercase tracking-wider text-gray-500 font-bold">Entregar em</span>
-              <span className="text-sm font-semibold text-[#0d1b13] dark:text-white">LocalizaÃ§Ã£o Atual</span>
+              <span className="text-sm font-semibold text-[#0d1b13] dark:text-white">Localização Atual</span>
             </div>
           </div>
           <div className="flex size-10 items-center justify-center rounded-full bg-white dark:bg-zinc-800 shadow-sm">
@@ -495,27 +498,27 @@ const PharmacyList = ({ pharmacies }: { pharmacies: any[] }) => {
               <div className="text-[#4c9a6c] flex border-none bg-white dark:bg-zinc-800 items-center justify-center pl-4 rounded-l-xl">
                 <MaterialIcon name="search" />
               </div>
-              <input className="form-input flex w-full min-w-0 flex-1 resize-none overflow-hidden rounded-r-xl text-[#0d1b13] dark:text-white focus:outline-0 focus:ring-0 border-none bg-white dark:bg-zinc-800 placeholder:text-gray-400 px-4 pl-2 text-base font-normal leading-normal" placeholder="Buscar farmÃ¡cia ou medicamento" />
+              <input className="form-input flex w-full min-w-0 flex-1 resize-none overflow-hidden rounded-r-xl text-[#0d1b13] dark:text-white focus:outline-0 focus:ring-0 border-none bg-white dark:bg-zinc-800 placeholder:text-gray-400 px-4 pl-2 text-base font-normal leading-normal" placeholder="Buscar farmácia ou medicamento" />
             </div>
           </label>
         </div>
         <div className="flex gap-2 py-2 overflow-x-auto hide-scrollbar">
           <button className="flex h-9 shrink-0 items-center justify-center gap-x-2 rounded-full bg-primary text-[#0d1b13] px-4 shadow-sm">
-            <p className="text-sm font-semibold">DistÃ¢ncia</p>
+            <p className="text-sm font-semibold">Distância</p>
             <MaterialIcon name="keyboard_arrow_down" className="text-[18px]" />
           </button>
           <button className="flex h-9 shrink-0 items-center justify-center gap-x-2 rounded-full bg-white dark:bg-zinc-800 text-[#0d1b13] dark:text-white px-4 border border-gray-100 dark:border-zinc-700 shadow-sm font-medium text-sm">
-            AvaliaÃ§Ã£o <MaterialIcon name="star" className="text-[18px]" />
+            Avaliação <MaterialIcon name="star" className="text-[18px]" />
           </button>
           <button className="flex h-9 shrink-0 items-center justify-center gap-x-2 rounded-full bg-white dark:bg-zinc-800 text-[#0d1b13] dark:text-white px-4 border border-gray-100 dark:border-zinc-700 shadow-sm font-medium text-sm">
-            Entrega GrÃ¡tis
+            Entrega Grátis
           </button>
         </div>
       </header>
 
       <main className="flex-1 px-4 py-2 space-y-4">
         {pharmacies.length === 0 ? (
-          <div className="text-center py-20 opacity-50 font-bold italic">Nenhuma farmÃ¡cia encontrada</div>
+          <div className="text-center py-20 opacity-50 font-bold italic">Nenhuma farmácia encontrada</div>
         ) : (
           pharmacies.map((pharma, i) => (
             <div key={i} className="group flex items-stretch justify-between gap-4 rounded-xl bg-white dark:bg-zinc-900 p-4 shadow-sm border border-gray-50 dark:border-zinc-800">
@@ -524,7 +527,7 @@ const PharmacyList = ({ pharmacies }: { pharmacies: any[] }) => {
                   <div className="flex items-center gap-1">
                     <MaterialIcon name="star" className="text-orange-400 text-[16px]" fill />
                     <p className="text-[#0d1b13] dark:text-white text-sm font-bold">{pharma.rating || '0.0'}</p>
-                    <span className="text-gray-400 text-xs font-normal">â€¢ 100+ avaliaÃ§Ãµes</span>
+                    <span className="text-gray-400 text-xs font-normal">â€¢ 100+ avaliações</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <p className="text-[#0d1b13] dark:text-white text-lg font-bold leading-tight">{pharma.name}</p>
@@ -534,13 +537,13 @@ const PharmacyList = ({ pharmacies }: { pharmacies: any[] }) => {
                     <MaterialIcon name="schedule" className="text-[16px]" />
                     <span>20-40 min</span>
                     <span>â€¢</span>
-                    <span>{pharma.distance === Infinity ? 'DistÃ¢ncia N/A' : `${pharma.distance.toFixed(1)} km`}</span>
+                    <span>{pharma.distance === Infinity ? 'Distância N/A' : `${pharma.distance.toFixed(1)} km`}</span>
                   </div>
                   <div className="mt-1 flex gap-2">
-                    <span className="inline-flex items-center rounded-md bg-primary/10 px-2 py-0.5 text-xs font-semibold text-green-700 dark:text-primary">Entrega GrÃ¡tis</span>
+                    <span className="inline-flex items-center rounded-md bg-primary/10 px-2 py-0.5 text-xs font-semibold text-green-700 dark:text-primary">Entrega Grátis</span>
                   </div>
                 </div>
-                <Link to="/pharmacy/1" className="flex min-w-[120px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-9 px-4 bg-primary text-[#0d1b13] text-sm font-bold leading-normal w-fit transition-transform active:scale-95">
+                <Link to={`/pharmacy/${pharma.id}`} className="flex min-w-[120px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-9 px-4 bg-primary text-[#0d1b13] text-sm font-bold leading-normal w-fit transition-transform active:scale-95">
                   Ver produtos
                 </Link>
               </div>
@@ -555,23 +558,34 @@ const PharmacyList = ({ pharmacies }: { pharmacies: any[] }) => {
           ))
         )}
       </main>
-      <BottomNav />
+      <BottomNav session={session} />
     </div>
   );
 };
 
-const BottomNav = () => {
+const BottomNav = ({ session }: { session: any }) => {
   const location = useLocation();
+  const cartCount = useCartCount(session?.user?.id);
+
   return (
     <nav className="fixed bottom-0 w-full max-w-[480px] bg-white/90 dark:bg-background-dark/90 backdrop-blur-lg border-t border-slate-200 dark:border-slate-800 pb-6 pt-2 z-50">
       <div className="flex justify-around items-center">
         <Link to="/" className={`flex flex-col items-center gap-1 ${location.pathname === '/' ? 'text-primary' : 'text-slate-400'}`}>
           <MaterialIcon name="home" fill={location.pathname === '/'} />
-          <span className="text-[10px] font-bold">InÃ­cio</span>
+          <span className="text-[10px] font-bold">Início</span>
         </Link>
         <Link to="/pharmacies" className={`flex flex-col items-center gap-1 ${location.pathname === '/pharmacies' ? 'text-primary' : 'text-slate-400'}`}>
           <MaterialIcon name="search" fill={location.pathname === '/pharmacies'} />
           <span className="text-[10px] font-bold">Busca</span>
+        </Link>
+        <Link to="/cart" className={`flex flex-col items-center gap-1 relative ${location.pathname === '/cart' ? 'text-primary' : 'text-slate-400'}`}>
+          <MaterialIcon name="shopping_cart" fill={location.pathname === '/cart'} />
+          {cartCount > 0 && (
+            <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[8px] font-black size-4 rounded-full flex items-center justify-center border border-white">
+              {cartCount}
+            </span>
+          )}
+          <span className="text-[10px] font-bold">Carrinho</span>
         </Link>
         <Link to="/profile" className={`flex flex-col items-center gap-1 ${location.pathname === '/profile' ? 'text-primary' : 'text-slate-400'}`}>
           <MaterialIcon name="person" fill={location.pathname === '/profile'} />
@@ -589,6 +603,43 @@ const ClientHome = ({ userLocation, sortedPharmacies, session }: { userLocation:
   const [isSearching, setIsSearching] = useState(false);
 
   // Handle Search Logic
+  // --- Cart Shared Logic ---
+  const addToCart = async (productId: string, quantity: number = 1) => {
+    if (!session) {
+      navigate('/login');
+      return;
+    }
+
+    try {
+      // Check if item already exists in cart
+      const { data: existing } = await supabase
+        .from('cart_items')
+        .select('id, quantity')
+        .eq('customer_id', session.user.id)
+        .eq('product_id', productId)
+        .single();
+
+      if (existing) {
+        await supabase
+          .from('cart_items')
+          .update({ quantity: existing.quantity + quantity })
+          .eq('id', existing.id);
+      } else {
+        await supabase
+          .from('cart_items')
+          .insert({
+            customer_id: session.user.id,
+            product_id: productId,
+            quantity
+          });
+      }
+      alert('Produto adicionado ao carrinho! 🛒');
+    } catch (error) {
+      console.error("Error adding to cart:", error);
+      alert('Erro ao adicionar ao carrinho.');
+    }
+  };
+
   useEffect(() => {
     const performSearch = async () => {
       if (searchQuery.length < 3) {
@@ -668,7 +719,7 @@ const ClientHome = ({ userLocation, sortedPharmacies, session }: { userLocation:
               <div className="flex flex-col items-center justify-center py-20 text-slate-400">
                 <MaterialIcon name="search_off" className="text-6xl mb-4 opacity-20" />
                 <p className="font-bold italic">Nenhum produto encontrado</p>
-                <p className="text-xs opacity-60">Tente buscar por termos mais genÃ©ricos</p>
+                <p className="text-xs opacity-60">Tente buscar por termos mais genéricos</p>
               </div>
             ) : (
               <div className="grid grid-cols-1 gap-4">
@@ -698,12 +749,12 @@ const ClientHome = ({ userLocation, sortedPharmacies, session }: { userLocation:
                           <div className="flex flex-col">
                             <span className="text-xs font-black italic text-slate-700 dark:text-slate-200">{item.pharmacy.name}</span>
                             <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">
-                              {item.distance === Infinity ? 'DistÃ¢ncia N/A' : `${item.distance.toFixed(1)} km`}
+                              {item.distance === Infinity ? 'Distância N/A' : `${item.distance.toFixed(1)} km`}
                             </span>
                           </div>
                         </div>
                         <button
-                          onClick={() => !session ? navigate('/login') : alert('Adicionado ao carrinho!')}
+                          onClick={() => addToCart(item.id)}
                           className="bg-primary text-background-dark size-8 rounded-xl flex items-center justify-center hover:scale-110 active:scale-90 transition-all shadow-lg shadow-primary/20"
                         >
                           <MaterialIcon name="add" className="font-black" />
@@ -724,14 +775,111 @@ const ClientHome = ({ userLocation, sortedPharmacies, session }: { userLocation:
           </>
         )}
       </main>
-      <BottomNav />
+      <BottomNav session={session} />
     </div>
   );
 };
 
 // --- Dummy pages for other routes (to be styled later) ---
 const PharmacyPage = ({ session }: { session: any }) => {
+  const { id } = useParams();
   const navigate = useNavigate();
+  const [pharmacy, setPharmacy] = useState<any>(null);
+  const [products, setProducts] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [activeCategory, setActiveCategory] = useState('Todos');
+  const cartCount = useCartCount(session?.user?.id);
+
+  const addToCart = async (productId: string, quantity: number = 1) => {
+    if (!session) {
+      navigate('/login');
+      return;
+    }
+    try {
+      const { data: existing } = await supabase
+        .from('cart_items')
+        .select('id, quantity')
+        .eq('customer_id', session.user.id)
+        .eq('product_id', productId)
+        .single();
+
+      if (existing) {
+        await supabase
+          .from('cart_items')
+          .update({ quantity: existing.quantity + quantity })
+          .eq('id', existing.id);
+      } else {
+        await supabase
+          .from('cart_items')
+          .insert({
+            customer_id: session.user.id,
+            product_id: productId,
+            quantity
+          });
+      }
+      alert('Produto adicionado ao carrinho! 🛒');
+    } catch (error) {
+      console.error("Error adding to cart:", error);
+      alert('Erro ao adicionar ao carrinho.');
+    }
+  };
+
+  useEffect(() => {
+    const fetchPharmacyData = async () => {
+      if (!id) return;
+      setLoading(true);
+
+      // Fetch Pharmacy Details
+      const { data: pharmaData, error: pharmaError } = await supabase
+        .from('pharmacies')
+        .select('*')
+        .eq('id', id)
+        .single();
+
+      if (pharmaError) {
+        console.error("Error fetching pharmacy:", pharmaError);
+        navigate('/');
+        return;
+      }
+      setPharmacy(pharmaData);
+
+      // Fetch Pharmacy Products
+      const { data: productsData, error: productsError } = await supabase
+        .from('products')
+        .select('*')
+        .eq('pharmacy_id', id)
+        .eq('is_active', true);
+
+      if (productsError) {
+        console.error("Error fetching products:", productsError);
+      } else {
+        setProducts(productsData || []);
+      }
+      setLoading(false);
+    };
+
+    fetchPharmacyData();
+  }, [id, navigate]);
+
+  const categories = ['Todos', ...new Set(products.map(p => p.category).filter(Boolean))];
+
+  const filteredProducts = products.filter(p => {
+    const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesCategory = activeCategory === 'Todos' || p.category === activeCategory;
+    return matchesSearch && matchesCategory;
+  });
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background-dark flex items-center justify-center">
+        <div className="animate-spin size-12 border-4 border-primary border-t-transparent rounded-full font-bold"></div>
+      </div>
+    );
+  }
+
+  if (!pharmacy) return null;
+
   return (
     <div className="max-w-lg mx-auto bg-background-light dark:bg-background-dark min-h-screen pb-32">
       {/* Top Navigation Bar */}
@@ -754,12 +902,16 @@ const PharmacyPage = ({ session }: { session: any }) => {
       {/* Header Image & Profile Overlay */}
       <div className="relative w-full">
         <div className="w-full h-56 bg-center bg-cover bg-slate-200"
-          style={{ backgroundImage: 'url("https://lh3.googleusercontent.com/aida-public/AB6AXuCQBDaY_dE4pipP291S60byN57w3BiBNIwXXGNkWFE2iPvamSwi6vO6c0vefPKMHs6C4qPo7-2YG0PBmIIjeqw8OEpDcsgzGu6WfrNH7_itF0OS-sU1jLh1L4o5LEm10OsRf06GFI6v33ikohZZXnQej20ZCTAmHJJUOjn8NS3mHyFqhE2X07wtELz1_XbpAAtXWen50uezl6Z1p_W7wSW2HRlksM7Ve4_QO2Xn9YOQo0vQmhvvujzUCH8JkGM0IQ9nbZPHWTlrPQ")' }}>
+          style={{ backgroundImage: pharmacy.banner_url ? `url(${pharmacy.banner_url})` : 'url("https://images.unsplash.com/photo-1586024492967-142e6b8066e7?auto=format&fit=crop&q=80&w=800")' }}>
         </div>
         <div className="absolute -bottom-12 left-4">
           <div className="size-24 rounded-2xl bg-white p-1 shadow-lg overflow-hidden border-2 border-white">
-            <div className="w-full h-full bg-center bg-cover rounded-xl bg-primary/10"
-              style={{ backgroundImage: 'url("https://lh3.googleusercontent.com/aida-public/AB6AXuCnDWZVczM2bNSQOUkeaiYLMHMv04jn1tMigOdVpqCs0Ww6klygIAhRPlj6bOIniWQbRHWq6E4YjtPvvMxzUyp8s8KVA7Mw1pB-EbTd7PMxeRnRCZn_21kghhMZAzowGEJ8fbr36M5-mYqBIEGxxouVVK54N_-Q3SqEvZHL89OtoHN_aOGrkaV_OSE5NfHqYP6e-qlr1-8bBfQTZecjiUC7gD3cbq7DFDiJ6-eiOmC3llfrO77qUq-CAUqXaKkwC9OWpPH1lByi7A")' }}>
+            <div className="w-full h-full bg-center bg-cover rounded-xl bg-primary/10 flex items-center justify-center overflow-hidden">
+              {pharmacy.logo_url ? (
+                <img src={pharmacy.logo_url} alt={pharmacy.name} className="w-full h-full object-cover" />
+              ) : (
+                <span className="text-3xl font-black text-primary italic">{pharmacy.name.charAt(0)}</span>
+              )}
             </div>
           </div>
         </div>
@@ -769,20 +921,20 @@ const PharmacyPage = ({ session }: { session: any }) => {
       <div className="pt-16 px-4">
         <div className="flex justify-between items-start">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-[#0d1b13] dark:text-white">HealthWay Pharmacy</h1>
+            <h1 className="text-2xl font-bold tracking-tight text-[#0d1b13] dark:text-white font-display italic">{pharmacy.name}</h1>
             <div className="flex items-center gap-1 mt-1">
               <MaterialIcon name="star" className="text-yellow-400 text-lg" fill />
-              <span className="text-sm font-bold text-[#0d1b13] dark:text-white">4.8</span>
-              <span className="text-sm text-zinc-500">(120+ reviews)</span>
+              <span className="text-sm font-bold text-[#0d1b13] dark:text-white">{pharmacy.rating || '5.0'}</span>
+              <span className="text-sm text-zinc-500">(Novo Parceiro)</span>
             </div>
           </div>
           <div className="bg-primary/20 px-3 py-1 rounded-full">
-            <span className="text-primary font-bold text-xs uppercase tracking-wider">Open Now</span>
+            <span className="text-primary font-bold text-xs uppercase tracking-wider">Aberto</span>
           </div>
         </div>
         <div className="flex items-center gap-2 mt-3 text-zinc-500">
           <MaterialIcon name="location_on" className="text-sm" />
-          <p className="text-sm">123 Medical Blvd, San Francisco, CA</p>
+          <p className="text-sm line-clamp-1">{pharmacy.address || 'Endereço não informado'}</p>
         </div>
       </div>
 
@@ -795,14 +947,23 @@ const PharmacyPage = ({ session }: { session: any }) => {
               <div className="text-zinc-400 flex items-center justify-center pl-4">
                 <MaterialIcon name="search" />
               </div>
-              <input className="w-full bg-transparent border-none focus:ring-0 text-[#0d1b13] dark:text-white placeholder:text-zinc-400 px-3 text-base" placeholder="Search in this store" />
+              <input
+                className="w-full bg-transparent border-none focus:ring-0 text-[#0d1b13] dark:text-white placeholder:text-zinc-400 px-3 text-base"
+                placeholder="Buscar nesta loja"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
             </div>
           </label>
         </div>
         {/* Categories Tabs */}
         <div className="flex overflow-x-auto hide-scrollbar gap-2 px-4 py-4">
-          {['Featured', 'Medicines', 'Personal Care', 'First Aid', 'Supplements'].map((cat, i) => (
-            <button key={cat} className={`whitespace-nowrap px-5 py-2 rounded-full text-sm font-semibold transition-all ${i === 0 ? 'bg-primary text-black' : 'bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 border border-zinc-100 dark:border-zinc-700 font-medium'}`}>
+          {categories.map((cat) => (
+            <button
+              key={cat}
+              onClick={() => setActiveCategory(cat)}
+              className={`whitespace-nowrap px-5 py-2 rounded-full text-sm font-bold transition-all ${activeCategory === cat ? 'bg-primary text-black' : 'bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 border border-zinc-100 dark:border-zinc-700'}`}
+            >
               {cat}
             </button>
           ))}
@@ -811,59 +972,72 @@ const PharmacyPage = ({ session }: { session: any }) => {
 
       {/* Product Grid */}
       <div className="px-4 mt-2">
-        <h3 className="text-lg font-bold mb-4">Featured Products</h3>
-        <div className="grid grid-cols-2 gap-4">
-          {[
-            { name: 'Daily Multivitamins (60 count)', price: '24.99', controlled: false },
-            { name: 'Digital Infrared Thermometer', price: '15.50', controlled: false },
-            { name: 'Medical Grade Face Masks (50pk)', price: '9.99', controlled: false },
-            { name: 'Moisturizing Skin Lotion 250ml', price: '12.45', controlled: false },
-            { name: 'Compact Travel First Aid Kit', price: '18.00', controlled: false },
-            { name: 'Hand Sanitizer Spray (100ml)', price: '4.99', controlled: false }
-          ].map((prod, i) => (
-            <div key={i} className="bg-white dark:bg-zinc-800 rounded-xl p-3 shadow-sm border border-zinc-100 dark:border-zinc-700 group">
-              <div className="block relative w-full aspect-square rounded-lg bg-zinc-50 dark:bg-zinc-900 mb-3 overflow-hidden">
-                <div className="w-full h-full flex items-center justify-center">
-                  <MaterialIcon name="medication" className="text-zinc-200 text-5xl group-hover:scale-110 transition-transform" />
+        <h3 className="text-lg font-black italic mb-4 text-[#0d1b13] dark:text-white">Cardápio de Produtos</h3>
+        {filteredProducts.length === 0 ? (
+          <div className="text-center py-10 text-slate-400 font-bold italic">Nenhum produto encontrado</div>
+        ) : (
+          <div className="grid grid-cols-2 gap-4">
+            {filteredProducts.map((prod) => (
+              <div key={prod.id} className="bg-white dark:bg-zinc-800 rounded-2xl p-3 shadow-sm border border-zinc-100 dark:border-zinc-700 group hover:border-primary/50 transition-colors">
+                <Link to={`/product/${prod.id}`} className="block relative w-full aspect-square rounded-xl bg-zinc-50 dark:bg-zinc-900 mb-3 overflow-hidden">
+                  {prod.image_url ? (
+                    <img src={prod.image_url} alt={prod.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center">
+                      <MaterialIcon name="medication" className="text-zinc-200 dark:text-zinc-700 text-5xl" />
+                    </div>
+                  )}
+                  {prod.promo_price && (
+                    <div className="absolute top-2 left-2 bg-primary text-black text-[9px] px-2 py-0.5 rounded-full font-black uppercase tracking-widest">OFF</div>
+                  )}
+                  <button
+                    onClick={(e) => {
+                      e.preventDefault();
+                      addToCart(prod.id);
+                    }}
+                    className="absolute bottom-2 right-2 size-8 bg-primary rounded-xl flex items-center justify-center shadow-lg transition-transform active:scale-95 hover:scale-110"
+                  >
+                    <MaterialIcon name="add" className="text-black font-black" />
+                  </button>
+                </Link>
+                <Link to={`/product/${prod.id}`} className="text-xs font-bold line-clamp-2 min-h-[2.5rem] hover:text-primary transition-colors text-slate-800 dark:text-white leading-tight">{prod.name}</Link>
+                <div className="mt-2 flex flex-col">
+                  {prod.promo_price ? (
+                    <>
+                      <span className="text-[10px] text-slate-400 line-through">R$ {parseFloat(prod.price).toFixed(2)}</span>
+                      <span className="text-primary font-black text-lg italic tracking-tighter">R$ {parseFloat(prod.promo_price).toFixed(2)}</span>
+                    </>
+                  ) : (
+                    <span className="text-slate-800 dark:text-white font-black text-lg italic tracking-tighter">R$ {parseFloat(prod.price).toFixed(2)}</span>
+                  )}
                 </div>
-                <button
-                  onClick={(e) => {
-                    e.preventDefault();
-                    !session ? navigate('/login') : alert('Adicionado ao carrinho!');
-                  }}
-                  className="absolute bottom-2 right-2 size-8 bg-primary rounded-full flex items-center justify-center shadow-md transition-transform active:scale-95"
-                >
-                  <MaterialIcon name="add" className="text-black font-bold" />
-                </button>
               </div>
-              <Link to="/product/1" className="text-sm font-semibold line-clamp-2 min-h-[2.5rem] hover:text-primary transition-colors">{prod.name}</Link>
-              <p className="text-primary font-bold mt-1">${prod.price}</p>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Floating Bottom Nav */}
       <div className="fixed bottom-6 left-4 right-4 z-50 max-w-lg mx-auto">
         <div className="bg-zinc-900/95 dark:bg-zinc-800/95 backdrop-blur-xl rounded-full px-6 py-4 flex items-center justify-between shadow-2xl border border-white/10 ring-1 ring-white/5">
-          <Link to="/" className="flex flex-col items-center text-zinc-400">
+          <Link to="/" className="flex flex-col items-center text-zinc-400 hover:text-primary transition-colors">
             <MaterialIcon name="storefront" />
-            <span className="text-[10px] font-medium">Shop</span>
+            <span className="text-[10px] font-bold uppercase tracking-widest mt-0.5">Shop</span>
           </Link>
-          <Link to="/cart" className="flex flex-col items-center relative text-primary">
+          <Link to="/cart" className="flex flex-col items-center relative text-primary hover:scale-110 transition-transform">
             <div className="bg-primary size-5 rounded-full absolute -top-2 -right-2 flex items-center justify-center border-2 border-zinc-900">
-              <span className="text-[10px] text-black font-black font-sans">3</span>
+              <span className="text-[10px] text-black font-black font-sans">{cartCount}</span>
             </div>
             <MaterialIcon name="shopping_cart" fill />
-            <span className="text-[10px] font-medium">Cart</span>
+            <span className="text-[10px] font-bold uppercase tracking-widest mt-0.5">Cart</span>
           </Link>
-          <Link to="/order-tracking" className="flex flex-col items-center text-zinc-400">
+          <Link to="/order-tracking" className="flex flex-col items-center text-zinc-400 hover:text-primary transition-colors">
             <MaterialIcon name="receipt_long" />
-            <span className="text-[10px] font-medium">Orders</span>
+            <span className="text-[10px] font-bold uppercase tracking-widest mt-0.5">Orders</span>
           </Link>
-          <Link to="/profile" className="flex flex-col items-center text-zinc-400">
+          <Link to="/profile" className="flex flex-col items-center text-zinc-400 hover:text-primary transition-colors">
             <MaterialIcon name="person" />
-            <span className="text-[10px] font-medium">Profile</span>
+            <span className="text-[10px] font-bold uppercase tracking-widest mt-0.5">Profile</span>
           </Link>
         </div>
       </div>
@@ -872,83 +1046,154 @@ const PharmacyPage = ({ session }: { session: any }) => {
 };
 
 const ProductPage = ({ session }: { session: any }) => {
+  const { id } = useParams();
   const navigate = useNavigate();
+  const [product, setProduct] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
   const [qty, setQty] = useState(1);
+
+  const addToCart = async (productId: string, quantity: number = 1) => {
+    if (!session) {
+      navigate('/login');
+      return;
+    }
+    try {
+      const { data: existing } = await supabase
+        .from('cart_items')
+        .select('id, quantity')
+        .eq('customer_id', session.user.id)
+        .eq('product_id', productId)
+        .single();
+
+      if (existing) {
+        await supabase
+          .from('cart_items')
+          .update({ quantity: existing.quantity + quantity })
+          .eq('id', existing.id);
+      } else {
+        await supabase
+          .from('cart_items')
+          .insert({
+            customer_id: session.user.id,
+            product_id: productId,
+            quantity
+          });
+      }
+      alert('Produto adicionado ao carrinho! 🛒');
+    } catch (error) {
+      console.error("Error adding to cart:", error);
+      alert('Erro ao adicionar ao carrinho.');
+    }
+  };
+
+  useEffect(() => {
+    const fetchProduct = async () => {
+      if (!id) return;
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('products')
+        .select(`
+          *,
+          pharmacy:pharmacies(name)
+        `)
+        .eq('id', id)
+        .single();
+
+      if (error) {
+        console.error("Error fetching product:", error);
+        navigate(-1);
+        return;
+      }
+      setProduct(data);
+      setLoading(false);
+    };
+    fetchProduct();
+  }, [id, navigate]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background-dark flex items-center justify-center">
+        <div className="animate-spin size-12 border-4 border-primary border-t-transparent rounded-full font-bold"></div>
+      </div>
+    );
+  }
+
+  if (!product) return null;
+
   return (
     <div className="max-w-[480px] mx-auto min-h-screen bg-white dark:bg-background-dark pb-32">
-      <div className="relative h-64 bg-slate-50 dark:bg-slate-900 flex items-center justify-center p-12">
-        <button onClick={() => navigate(-1)} className="absolute top-4 left-4 size-10 bg-white/90 dark:bg-slate-800 rounded-full flex items-center justify-center shadow-lg z-10">
+      <div className="relative h-64 bg-slate-50 dark:bg-slate-900 flex items-center justify-center p-12 overflow-hidden">
+        <button onClick={() => navigate(-1)} className="absolute top-4 left-4 size-10 bg-white/90 dark:bg-slate-800 rounded-full flex items-center justify-center shadow-lg z-10 text-slate-800 dark:text-white">
           <MaterialIcon name="arrow_back" />
         </button>
-        <MaterialIcon name="medication" className="text-primary text-[120px] opacity-20" />
+
+        {product.image_url ? (
+          <img src={product.image_url} alt={product.name} className="w-full h-full object-contain relative z-10" />
+        ) : (
+          <MaterialIcon name="medication" className="text-primary text-[120px] opacity-20 relative z-10" />
+        )}
+
         <div className="absolute inset-0 bg-gradient-to-b from-transparent to-white dark:to-background-dark/20 opacity-40"></div>
       </div>
 
       <div className="px-6 -mt-6 relative z-10">
         <div className="flex flex-col gap-2">
-          <span className="text-[10px] font-black bg-red-500 text-white px-3 py-1 rounded-full self-start flex items-center gap-1">
-            <MaterialIcon name="description" className="text-[12px]" /> EXIGE RECEITA MÃ‰DICA
-          </span>
-          <h1 className="text-3xl font-black text-slate-800 dark:text-white mt-2">Amoxicilina 500mg</h1>
-          <p className="text-slate-400 font-medium">AntibiÃ³tico â€¢ 21 comprimidos â€¢ EMS</p>
+          {product.requires_prescription && (
+            <span className="text-[10px] font-black bg-red-500 text-white px-3 py-1 rounded-full self-start flex items-center gap-1 shadow-sm">
+              <MaterialIcon name="description" className="text-[12px]" /> EXIGE RECEITA MÉDICA
+            </span>
+          )}
+          <h1 className="text-2xl font-black text-slate-800 dark:text-white mt-2 font-display italic leading-tight">{product.name}</h1>
+          <div className="flex items-center gap-2 mt-1">
+            <span className="text-slate-400 font-bold text-xs uppercase tracking-widest">{product.category || 'Geral'}</span>
+            <span className="text-slate-300">•</span>
+            <span className="text-primary font-bold text-xs uppercase tracking-widest">{product.pharmacy?.name}</span>
+          </div>
         </div>
 
         <div className="mt-8">
-          <h3 className="text-sm font-black text-slate-800 dark:text-white uppercase tracking-wider">DescriÃ§Ã£o</h3>
-          <p className="text-slate-500 dark:text-slate-400 mt-2 text-sm leading-relaxed">
-            A amoxicilina Ã© um antibiÃ³tico eficaz contra uma grande variedade de bactÃ©rias, indicada para o tratamento de infecÃ§Ãµes bacterianas causadas por germes sensÃ­veis Ã  amoxicilina.
+          <h3 className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2 font-display">Descrição Detalhada</h3>
+          <p className="text-slate-600 dark:text-slate-400 text-sm leading-relaxed font-medium">
+            {product.description || 'Nenhuma descrição disponível para este produto.'}
           </p>
         </div>
 
-        <div className="mt-10 flex items-center justify-between">
+        <div className="mt-10 flex items-center justify-between bg-slate-50 dark:bg-white/5 p-4 rounded-[32px] border border-slate-100 dark:border-white/5">
           <div className="flex flex-col">
-            <span className="text-slate-300 text-xs line-through">De R$ 56,90</span>
-            <span className="text-4xl font-black text-primary">R$ 45,90</span>
+            {product.promo_price ? (
+              <>
+                <span className="text-slate-400 text-[10px] line-through font-bold">R$ {parseFloat(product.price).toFixed(2)}</span>
+                <span className="text-3xl font-black text-primary italic tracking-tighter">R$ {parseFloat(product.promo_price).toFixed(2)}</span>
+              </>
+            ) : (
+              <span className="text-3xl font-black text-slate-800 dark:text-white italic tracking-tighter">R$ {parseFloat(product.price).toFixed(2)}</span>
+            )}
           </div>
-          <div className="flex items-center gap-4 bg-slate-50 dark:bg-slate-800 p-2 rounded-2xl border">
-            <button onClick={() => setQty(Math.max(1, qty - 1))} className="size-10 rounded-xl bg-white dark:bg-slate-700 shadow-sm flex items-center justify-center font-bold">-</button>
-            <span className="font-black text-lg">{qty}</span>
-            <button onClick={() => setQty(qty + 1)} className="size-10 rounded-xl bg-white dark:bg-slate-700 shadow-sm flex items-center justify-center font-bold text-primary">+</button>
-          </div>
-        </div>
-      </div>
-
-      {/* Product Description */}
-      <div className="px-4 py-2">
-        <h3 className="text-[#1c140d] dark:text-white text-lg font-bold pb-2 border-b border-gray-100 dark:border-white/10 mb-3 font-sans">DescriÃ§Ã£o detalhada</h3>
-        <p className="text-gray-600 dark:text-gray-300 text-base leading-relaxed font-medium">
-          Este medicamento Ã© indicado para o tratamento de infecÃ§Ãµes bacterianas causadas por germes sensÃ­veis aos componentes da fÃ³rmula. Atua como um agente antibiÃ³tico de amplo espectro.
-        </p>
-        <div className="mt-6 flex flex-col gap-4">
-          <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-white/5 rounded-xl border border-gray-100 dark:border-white/5">
-            <span className="font-bold text-sm">ComposiÃ§Ã£o</span>
-            <MaterialIcon name="add" className="text-gray-400" />
-          </div>
-          <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-white/5 rounded-xl border border-gray-100 dark:border-white/5">
-            <span className="font-bold text-sm">Como Usar</span>
-            <MaterialIcon name="add" className="text-gray-400" />
+          <div className="flex items-center gap-4 bg-white dark:bg-slate-800 p-1.5 rounded-2xl border border-slate-100 dark:border-zinc-700 shadow-sm">
+            <button onClick={() => setQty(Math.max(1, qty - 1))} className="size-10 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 flex items-center justify-center font-black text-lg transition-colors">-</button>
+            <span className="font-black text-xl text-slate-800 dark:text-white tabular-nums w-6 text-center">{qty}</span>
+            <button onClick={() => setQty(qty + 1)} className="size-10 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 flex items-center justify-center font-black text-xl text-primary transition-colors">+</button>
           </div>
         </div>
       </div>
 
       {/* Sticky Footer */}
-      <div className="fixed bottom-0 left-0 right-0 z-50 max-w-[430px] mx-auto bg-white/90 dark:bg-background-dark/90 backdrop-blur-xl border-t border-gray-100 dark:border-white/10 p-4 pb-8">
+      <div className="fixed bottom-0 left-0 right-0 z-50 max-w-[480px] mx-auto bg-white/95 dark:bg-background-dark/95 backdrop-blur-xl border-t border-slate-100 dark:border-white/10 p-5 pb-8 shadow-[0_-10px_40px_rgba(0,0,0,0.05)]">
         <div className="flex flex-col gap-3">
-          <button
-            onClick={() => !session ? navigate('/login') : navigate('/prescription-upload')}
-            className="flex w-full items-center justify-center gap-2 h-14 rounded-full border-2 border-primary bg-transparent text-primary font-bold text-base transition-all active:scale-95"
-          >
-            <MaterialIcon name="photo_camera" /> Enviar Receita
-          </button>
+          {product.requires_prescription && (
+            <button
+              onClick={() => !session ? navigate('/login') : navigate('/prescription-upload')}
+              className="flex w-full items-center justify-center gap-2 h-14 rounded-3xl border-2 border-primary bg-transparent text-primary font-black text-sm uppercase tracking-widest transition-all active:scale-95 hover:bg-primary/5"
+            >
+              <MaterialIcon name="photo_camera" /> Enviar Receita
+            </button>
+          )}
           <button
             onClick={() => {
-              if (!session) return navigate('/login');
-              const current = Number(localStorage.getItem('cart_count') || '0');
-              localStorage.setItem('cart_count', (current + qty).toString());
-              alert(`${qty} item(s) adicionado(s) ao carrinho!`);
+              addToCart(product.id, qty);
               navigate('/cart');
             }}
-            className="flex w-full items-center justify-center gap-2 h-14 rounded-full bg-primary text-slate-900 font-bold text-lg shadow-lg shadow-primary/30 transition-all active:scale-95"
+            className="flex w-full items-center justify-center gap-2 h-14 rounded-3xl bg-primary text-background-dark font-black text-lg shadow-xl shadow-primary/20 transition-all active:scale-95 hover:scale-[1.02]"
           >
             <MaterialIcon name="shopping_cart" /> Adicionar ao Carrinho
           </button>
@@ -1242,6 +1487,38 @@ const Cart = () => {
 };
 
 
+// --- Custom Hooks ---
+const useCartCount = (userId: string | undefined) => {
+  const [count, setCount] = useState(0);
+
+  const fetchCount = async () => {
+    if (!userId) {
+      setCount(0);
+      return;
+    }
+    const { data } = await supabase
+      .from('cart_items')
+      .select('quantity')
+      .eq('customer_id', userId);
+
+    const total = data?.reduce((acc, item) => acc + item.quantity, 0) || 0;
+    setCount(total);
+  };
+
+  useEffect(() => {
+    fetchCount();
+    // Subscribe to changes
+    const channel = supabase
+      .channel('cart_count_changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'cart_items', filter: `customer_id=eq.${userId}` }, fetchCount)
+      .subscribe();
+
+    return () => { channel.unsubscribe(); };
+  }, [userId]);
+
+  return count;
+};
+
 // Add useParams to import
 
 import { useDirections } from './hooks/useDirections';
@@ -1252,6 +1529,8 @@ const UserOrderTracking = () => {
   const [order, setOrder] = useState<any>(null);
   const [items, setItems] = useState<any[]>([]);
   const [motoboy, setMotoboy] = useState<{ id: string, lat: number, lng: number, name?: string } | null>(null);
+  const [googleKey, setGoogleKey] = useState<string | null>(null);
+  const [realTimeRoute, setRealTimeRoute] = useState<{ distance: string, duration: string } | null>(null);
 
   // Função para calcular o ângulo (bearing) entre dois pontos
   const calculateBearing = (start: { lat: number, lng: number }, end: { lat: number, lng: number }) => {
@@ -1297,7 +1576,42 @@ const UserOrderTracking = () => {
   };
 
   // Função para calcular distância e ETA
+  const fetchGoogleKey = async () => {
+    const { data: settings } = await supabase
+      .from('system_settings')
+      .select('value')
+      .eq('key', 'google_maps_api_key')
+      .single();
+    if (settings?.value) setGoogleKey(settings.value);
+  };
+
+  const updateRealTimeETA = async (mbLat: number, mbLng: number) => {
+    if (!googleKey || !order) return;
+
+    const destLat = order.latitude || order.pharmacies?.latitude;
+    const destLng = order.longitude || order.pharmacies?.longitude;
+
+    if (!destLat || !destLng) return;
+
+    const url = `https://maps.googleapis.com/maps/api/distancematrix/json?origins=${mbLat},${mbLng}&destinations=${destLat},${destLng}&mode=driving&departure_time=now&key=${googleKey}`;
+
+    try {
+      const response = await fetch(url);
+      const data = await response.json();
+      if (data.status === 'OK' && data.rows[0].elements[0].status === 'OK') {
+        const element = data.rows[0].elements[0];
+        setRealTimeRoute({
+          distance: element.distance.text,
+          duration: element.duration_in_traffic ? element.duration_in_traffic.text : element.duration.text
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching real-time ETA:', error);
+    }
+  };
+
   const calculateETA = () => {
+    if (realTimeRoute) return realTimeRoute.duration;
     if (!motoboy || !order?.pharmacies) return 'Aguardando...';
 
     const destLat = order.latitude || order.pharmacies.latitude;
@@ -1333,11 +1647,12 @@ const UserOrderTracking = () => {
     const totalMinutes = Math.round(travelTime + additionalTime);
 
     if (order.status === 'entregue') return 'Entregue';
-    return `${totalMinutes} min`;
+    return `${totalMinutes} min (est.)`;
   };
 
   useEffect(() => {
     if (!orderId) return;
+    fetchGoogleKey();
 
     // Função para enviar notificação de proximidade
     const fetchOrder = async () => {
@@ -1366,6 +1681,7 @@ const UserOrderTracking = () => {
             .single();
           if (mbData) {
             setMotoboy({ id: mbData.id, lat: mbData.last_lat, lng: mbData.last_lng });
+            if (googleKey) updateRealTimeETA(mbData.last_lat, mbData.last_lng);
 
             // Check proximity on initial fetch
             const destLat = orderData.latitude || orderData.pharmacies.latitude;
@@ -1398,7 +1714,9 @@ const UserOrderTracking = () => {
           table: 'profiles',
           filter: `id=eq.${order.motoboy_id}`
         }, (payload) => {
-          setMotoboy({ id: payload.new.id, lat: payload.new.last_lat, lng: payload.new.last_lng });
+          const newLoc = { id: payload.new.id, lat: payload.new.last_lat, lng: payload.new.last_lng };
+          setMotoboy(newLoc);
+          if (googleKey) updateRealTimeETA(newLoc.lat, newLoc.lng);
 
           // Geofencing Realtime
           if (order) {
@@ -1722,540 +2040,8 @@ const PharmacyChat = () => {
 
 
 
-const PharmacyManagement = ({ profile }: { profile: any }) => {
-  const [pharmacies, setPharmacies] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [showModal, setShowModal] = useState(false);
-  const [editingPharm, setEditingPharm] = useState<any>(null);
-  const [formData, setFormData] = useState({
-    name: '',
-    cep: '',
-    address: '',
-    addressBase: '', // Campo auxiliar para guardar o logradouro vindo do CEP
-    number: '',
-    complement: '',
-    latitude: '',
-    longitude: '',
-    rating: '5.0',
-    is_open: true,
-    plan: 'Gratuito',
-    status: 'Aprovado',
-    // Novos campos
-    cnpj: '',
-    owner_name: '',
-    owner_phone: '',
-    establishment_phone: '',
-    // Campos de login
-    merchant_email: '',
-    merchant_password: ''
-  });
 
-  const fetchPharmacies = async () => {
-    setLoading(true);
-    const { data, error } = await supabase.from('pharmacies').select('*').order('created_at', { ascending: false });
-    if (!error) setPharmacies(data || []);
-    setLoading(false);
-  };
-
-  useEffect(() => {
-    fetchPharmacies();
-  }, []);
-
-  const handleSave = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    // Formatar o endereÃ§o completo antes de salvar
-    const finalAddress = `${formData.addressBase || formData.address}${formData.number ? `, ${formData.number}` : ''}${formData.complement ? `, ${formData.complement}` : ''}`;
-
-    const payload = {
-      name: formData.name,
-      address: finalAddress,
-      latitude: parseFloat(formData.latitude) || 0,
-      longitude: parseFloat(formData.longitude) || 0,
-      rating: parseFloat(formData.rating) || 5.0,
-      is_open: formData.is_open,
-      plan: formData.plan,
-      status: formData.status,
-      cnpj: formData.cnpj,
-      owner_name: formData.owner_name,
-      owner_phone: formData.owner_phone,
-      establishment_phone: formData.establishment_phone
-    };
-
-    let error;
-    if (editingPharm) {
-      const { error: err } = await supabase.from('pharmacies').update(payload).eq('id', editingPharm.id);
-      error = err;
-    } else {
-      const { data, error: err } = await supabase.from('pharmacies').insert([payload]).select().single();
-      error = err;
-
-      if (!error && data && formData.merchant_email && formData.merchant_password) {
-        try {
-          // Invocar Edge Function para criar usuário com privilégios de Admin
-          const { data: responseData, error: invokeError } = await supabase.functions.invoke('create-user-admin', {
-            body: {
-              email: formData.merchant_email,
-              password: formData.merchant_password,
-              metadata: {
-                full_name: formData.owner_name || formData.name,
-                role: 'merchant'
-              }
-            }
-          });
-
-          const authError = invokeError || responseData?.error;
-          const authUser = responseData?.user;
-
-          if (authError) {
-            console.error('Erro ao criar usuário:', authError);
-            alert(`Farmácia criada, mas erro ao criar login: ${authError instanceof Error ? authError.message : authError}`);
-          } else if (authUser) {
-            // Usar upsert em vez de insert, pois o trigger on_auth_user_created já pode ter criado o perfil
-            const { error: profileError } = await supabase.from('profiles').upsert({
-              id: authUser.id,
-              email: formData.merchant_email,
-              full_name: formData.owner_name || formData.name,
-              role: 'merchant',
-              phone: formData.owner_phone,
-              pharmacy_id: data.id
-            }, { onConflict: 'id' });
-
-            if (profileError) {
-              console.error('Erro ao criar perfil:', profileError);
-              alert(`Login criado, mas erro ao vincular: ${profileError.message}`);
-            } else {
-              alert(`✅ Farmácia e login criados!\n\nEmail: ${formData.merchant_email}\nSenha: ${formData.merchant_password}\n\n⚠️ Informe a farmácia para trocar a senha no primeiro acesso!`);
-            }
-          }
-        } catch (err) {
-          console.error('Erro ao criar merchant:', err);
-        }
-      }
-    }
-
-    if (error) alert(error.message);
-    else {
-      setShowModal(false);
-      setEditingPharm(null);
-      fetchPharmacies();
-    }
-  };
-
-  const handleCEPBlur = async () => {
-    const cep = formData.cep.replace(/\D/g, '');
-    if (cep.length !== 8) return;
-
-    try {
-      // 1. Buscar endereÃ§o via ViaCEP
-      const viaCEPResponse = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
-      const viaCEPData = await viaCEPResponse.json();
-
-      if (viaCEPData.erro) {
-        alert("CEP nÃ£o encontrado.");
-        return;
-      }
-
-      const fullAddress = `${viaCEPData.logradouro}, ${viaCEPData.bairro}, ${viaCEPData.localidade} - ${viaCEPData.uf}`;
-
-      // 2. Buscar coordenadas via Google Maps (usando a chave salva no sistema)
-      const { data: settings } = await supabase
-        .from('system_settings')
-        .select('value')
-        .eq('key', 'google_maps_api_key')
-        .single();
-
-      let lat = '';
-      let lng = '';
-
-      if (settings?.value) {
-        const mapsResponse = await fetch(
-          `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(fullAddress)}&key=${settings.value}`
-        );
-        const mapsData = await mapsResponse.json();
-        if (mapsData.results && mapsData.results[0]) {
-          lat = mapsData.results[0].geometry.location.lat.toString();
-          lng = mapsData.results[0].geometry.location.lng.toString();
-        }
-      }
-
-      setFormData(prev => ({
-        ...prev,
-        address: fullAddress,
-        addressBase: fullAddress, // Guardar o endereÃ§o base sem nÃºmero/complemento
-        latitude: lat,
-        longitude: lng
-      }));
-
-    } catch (error) {
-      console.error("Erro ao buscar CEP:", error);
-    }
-  };
-
-  const handleApprove = async (id: string, e: React.MouseEvent) => {
-    e.stopPropagation(); // Evita deletar ou editar se tiver handlers pai
-    if (window.confirm('Deseja APROVAR esta farmÃ¡cia?')) {
-      const { error } = await supabase.from('pharmacies').update({ status: 'Aprovado' }).eq('id', id);
-      if (error) alert(error.message);
-      else fetchPharmacies();
-    }
-  };
-
-  const handleDelete = async (id: string) => {
-    if (window.confirm('Tem certeza que deseja excluir esta farmácia? Isso removerá o login de acesso também.')) {
-      try {
-        // 1. Buscar o perfil merchant vinculado a esta farmácia
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('id')
-          .eq('pharmacy_id', id)
-          .single();
-
-        // 2. Se existir um perfil, chamar a Edge Function para remover o login (Auth)
-        if (profile) {
-          await supabase.functions.invoke('delete-user-admin', {
-            body: { userId: profile.id }
-          });
-        }
-
-        // 3. Excluir a farmácia (o perfil será removido via RLS/Cascade ou manualmente se necessário)
-        const { error } = await supabase.from('pharmacies').delete().eq('id', id);
-
-        if (error) throw error;
-
-        fetchPharmacies();
-      } catch (error: any) {
-        console.error('Erro na exclusão total:', error);
-        alert(`Erro ao excluir: ${error.message}`);
-      }
-    }
-  };
-
-  const openEdit = (pharm: any) => {
-    setEditingPharm(pharm);
-    setFormData({
-      name: pharm.name,
-      cep: '',
-      address: pharm.address,
-      addressBase: pharm.address, // No edit, tratamos o endereço atual como base
-      number: '',
-      complement: '',
-      latitude: pharm.latitude?.toString() || '',
-      longitude: pharm.longitude?.toString() || '',
-      rating: pharm.rating?.toString() || '5.0',
-      is_open: pharm.is_open,
-      plan: pharm.plan || 'Gratuito',
-      status: pharm.status || 'Aprovado',
-      cnpj: pharm.cnpj || '',
-      owner_name: pharm.owner_name || '',
-      owner_phone: pharm.owner_phone || '',
-      establishment_phone: pharm.establishment_phone || '',
-      merchant_email: '',
-      merchant_password: ''
-    });
-    setShowModal(true);
-  };
-
-  return (
-    <div className="flex flex-col gap-6">
-      <header className="sticky top-0 z-30 bg-background-light/80 dark:bg-background-dark/80 backdrop-blur-md border-b border-slate-200 dark:border-white/10 -mx-8 px-8 flex items-center justify-between p-5">
-        <div className="flex items-center gap-3">
-          <MaterialIcon name="storefront" className="text-primary md:hidden" />
-          <h1 className="text-xl font-black tracking-tighter italic text-slate-900 dark:text-white">Gestão de Farmácias</h1>
-        </div>
-        <button
-          onClick={() => {
-            setEditingPharm(null);
-            setFormData({
-              name: '',
-              cep: '',
-              address: '',
-              addressBase: '',
-              number: '',
-              complement: '',
-              latitude: '',
-              longitude: '',
-              rating: '5.0',
-              is_open: true,
-              plan: 'Gratuito',
-              status: 'Aprovado',
-              cnpj: '',
-              owner_name: '',
-              owner_phone: '',
-              establishment_phone: '',
-              merchant_email: '',
-              merchant_password: ''
-            });
-            setShowModal(true);
-          }}
-          className="bg-primary hover:bg-primary/90 text-background-dark flex h-10 px-4 items-center justify-center rounded-2xl shadow-lg shadow-primary/20 transition-all active:scale-90 gap-2 text-xs font-black uppercase tracking-widest"
-        >
-          <MaterialIcon name="add" />
-        </button>
-      </header>
-
-      <main className="pb-32 md:pb-10">
-        <div className="px-5 py-6 flex flex-col md:flex-row gap-4">
-          <label className="relative flex items-center group flex-1">
-            <div className="absolute left-4 text-slate-400 dark:text-[#92c9a9] group-focus-within:text-primary transition-colors">
-              <MaterialIcon name="search" />
-            </div>
-            <input className="w-full h-14 pl-12 pr-4 bg-white dark:bg-[#1a2e23] border border-slate-200 dark:border-white/5 rounded-2xl text-base focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all placeholder:text-slate-400 dark:placeholder:text-[#92c9a9]/30 shadow-inner font-bold italic" placeholder="Buscar farmÃ¡cia por nome..." type="text" />
-          </label>
-        </div>
-
-        <div className="px-5 pb-8 grid grid-cols-1 sm:grid-cols-3 gap-4">
-          {[
-            { label: 'Total Cadastrado', value: pharmacies.length.toString(), color: 'slate-500', icon: 'bar_chart' },
-            { label: 'Planos Premium', value: pharmacies.filter(p => p.plan === 'Ouro').length.toString(), color: 'primary', icon: 'stars' },
-            { label: 'Pendentes', value: pharmacies.filter(p => p.status === 'Pendente').length.toString(), color: 'orange-500', icon: 'hourglass_empty' }
-          ].map((stat, i) => (
-            <div key={i} className="bg-white dark:bg-[#1a2e23] p-6 rounded-[32px] border border-slate-200 dark:border-white/5 shadow-sm flex items-center gap-4">
-              <div className={`p-3 rounded-2xl bg-${stat.color}/10 text-${stat.color}`}>
-                <MaterialIcon name={stat.icon} />
-              </div>
-              <div>
-                <p className="text-[9px] uppercase tracking-widest text-slate-500 dark:text-[#92c9a9] font-black">{stat.label}</p>
-                <p className={`text-2xl font-black italic mt-0.5`}>{stat.value}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        <div className="px-5 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-          {loading ? (
-            <div className="col-span-full py-20 flex justify-center"><div className="animate-spin size-8 border-4 border-primary border-t-transparent rounded-full"></div></div>
-          ) : pharmacies.map((pharm) => (
-            <div key={pharm.id} className="bg-white dark:bg-[#1a2e23] rounded-[32px] border border-slate-200 dark:border-white/5 p-6 shadow-md flex flex-col gap-6 group hover:scale-[1.02] transition-all hover:shadow-xl">
-              <div className="flex items-start gap-4">
-                <div className="w-20 h-20 rounded-2xl bg-[#234833]/10 border border-slate-100 dark:border-white/10 flex items-center justify-center shrink-0">
-                  <MaterialIcon name="store" className="text-3xl text-primary" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex flex-col">
-                    <h3 className="font-black text-lg italic truncate leading-tight">{pharm.name}</h3>
-                    <span className={`w-fit mt-1.5 bg-primary/10 text-primary text-[8px] font-black px-2 py-0.5 rounded-full uppercase tracking-widest`}>{pharm.plan || 'Bronze'}</span>
-                  </div>
-                  <p className="text-[10px] text-slate-500 dark:text-[#92c9a9] mt-2 font-bold italic truncate opacity-70">{pharm.address}</p>
-
-                  {/* Dados Extras de Resumo */}
-                  <div className="flex flex-col mt-2 gap-1">
-                    {pharm.cnpj && <p className="text-[9px] text-slate-400 font-bold uppercase">CNPJ: {pharm.cnpj}</p>}
-                    <div className="flex items-center gap-2">
-                      <p className="text-[9px] text-slate-400 font-bold uppercase">Cadastrada:</p>
-                      <span className="text-[9px] text-slate-500 font-black italic">{new Date(pharm.created_at).toLocaleDateString('pt-BR')}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <p className="text-[9px] text-primary/60 font-black uppercase">Último Acesso:</p>
-                      <span className="text-[9px] text-primary font-black italic">{pharm.last_access ? new Date(pharm.last_access).toLocaleString('pt-BR') : 'Sem dados'}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between pt-4 border-t border-slate-50 dark:border-white/5">
-                <div className="flex items-center gap-2">
-                  <span className={`w-2 h-2 rounded-full ${pharm.status === 'Pendente' ? 'bg-orange-500' : 'bg-primary'} animate-pulse`}></span>
-                  <span className="text-[9px] font-black text-slate-600 dark:text-slate-300 uppercase tracking-widest">{pharm.status || 'Aprovado'}</span>
-                </div>
-                <div className="flex gap-2">
-                  {pharm.status === 'Pendente' && (
-                    <button onClick={(e) => handleApprove(pharm.id, e)} className="p-2.5 flex items-center justify-center bg-green-500/10 text-green-500 rounded-xl transition-colors hover:bg-green-500 hover:text-white active:scale-90 shadow-sm border border-transparent" title="Aprovar FarmÃ¡cia">
-                      <MaterialIcon name="check_circle" className="text-sm" />
-                    </button>
-                  )}
-                  <button onClick={() => openEdit(pharm)} className="p-2.5 flex items-center justify-center bg-slate-100 dark:bg-white/10 text-slate-700 dark:text-white rounded-xl transition-colors hover:bg-primary/20 active:scale-90 shadow-sm border border-transparent hover:border-primary/20">
-                    <MaterialIcon name="edit" className="text-sm" />
-                  </button>
-                  <button onClick={() => handleDelete(pharm.id)} className="p-2.5 flex items-center justify-center bg-red-500/10 text-red-500 rounded-xl transition-colors hover:bg-red-500 hover:text-white active:scale-90 shadow-sm border border-transparent">
-                    <MaterialIcon name="delete" className="text-sm" />
-                  </button>
-                </div>
-              </div>
-
-              <button onClick={async () => {
-                const newValue = !pharm.is_featured;
-                const { error } = await supabase.from('pharmacies').update({ is_featured: newValue }).eq('id', pharm.id);
-                if (!error) fetchPharmacies();
-              }} className={`w-full flex items-center justify-center gap-2 ${pharm.is_featured ? 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20' : 'bg-slate-50 dark:bg-white/5 text-slate-600 dark:text-white border-black/5 dark:border-white/5'} border font-black text-[10px] uppercase tracking-widest h-12 rounded-2xl transition-all active:scale-95 shadow-sm`}>
-                <MaterialIcon name={pharm.is_featured ? "star" : "star_border"} className="text-lg" fill={pharm.is_featured} />
-                {pharm.is_featured ? 'Em Destaque' : 'Destacar'}
-              </button>
-            </div>
-          ))}
-        </div>
-      </main>
-
-      {/* Modal Cadastro/EdiÃ§Ã£o */}
-      {
-        showModal && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowModal(false)}></div>
-            <div className="relative w-full max-w-lg bg-white dark:bg-[#1a2e22] rounded-[32px] shadow-2xl overflow-hidden border border-white/10">
-              <form onSubmit={handleSave} className="p-8">
-                <div className="flex justify-between items-center mb-6">
-                  <h2 className="text-2xl font-black italic tracking-tighter">{editingPharm ? 'Editar FarmÃ¡cia' : 'Nova FarmÃ¡cia'}</h2>
-                  <button type="button" onClick={() => setShowModal(false)} className="size-10 rounded-full bg-slate-100 dark:bg-black/20 flex items-center justify-center hover:rotate-90 transition-transform"><MaterialIcon name="close" /></button>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <label className="col-span-2 flex flex-col gap-1">
-                    <span className="text-[10px] font-black uppercase text-slate-500">CEP (Busca endereÃ§o e localizaÃ§Ã£o)</span>
-                    <input
-                      required
-                      placeholder="00000-000"
-                      className="h-12 px-4 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 rounded-xl outline-none font-bold italic"
-                      value={formData.cep}
-                      onChange={e => setFormData({ ...formData, cep: e.target.value })}
-                      onBlur={handleCEPBlur}
-                    />
-                  </label>
-                  <label className="col-span-2 flex flex-col gap-1">
-                    <span className="text-[10px] font-black uppercase text-slate-500">Nome da FarmÃ¡cia</span>
-                    <input required className="h-12 px-4 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 rounded-xl outline-none font-bold italic" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} />
-                  </label>
-                  <label className="col-span-2 flex flex-col gap-1">
-                    <span className="text-[10px] font-black uppercase text-slate-500">EndereÃ§o (Auto-preenchido pelo CEP)</span>
-                    <input required className="h-12 px-4 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 rounded-xl outline-none font-bold italic" value={formData.addressBase} onChange={e => setFormData({ ...formData, addressBase: e.target.value })} />
-                  </label>
-
-                  <label className="col-span-1 flex flex-col gap-1">
-                    <span className="text-[10px] font-black uppercase text-slate-500">CNPJ</span>
-                    <input
-                      className="h-12 px-4 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 rounded-xl outline-none font-bold italic"
-                      value={formData.cnpj}
-                      onChange={e => {
-                        const val = e.target.value.replace(/\D/g, '').substring(0, 14);
-                        const masked = val.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, "$1.$2.$3/$4-$5")
-                          .replace(/^(\d{2})(\d{3})(\d{3})(\d{4})/, "$1.$2.$3/$4")
-                          .replace(/^(\d{2})(\d{3})(\d{3})/, "$1.$2.$3")
-                          .replace(/^(\d{2})(\d{3})/, "$1.$2");
-                        setFormData({ ...formData, cnpj: masked });
-                      }}
-                      placeholder="00.000.000/0000-00"
-                    />
-                  </label>
-                  <label className="col-span-1 flex flex-col gap-1">
-                    <span className="text-[10px] font-black uppercase text-slate-500">Telefone Estab.</span>
-                    <input
-                      className="h-12 px-4 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 rounded-xl outline-none font-bold italic"
-                      value={formData.establishment_phone}
-                      onChange={e => {
-                        const val = e.target.value.replace(/\D/g, '').substring(0, 11);
-                        let masked = val;
-                        if (val.length > 10) {
-                          masked = val.replace(/^(\d{2})(\d{5})(\d{4})/, "($1) $2-$3");
-                        } else if (val.length > 2) {
-                          masked = val.replace(/^(\d{2})(\d{0,8})/, "($1) $2");
-                        }
-                        setFormData({ ...formData, establishment_phone: masked });
-                      }}
-                      placeholder="(00) 00000-0000"
-                    />
-                  </label>
-
-                  <label className="col-span-1 flex flex-col gap-1">
-                    <span className="text-[10px] font-black uppercase text-slate-500">Nome do Responsável</span>
-                    <input className="h-12 px-4 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 rounded-xl outline-none font-bold italic" value={formData.owner_name} onChange={e => setFormData({ ...formData, owner_name: e.target.value })} />
-                  </label>
-                  <label className="col-span-1 flex flex-col gap-1">
-                    <span className="text-[10px] font-black uppercase text-slate-500">Celular Responsável</span>
-                    <input
-                      className="h-12 px-4 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 rounded-xl outline-none font-bold italic"
-                      value={formData.owner_phone}
-                      onChange={e => {
-                        const val = e.target.value.replace(/\D/g, '').substring(0, 11);
-                        let masked = val;
-                        if (val.length > 10) {
-                          masked = val.replace(/^(\d{2})(\d{5})(\d{4})/, "($1) $2-$3");
-                        } else if (val.length > 2) {
-                          masked = val.replace(/^(\d{2})(\d{0,8})/, "($1) $2");
-                        }
-                        setFormData({ ...formData, owner_phone: masked });
-                      }}
-                      placeholder="(00) 00000-0000"
-                    />
-                  </label>
-
-                  <label className="flex flex-col gap-1">
-                    <span className="text-[10px] font-black uppercase text-slate-500">NÂº</span>
-                    <input required placeholder="Ex: 06" className="h-12 px-4 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 rounded-xl outline-none font-bold italic" value={formData.number} onChange={e => setFormData({ ...formData, number: e.target.value })} />
-                  </label>
-                  <label className="flex flex-col gap-1">
-                    <span className="text-[10px] font-black uppercase text-slate-500">Complemento</span>
-                    <input placeholder="Ex: lj 04" className="h-12 px-4 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 rounded-xl outline-none font-bold italic" value={formData.complement} onChange={e => setFormData({ ...formData, complement: e.target.value })} />
-                  </label>
-                  <label className="flex flex-col gap-1">
-                    <span className="text-[10px] font-black uppercase text-slate-500">Plano</span>
-                    <select className="h-12 px-4 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 rounded-xl outline-none font-bold italic" value={formData.plan} onChange={e => setFormData({ ...formData, plan: e.target.value })}>
-                      <option value="Gratuito">Gratuito (15 pedidos)</option>
-                      <option value="Bronze">Bronze</option>
-                      <option value="Prata">Prata</option>
-                      <option value="Ouro">Ouro</option>
-                    </select>
-                  </label>
-                  <label className="flex flex-col gap-1">
-                    <span className="text-[10px] font-black uppercase text-slate-500">Status</span>
-                    <select className="h-12 px-4 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 rounded-xl outline-none font-bold italic" value={formData.status} onChange={e => setFormData({ ...formData, status: e.target.value })}>
-                      <option value="Aprovado">Aprovado</option>
-                      <option value="Pendente">Pendente</option>
-                      <option value="Bloqueado">Bloqueado</option>
-                    </select>
-                  </label>
-                </div>
-
-                <div className="border-t border-slate-200 dark:border-white/10 my-4"></div>
-                <h3 className="text-sm font-black uppercase text-primary mb-2">
-                  🔐 Dados de Acesso {editingPharm && '(Opcional)'}
-                </h3>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <label className="col-span-2 flex flex-col gap-1">
-                    <span className="text-[10px] font-black uppercase text-slate-500">
-                      Email de Login {!editingPharm && '*'}
-                    </span>
-                    <input
-                      type="email"
-                      required={!editingPharm}
-                      placeholder={editingPharm ? "Deixe em branco para não alterar" : "email@farmacia.com"}
-                      className="h-12 px-4 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 rounded-xl outline-none font-bold italic"
-                      value={formData.merchant_email}
-                      onChange={e => setFormData({ ...formData, merchant_email: e.target.value })}
-                    />
-                  </label>
-
-                  <label className="col-span-2 flex flex-col gap-1">
-                    <span className="text-[10px] font-black uppercase text-slate-500">
-                      {editingPharm ? 'Nova Senha (Opcional)' : 'Senha Provisória *'}
-                    </span>
-                    <input
-                      type="text"
-                      required={!editingPharm}
-                      minLength={6}
-                      placeholder={editingPharm ? "Deixe em branco para não alterar" : "Senha temporária (mínimo 6 caracteres)"}
-                      className="h-12 px-4 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 rounded-xl outline-none font-bold italic"
-                      value={formData.merchant_password}
-                      onChange={e => setFormData({ ...formData, merchant_password: e.target.value })}
-                    />
-                    <span className="text-[9px] text-slate-400 italic">
-                      {editingPharm
-                        ? '💡 Preencha apenas se quiser criar/atualizar o login'
-                        : '⚠️ A farmácia deverá trocar esta senha no primeiro acesso'}
-                    </span>
-                  </label>
-                </div>
-
-                <button type="submit" className="w-full mt-8 bg-primary text-background-dark font-black py-4 rounded-2xl shadow-xl shadow-primary/20 active:scale-98 transition-all uppercase tracking-tighter">
-                  {editingPharm ? 'Salvar AlteraÃ§Ãµes' : 'Cadastrar Loja'}
-                </button>
-              </form>
-            </div>
-          </div>
-        )
-      }
-    </div >
-  );
-};
+// PharmacyManagement component moved to dedicated file
 
 const AdManagement = ({ profile }: { profile: any }) => {
   return (
@@ -2266,7 +2052,7 @@ const AdManagement = ({ profile }: { profile: any }) => {
         <div className="flex gap-3">
           <button className="flex min-w-[84px] cursor-pointer items-center justify-center overflow-hidden rounded-2xl h-10 px-4 flex-1 bg-slate-200 dark:bg-[#234833] text-slate-900 dark:text-white gap-2 text-xs font-black uppercase tracking-widest shadow-sm border border-slate-300 dark:border-transparent hover:opacity-90 active:scale-95 transition-all">
             <MaterialIcon name="bar_chart" className="text-primary" />
-            <span className="truncate">RelatÃ³rio</span>
+            <span className="truncate">Relatório</span>
           </button>
           <button className="bg-primary hover:bg-primary/90 text-background-dark flex h-10 px-4 items-center justify-center rounded-2xl shadow-lg shadow-primary/20 transition-all active:scale-90 gap-2 text-xs font-black uppercase tracking-widest">
             <MaterialIcon name="add_photo_alternate" />
@@ -2280,7 +2066,7 @@ const AdManagement = ({ profile }: { profile: any }) => {
         <div className="flex items-center p-4 justify-between w-full">
           <div className="flex items-center gap-3">
             <MaterialIcon name="campaign" className="text-primary" />
-            <h1 className="text-lg font-black tracking-tighter italic">AnÃºncios e Destaques</h1>
+            <h1 className="text-lg font-black tracking-tighter italic">Anúncios e Destaques</h1>
           </div>
           <button className="flex items-center justify-center rounded-full w-10 h-10 bg-slate-200 dark:bg-white/10 active:scale-95 transition-transform">
             <MaterialIcon name="account_circle" />
@@ -2292,11 +2078,11 @@ const AdManagement = ({ profile }: { profile: any }) => {
         {/* Stats Row */}
         <div className="flex md:grid md:grid-cols-4 flex-nowrap gap-4 mb-8 overflow-x-auto no-scrollbar md:overflow-visible">
           {[
-            { label: 'CTR MÃ©dio', value: '1.2%', trend: '+0.2%', icon: 'trending_up' },
+            { label: 'CTR Médio', value: '1.2%', trend: '+0.2%', icon: 'trending_up' },
             { label: 'Cliques', value: '4.5k', trend: '+12%', icon: 'trending_up' },
-            { label: 'ImpressÃµes', value: '124k', trend: '+8%', icon: 'visibility' },
-            { label: 'OcupaÃ§Ã£o', value: '8/10', sub: '2 vago(s)', icon: 'space_dashboard' }
-          ].map((stat, i) => (stat.label !== 'OcupaÃ§Ã£o' ? (
+            { label: 'Impressões', value: '124k', trend: '+8%', icon: 'visibility' },
+            { label: 'Ocupação', value: '8/10', sub: '2 vago(s)', icon: 'space_dashboard' }
+          ].map((stat, i) => (stat.label !== 'Ocupação' ? (
             <div key={i} className="flex min-w-[140px] flex-1 flex-col gap-1 rounded-[24px] p-5 bg-white dark:bg-[#193324] border border-slate-200 dark:border-white/5 shadow-sm hover:shadow-md transition-all">
               <p className="text-slate-500 dark:text-[#92c9a9] text-[10px] font-black uppercase tracking-widest">{stat.label}</p>
               <p className="text-2xl font-black italic tracking-tighter mt-1">{stat.value}</p>
@@ -2494,7 +2280,22 @@ const UserManagement = ({ profile }: { profile: any }) => {
       }
 
       if (selectedUser) {
-        // Editar usuário existente
+        // Editar usuário existente via Edge Function (Seguro)
+        const { data: responseData, error: invokeError } = await supabase.functions.invoke('update-user-admin', {
+          body: {
+            userId: selectedUser.id,
+            email: formData.email !== selectedUser.email ? formData.email : undefined,
+            password: formData.password || undefined,
+            metadata: {
+              full_name: formData.full_name,
+              role: formData.role
+            }
+          }
+        });
+
+        if (invokeError || responseData?.error) throw new Error(invokeError?.message || responseData?.error);
+
+        // Atualizar perfil na tabela profiles
         const { error } = await supabase
           .from('profiles')
           .update({
@@ -2509,67 +2310,49 @@ const UserManagement = ({ profile }: { profile: any }) => {
         if (error) throw error;
         alert('Usuário atualizado com sucesso!');
       } else {
-        // Criar novo usuário
+        // Criar novo usuário via Edge Function (Seguro - Evita logoff de admin)
         try {
-          // 1. Criar usuário no Supabase Auth com autoConfirm
-          const { data: authData, error: authError } = await supabase.auth.signUp({
-            email: formData.email,
-            password: formData.password,
-            options: {
-              emailRedirectTo: window.location.origin,
-              data: {
+          const { data: responseData, error: invokeError } = await supabase.functions.invoke('create-user-admin', {
+            body: {
+              email: formData.email,
+              password: formData.password,
+              metadata: {
                 full_name: formData.full_name,
                 role: formData.role
               }
             }
           });
 
-          if (authError) {
-            console.error('Erro ao criar usuário de autenticação:', authError);
-            throw new Error(`Erro de autenticação: ${authError.message}`);
-          }
-
-          if (!authData.user) {
-            throw new Error('Falha ao criar usuário de autenticação');
-          }
+          if (invokeError || responseData?.error) throw new Error(invokeError?.message || responseData?.error);
+          const authUser = responseData?.user;
 
           // Aguardar um pouco para o trigger do Supabase criar o perfil
           await new Promise(resolve => setTimeout(resolve, 1000));
 
-          // 2. Atualizar perfil na tabela profiles (o trigger já criou, só precisamos atualizar)
+          // Atualizar perfil na tabela profiles (o trigger já criou, só precisamos atualizar os campos extras)
           const { error: profileError } = await supabase
             .from('profiles')
             .update({
+              cpf: formData.cpf,
+              phone: formData.phone,
+              is_active: formData.is_active
+            })
+            .eq('id', authUser.id);
+
+          if (profileError) {
+            // Fallback: Tentar upsert se o trigger falhar
+            await supabase.from('profiles').upsert({
+              id: authUser.id,
+              email: formData.email,
               full_name: formData.full_name,
               cpf: formData.cpf,
               phone: formData.phone,
               role: formData.role,
               is_active: formData.is_active
-            })
-            .eq('id', authData.user.id);
-
-          if (profileError) {
-            console.error('Erro ao atualizar perfil:', profileError);
-            // Tentar inserir se não existir
-            const { error: insertError } = await supabase
-              .from('profiles')
-              .insert({
-                id: authData.user.id,
-                email: formData.email,
-                full_name: formData.full_name,
-                cpf: formData.cpf,
-                phone: formData.phone,
-                role: formData.role,
-                is_active: formData.is_active
-              });
-
-            if (insertError) {
-              console.error('Erro ao inserir perfil:', insertError);
-              throw new Error(`Erro ao salvar perfil: ${insertError.message}`);
-            }
+            });
           }
 
-          alert('Usuário criado com sucesso! Um email de confirmação foi enviado.');
+          alert('Usuário criado com sucesso!');
         } catch (error: any) {
           console.error('Erro completo:', error);
           throw error;
@@ -2966,7 +2749,7 @@ const PromotionManagement = ({ profile }: { profile: any }) => {
                   {/* Dates Row */}
                   <div className="flex gap-4">
                     <label className="flex flex-col flex-1">
-                      <p className="text-white md:text-slate-600 md:dark:text-white text-[10px] font-black uppercase tracking-widest pb-2 px-1">Data InÃ­cio</p>
+                      <p className="text-white md:text-slate-600 md:dark:text-white text-[10px] font-black uppercase tracking-widest pb-2 px-1">Data Início</p>
                       <input className="form-input flex w-full rounded-2xl text-white md:text-slate-900 md:dark:text-white border border-[#326748] md:border-slate-300 md:dark:border-white/10 bg-[#193324]/50 md:bg-slate-50 md:dark:bg-black/20 h-14 p-4 text-sm font-bold focus:ring-primary/20 focus:border-primary shadow-sm" type="date" />
                     </label>
                     <label className="flex flex-col flex-1">
@@ -3313,15 +3096,21 @@ const SystemSettings = ({ profile }: { profile: any }) => {
   useEffect(() => {
     // Carregar chave atual
     const loadSettings = async () => {
-      const { data } = await supabase
-        .from('system_settings')
-        .select('value')
-        .eq('key', 'google_maps_api_key')
-        .single();
+      const { data } = await supabase.from('system_settings').select('*');
+      if (data) {
+        data.forEach(setting => {
+          const inputId = {
+            'google_maps_api_key': 'google_maps_key',
+            'whatsapp_api_url': 'wa_api_url',
+            'whatsapp_api_key': 'wa_api_key',
+            'whatsapp_instance_id': 'wa_instance_id'
+          }[setting.key];
 
-      if (data?.value) {
-        const input = document.getElementById('google_maps_key') as HTMLInputElement;
-        if (input) input.value = data.value;
+          if (inputId) {
+            const input = document.getElementById(inputId) as HTMLInputElement;
+            if (input) input.value = setting.value || '';
+          }
+        });
       }
     };
     loadSettings();
@@ -3332,14 +3121,18 @@ const SystemSettings = ({ profile }: { profile: any }) => {
     setSuccess(false);
 
     const mapsKey = (document.getElementById('google_maps_key') as HTMLInputElement)?.value;
+    const waUrl = (document.getElementById('wa_api_url') as HTMLInputElement)?.value;
+    const waKey = (document.getElementById('wa_api_key') as HTMLInputElement)?.value;
+    const waInstance = (document.getElementById('wa_instance_id') as HTMLInputElement)?.value;
 
     const { error } = await supabase
       .from('system_settings')
-      .upsert({
-        key: 'google_maps_api_key',
-        value: mapsKey,
-        description: 'Chave da API do Google Maps para GeocodificaÃ§Ã£o Reversa'
-      });
+      .upsert([
+        { key: 'google_maps_api_key', value: mapsKey, description: 'Chave da API do Google Maps' },
+        { key: 'whatsapp_api_url', value: waUrl, description: 'URL da API de WhatsApp' },
+        { key: 'whatsapp_api_key', value: waKey, description: 'Chave da API de WhatsApp' },
+        { key: 'whatsapp_instance_id', value: waInstance, description: 'ID da Instância WhatsApp' }
+      ]);
 
     if (error) {
       console.error("Erro ao salvar configuraÃ§Ãµes:", error);
@@ -3349,6 +3142,42 @@ const SystemSettings = ({ profile }: { profile: any }) => {
       setTimeout(() => setSuccess(false), 3000);
     }
     setIsSaving(false);
+  };
+
+  const [isTesting, setIsTesting] = useState(false);
+  const handleTestWhatsApp = async () => {
+    const waUrl = (document.getElementById('wa_api_url') as HTMLInputElement)?.value;
+    const waKey = (document.getElementById('wa_api_key') as HTMLInputElement)?.value;
+    const waInstance = (document.getElementById('wa_instance_id') as HTMLInputElement)?.value;
+
+    if (!waUrl || !waKey || !waInstance) {
+      alert("Preencha todos os campos do WhatsApp antes de testar.");
+      return;
+    }
+
+    setIsTesting(true);
+    try {
+      // Usaremos um registro fake para o teste
+      const { data, error } = await supabase.functions.invoke('whatsapp-notifier', {
+        body: {
+          record: {
+            id: 'test-id',
+            total_price: '0.00',
+            customer_name: 'Teste Admin',
+            address: 'Rua de Teste, 123',
+            pharmacy_id: 'd9b33703-e85d-4f1b-bd57-8677c768837e' // Tentar usar um ID real se possível ou tratar na função
+          }
+        }
+      });
+
+      if (error) throw error;
+      alert("🚀 Teste enviado! Verifique o WhatsApp da farmácia de teste.");
+    } catch (err: any) {
+      console.error("Erro no teste de WhatsApp:", err);
+      alert(`Erro no teste: ${err.message || 'Verifique o console'}`);
+    } finally {
+      setIsTesting(false);
+    }
   };
 
   return (
@@ -3434,28 +3263,63 @@ const SystemSettings = ({ profile }: { profile: any }) => {
           <div className="bg-white dark:bg-[#193324] rounded-[32px] border border-slate-200 dark:border-white/5 shadow-sm p-6 lg:col-span-2">
             <section>
               <h3 className="text-slate-900 dark:text-white text-lg font-black leading-tight tracking-tighter pb-4 italic border-b border-slate-100 dark:border-white/5 mb-4">ServiÃ§os Externos</h3>
-              <div className="py-2">
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 py-2">
+                {/* Google Maps */}
                 <label className="flex flex-col w-full">
                   <div className="flex justify-between items-end pb-2 px-1">
                     <p className="text-slate-500 dark:text-[#92c9a9] text-[10px] font-black uppercase tracking-widest">Google Maps API Key</p>
-                    <a href="https://console.cloud.google.com/google/maps-apis/credentials" target="_blank" rel="noreferrer" className="text-primary text-[8px] font-black uppercase tracking-widest hover:underline flex items-center gap-1">
-                      Obter Chave <MaterialIcon name="open_in_new" className="text-[10px]" />
-                    </a>
+                    <a href="https://console.cloud.google.com/google/maps-apis/credentials" target="_blank" rel="noreferrer" className="text-primary text-[8px] font-black uppercase tracking-widest hover:underline">Obter Chave</a>
                   </div>
                   <div className="relative group">
                     <div className="absolute left-4 top-1/2 -translate-y-1/2 text-primary/40 group-focus-within:text-primary transition-colors">
                       <MaterialIcon name="api" />
                     </div>
-                    <input
-                      id="google_maps_key"
-                      className="form-input flex w-full rounded-2xl text-slate-900 dark:text-white focus:outline-0 focus:ring-2 focus:ring-primary/20 border border-slate-200 dark:border-[#326748] bg-slate-50 dark:bg-[#193324]/50 h-14 pl-12 pr-4 text-sm font-bold shadow-sm transition-all"
-                      placeholder="Insira sua chave aqui..."
-                      type="password"
-                    />
+                    <input id="google_maps_key" className="form-input flex w-full rounded-2xl text-slate-900 dark:text-white border border-slate-200 dark:border-[#326748] bg-slate-50 dark:bg-[#193324]/50 h-14 pl-12 pr-4 text-sm font-bold" type="password" />
                   </div>
-                  <p className="text-slate-400 text-[8px] font-bold mt-2 px-1 italic">
-                    * NecessÃ¡ria para converter coordenadas em endereÃ§os reais e habilitar mapas avanÃ§ados.
-                  </p>
+                </label>
+
+                {/* WhatsApp API URL */}
+                <label className="flex flex-col w-full md:col-span-2">
+                  <div className="flex justify-between items-end pb-2 px-1">
+                    <p className="text-slate-500 dark:text-[#92c9a9] text-[10px] font-black uppercase tracking-widest">WhatsApp API URL</p>
+                    <button
+                      onClick={handleTestWhatsApp}
+                      disabled={isTesting}
+                      className="text-primary text-[8px] font-black uppercase tracking-widest hover:underline flex items-center gap-1 disabled:opacity-50"
+                    >
+                      <MaterialIcon name={isTesting ? "sync" : "send"} className={`text-[10px] ${isTesting ? 'animate-spin' : ''}`} />
+                      {isTesting ? "Testando..." : "Testar Envio"}
+                    </button>
+                  </div>
+                  <div className="relative group">
+                    <div className="absolute left-4 top-1/2 -translate-y-1/2 text-primary/40 group-focus-within:text-primary transition-colors">
+                      <MaterialIcon name="link" />
+                    </div>
+                    <input id="wa_api_url" className="form-input flex w-full rounded-2xl text-slate-900 dark:text-white border border-slate-200 dark:border-[#326748] bg-slate-50 dark:bg-[#193324]/50 h-14 pl-12 pr-4 text-sm font-bold italic" placeholder="Ex: https://api.suaapi.com" type="text" />
+                  </div>
+                </label>
+
+                {/* WhatsApp API Key */}
+                <label className="flex flex-col w-full">
+                  <p className="text-slate-500 dark:text-[#92c9a9] text-[10px] font-black uppercase tracking-widest pb-2 px-1">WhatsApp API Key / Token</p>
+                  <div className="relative group">
+                    <div className="absolute left-4 top-1/2 -translate-y-1/2 text-primary/40 group-focus-within:text-primary transition-colors">
+                      <MaterialIcon name="token" />
+                    </div>
+                    <input id="wa_api_key" className="form-input flex w-full rounded-2xl text-slate-900 dark:text-white border border-slate-200 dark:border-[#326748] bg-slate-50 dark:bg-[#193324]/50 h-14 pl-12 pr-4 text-sm font-bold" type="password" />
+                  </div>
+                </label>
+
+                {/* WhatsApp Instance ID */}
+                <label className="flex flex-col w-full">
+                  <p className="text-slate-500 dark:text-[#92c9a9] text-[10px] font-black uppercase tracking-widest pb-2 px-1">Instância WhatsApp</p>
+                  <div className="relative group">
+                    <div className="absolute left-4 top-1/2 -translate-y-1/2 text-primary/40 group-focus-within:text-primary transition-colors">
+                      <MaterialIcon name="smartphone" />
+                    </div>
+                    <input id="wa_instance_id" className="form-input flex w-full rounded-2xl text-slate-900 dark:text-white border border-slate-200 dark:border-[#326748] bg-slate-50 dark:bg-[#193324]/50 h-14 pl-12 pr-4 text-sm font-bold italic" placeholder="Ex: Ifarma_Main" type="text" />
+                  </div>
                 </label>
               </div>
             </section>
@@ -3684,7 +3548,7 @@ function App() {
         <Routes>
           {/* Public Routes */}
           <Route path="/" element={<RootRedirect />} />
-          <Route path="/pharmacies" element={<PharmacyList pharmacies={sortedPharmacies} />} />
+          <Route path="/pharmacies" element={<PharmacyList pharmacies={sortedPharmacies} session={session} />} />
           <Route path="/pharmacy/:id" element={<PharmacyPage session={session} />} />
           <Route path="/product/:id" element={<ProductPage session={session} />} />
           <Route path="/privacy" element={<PrivacyData />} />
@@ -3699,6 +3563,7 @@ function App() {
 
           {/* Protected Client Routes */}
           <Route path="/cart" element={<ProtectedRoute session={session}><Cart /></ProtectedRoute>} />
+          <Route path="/checkout" element={<ProtectedRoute session={session}><Checkout /></ProtectedRoute>} />
 
           <Route path="/profile" element={<ProtectedRoute session={session}><UserProfile session={session} profile={profile} /></ProtectedRoute>} />
           <Route path="/favorites" element={<ProtectedRoute session={session}><Favorites /></ProtectedRoute>} />
@@ -3713,6 +3578,7 @@ function App() {
             <Route path="tracking" element={<OrderTracking />} />
             <Route path="users" element={<UserManagement profile={profile} />} />
             <Route path="pharmacies" element={<PharmacyManagement profile={profile} />} />
+            <Route path="pharmacy/:id" element={<PharmacyDetails />} />
             <Route path="motoboys" element={<MotoboyManagement profile={profile} />} />
             <Route path="ads" element={<AdManagement profile={profile} />} />
             <Route path="promotions" element={<PromotionManagement profile={profile} />} />
@@ -3726,7 +3592,7 @@ function App() {
           <Route path="/gestor/products" element={<GestorRoute session={session} profile={profile}><InventoryControl /></GestorRoute>} />
           <Route path="/gestor/financial" element={<GestorRoute session={session} profile={profile}><MerchantFinancial /></GestorRoute>} />
           <Route path="/gestor/settings" element={<GestorRoute session={session} profile={profile}><StoreCustomization /></GestorRoute>} />
-          <Route path="/gestor/motoboys" element={<GestorRoute session={session} profile={profile}><MerchantMotoboys /></GestorRoute>} />
+          <Route path="/gestor/equipe" element={<GestorRoute session={session} profile={profile}><TeamManagement /></GestorRoute>} />
 
           {/* Motoboy Routes */}
           <Route path="/motoboy-login" element={<MotoboyLogin />} />

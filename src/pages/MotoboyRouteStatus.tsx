@@ -1,6 +1,7 @@
 import { useNavigate, Link, useParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useEffect, useState } from 'react';
+import { useGeolocation } from '../hooks/useGeolocation';
 
 const MaterialIcon = ({ name, className = "", style = {} }: { name: string, className?: string, style?: React.CSSProperties }) => (
     <span className={`material-symbols-outlined ${className}`} style={style}>{name}</span>
@@ -12,6 +13,22 @@ const MotoboyRouteStatus = () => {
     const [coords, setCoords] = useState<{ lat: number, lng: number } | null>(null);
     const [order, setOrder] = useState<any>(null);
     const [loading, setLoading] = useState(true);
+    const [userId, setUserId] = useState<string | null>(null);
+
+    // Obter usuário logado
+    useEffect(() => {
+        supabase.auth.getUser().then(({ data }) => setUserId(data.user?.id || null));
+    }, []);
+
+    // Hook de Geolocalização Integrado (Fase 8)
+    const { latitude, longitude, error: gpsError } = useGeolocation(userId, !!orderId, orderId || null);
+
+    // Sincronizar coordenadas locais com o hook
+    useEffect(() => {
+        if (latitude && longitude) {
+            setCoords({ lat: latitude, lng: longitude });
+        }
+    }, [latitude, longitude]);
 
     // Buscar dados do pedido
     useEffect(() => {
@@ -40,37 +57,7 @@ const MotoboyRouteStatus = () => {
         fetchOrder();
     }, [orderId]);
 
-    // Efeito de Rastreamento Real (Fase 8)
-    useEffect(() => {
-        if (!("geolocation" in navigator)) return;
-
-        const watchId = navigator.geolocation.watchPosition(
-            async (position) => {
-                const { latitude, longitude } = position.coords;
-                setCoords({ lat: latitude, lng: longitude });
-
-                // Atualizar no banco de dados para o Admin ver
-                // Nota: Usamos profiles para simplificar o rastreamento por usuário
-                const { data: { user } } = await supabase.auth.getUser();
-                if (user) {
-                    await supabase
-                        .from('profiles')
-                        .update({
-                            last_lat: latitude,
-                            last_lng: longitude,
-                            current_order_id: orderId,
-                            is_online: true,
-                            updated_at: new Date().toISOString()
-                        })
-                        .eq('id', user.id);
-                }
-            },
-            (error) => console.error("Erro GPS:", error),
-            { enableHighAccuracy: true }
-        );
-
-        return () => navigator.geolocation.clearWatch(watchId);
-    }, [orderId]);
+    // O rastreamento agora é gerenciado pelo hook useGeolocation acima
 
     if (loading) {
         return (

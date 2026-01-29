@@ -25,9 +25,19 @@ const MerchantLogin = () => {
 
             if (error) throw error;
 
-            // Optional: Check if user has 'store_owner' role
-            // const { data: profile } = await supabase.from('profiles').select('role').eq('id', data.user.id).single();
-            // if (profile?.role !== 'store_owner' && profile?.role !== 'admin') { ... }
+            // Atualizar último acesso da farmácia vinculada
+            const { data: profile } = await supabase
+                .from('profiles')
+                .select('pharmacy_id')
+                .eq('id', data.user.id)
+                .single();
+
+            if (profile?.pharmacy_id) {
+                await supabase
+                    .from('pharmacies')
+                    .update({ last_access: new Date().toISOString() })
+                    .eq('id', profile.pharmacy_id);
+            }
 
             navigate('/gestor');
         } catch (error: any) {

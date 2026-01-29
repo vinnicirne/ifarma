@@ -58,15 +58,63 @@ const MotoboyDashboard = ({ session, profile }: { session: any, profile: any }) 
     const toggleOnline = async () => {
         const newStatus = !isOnline;
 
+        // Ao ficar online, já tenta pegar a bateria
+        let batteryData = {};
+        if (newStatus && 'getBattery' in navigator) {
+            try {
+                const battery: any = await (navigator as any).getBattery();
+                batteryData = {
+                    battery_level: Math.round(battery.level * 100),
+                    is_charging: battery.charging
+                };
+            } catch (e) {
+                console.error("Erro ao acessar bateria:", e);
+            }
+        }
+
         const { error } = await supabase
             .from('profiles')
-            .update({ is_online: newStatus })
+            .update({
+                is_online: newStatus,
+                ...batteryData
+            })
             .eq('id', session.user.id);
 
         if (!error) {
             setIsOnline(newStatus);
         }
     };
+
+    // Monitorar bateria enquanto estiver online
+    useEffect(() => {
+        let batteryInterval: any;
+
+        const updateBattery = async () => {
+            if (isOnline && 'getBattery' in navigator) {
+                try {
+                    const battery: any = await (navigator as any).getBattery();
+                    await supabase
+                        .from('profiles')
+                        .update({
+                            battery_level: Math.round(battery.level * 100),
+                            is_charging: battery.charging
+                        })
+                        .eq('id', session.user.id);
+                } catch (e) {
+                    console.error("Erro ao atualizar bateria:", e);
+                }
+            }
+        };
+
+        if (isOnline) {
+            updateBattery();
+            batteryInterval = setInterval(updateBattery, 60000 * 5); // Atualiza a cada 5 min
+        }
+
+        return () => {
+            if (batteryInterval) clearInterval(batteryInterval);
+        };
+    }, [isOnline, session.user.id]);
 
     const center: [number, number] = [
         geoState.latitude || -22.9068,

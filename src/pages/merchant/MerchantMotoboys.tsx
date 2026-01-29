@@ -52,7 +52,7 @@ const MerchantMotoboys = () => { // Assuming session/profile context or fetching
         // 3. Buscar motoboys
         let query = supabase
             .from('profiles')
-            .select('id, full_name, phone, email, is_active, is_online, created_at, pharmacy_id')
+            .select('id, full_name, phone, email, is_active, is_online, battery_level, is_charging, created_at, pharmacy_id')
             .eq('role', 'motoboy');
 
         // Se tem pharmacy_id, filtrar por ela. Senão, mostrar todos
@@ -79,6 +79,8 @@ const MerchantMotoboys = () => { // Assuming session/profile context or fetching
             vehicle_plate: 'N/A',
             vehicle_model: 'N/A',
             status: boy.is_online ? 'Disponível' : 'Offline',
+            battery_level: boy.battery_level,
+            is_charging: boy.is_charging,
             pharmacy_id: boy.pharmacy_id
         }));
 
@@ -171,9 +173,20 @@ const MerchantMotoboys = () => { // Assuming session/profile context or fetching
                                 <div className="size-12 rounded-2xl bg-slate-100 dark:bg-black/20 flex items-center justify-center border border-slate-100 dark:border-white/5">
                                     <MaterialIcon name="sports_motorsports" className="text-slate-400 dark:text-[#92c9a9]" />
                                 </div>
-                                <span className={`px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest ${boy.status === 'Disponível' ? 'bg-green-500/10 text-green-500' : 'bg-orange-500/10 text-orange-500'}`}>
-                                    {boy.status || 'Offline'}
-                                </span>
+                                <div className="flex flex-col items-end gap-1">
+                                    <span className={`px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest ${boy.status === 'Disponível' ? 'bg-green-500/10 text-green-500' : 'bg-orange-500/10 text-orange-500'}`}>
+                                        {boy.status || 'Offline'}
+                                    </span>
+                                    {boy.battery_level !== undefined && (
+                                        <div className="flex items-center gap-1">
+                                            <MaterialIcon
+                                                name={boy.is_charging ? "battery_charging_full" : boy.battery_level > 20 ? "battery_full" : "battery_alert"}
+                                                className={`text-sm ${boy.battery_level <= 20 ? 'text-red-500 animate-pulse' : 'text-slate-400'}`}
+                                            />
+                                            <span className="text-[9px] font-black text-slate-500">{boy.battery_level}%</span>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
 
                             <h3 className="text-lg font-black italic text-slate-900 dark:text-white leading-tight">{boy.name}</h3>

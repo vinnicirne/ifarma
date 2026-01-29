@@ -15,10 +15,32 @@ const MerchantLayout = ({ children, activeTab, title }: { children: React.ReactN
         navigate('/gestor/login');
     };
 
+    React.useEffect(() => {
+        const updateAccess = async () => {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (user) {
+                const { data: profile } = await supabase
+                    .from('profiles')
+                    .select('pharmacy_id')
+                    .eq('id', user.id)
+                    .single();
+
+                if (profile?.pharmacy_id) {
+                    await supabase
+                        .from('pharmacies')
+                        .update({ last_access: new Date().toISOString() })
+                        .eq('id', profile.pharmacy_id);
+                }
+            }
+        };
+        updateAccess();
+    }, []);
+
     const navItems = [
         { id: 'dashboard', label: 'Visão Geral', icon: 'dashboard', path: '/gestor' },
         { id: 'orders', label: 'Pedidos', icon: 'receipt_long', path: '/gestor/orders' },
         { id: 'products', label: 'Produtos', icon: 'inventory_2', path: '/gestor/products' },
+        { id: 'team', label: 'Equipe / Cargos', icon: 'groups', path: '/gestor/equipe' },
         { id: 'financial', label: 'Financeiro', icon: 'payments', path: '/gestor/financial' },
         { id: 'settings', label: 'Configurações', icon: 'store', path: '/gestor/settings' },
     ];
@@ -49,9 +71,6 @@ const MerchantLayout = ({ children, activeTab, title }: { children: React.ReactN
                         >
                             <MaterialIcon name={item.icon} className={activeTab === item.id ? "" : "group-hover:scale-110 transition-transform"} />
                             <span className="font-bold text-sm tracking-wide">{item.label}</span>
-                            {item.id === 'orders' && (
-                                <span className="ml-auto bg-red-500 text-white text-[9px] font-black px-1.5 h-5 flex items-center justify-center rounded-full">3</span>
-                            )}
                         </Link>
                     ))}
                 </nav>
@@ -96,7 +115,7 @@ const MerchantLayout = ({ children, activeTab, title }: { children: React.ReactN
                         </Link>
                     ))}
                     <Link
-                        to="/merchant/menu"
+                        to="/gestor/settings"
                         className={`flex flex-col items-center gap-1 p-2 rounded-2xl transition-colors ${activeTab === 'settings' ? 'text-primary' : 'text-slate-400'}`}
                     >
                         <MaterialIcon name="menu" className="text-2xl" />

@@ -112,7 +112,7 @@ const AdminDashboard = ({ profile }: { profile: any }) => {
             setMonthlyProjection(dailyAvg * daysInMonth);
 
             // 3. Ranking Farmácias (Busca separada para evitar erro de Join 400)
-            const { data: pharmNames } = await supabase.from('pharmacies').select('id, name, latitude, longitude');
+            const { data: pharmNames } = await supabase.from('pharmacies').select('id, name, latitude, longitude, phone, establishment_phone');
             const pharmaNameMap = (pharmNames || []).reduce((acc: any, p) => ({ ...acc, [p.id]: p.name }), {});
 
             const pharmaMap: { [key: string]: { name: string, total: number } } = {};
@@ -222,7 +222,7 @@ const AdminDashboard = ({ profile }: { profile: any }) => {
                     lat: Number((p as any).latitude || -22.9068),
                     lng: Number((p as any).longitude || -43.1729),
                     type: 'pharmacy',
-                    phone: '550000000000' // Mock phone for chat
+                    phone: (p as any).phone || (p as any).establishment_phone || '550000000000'
                 })));
             }
 

@@ -118,7 +118,30 @@ const PartnerRegistration = () => {
         }
     };
 
-    const nextStep = () => setStep(prev => prev + 1);
+    const validateStep = (currentStep: number) => {
+        if (currentStep === 1) {
+            return formData.owner_email && formData.owner_phone && formData.owner_name &&
+                formData.owner_last_name && formData.owner_cpf && formData.owner_rg &&
+                formData.owner_rg_issuer;
+        }
+        if (currentStep === 2) {
+            return formData.cnpj && formData.legal_name && formData.trade_name &&
+                formData.establishment_phone;
+        }
+        if (currentStep === 3) {
+            return formData.cep && formData.address && formData.address_number &&
+                formData.neighborhood && formData.city && formData.state;
+        }
+        return true;
+    };
+
+    const nextStep = () => {
+        if (validateStep(step)) {
+            setStep(prev => prev + 1);
+        } else {
+            alert("Por favor, preencha todos os campos obrigatórios antes de continuar.");
+        }
+    };
     const prevStep = () => setStep(prev => prev - 1);
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -217,7 +240,7 @@ const PartnerRegistration = () => {
                                 </div>
                                 <div className="md:col-span-2">
                                     <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Órgão Emissor</label>
-                                    <select name="owner_rg_issuer" value={formData.owner_rg_issuer} onChange={handleChange} className="w-full h-12 px-4 rounded-xl bg-slate-50 dark:bg-zinc-900 border-none focus:ring-2 focus:ring-primary outline-none appearance-none">
+                                    <select required name="owner_rg_issuer" value={formData.owner_rg_issuer} onChange={handleChange} className="w-full h-12 px-4 rounded-xl bg-slate-50 dark:bg-zinc-900 border-none focus:ring-2 focus:ring-primary outline-none appearance-none">
                                         <option value="">Selecione...</option>
                                         <option value="SSP">SSP - Secretaria de Segurança Pública</option>
                                         <option value="DETRAN">DETRAN</option>
@@ -265,7 +288,7 @@ const PartnerRegistration = () => {
                                 </div>
                                 <div className="md:col-span-1">
                                     <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Especialidade</label>
-                                    <select name="specialty" value={formData.specialty} onChange={handleChange} className="w-full h-12 px-4 rounded-xl bg-slate-50 dark:bg-zinc-900 border-none focus:ring-2 focus:ring-primary outline-none">
+                                    <select required name="specialty" value={formData.specialty} onChange={handleChange} className="w-full h-12 px-4 rounded-xl bg-slate-50 dark:bg-zinc-900 border-none focus:ring-2 focus:ring-primary outline-none">
                                         <option value="Farmácia">Farmácia</option>
                                         <option value="Drogaria">Drogaria</option>
                                         <option value="Manipulação">Manipulação</option>
@@ -292,7 +315,7 @@ const PartnerRegistration = () => {
                                 </div>
                                 <div className="md:col-span-1">
                                     <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Cidade</label>
-                                    <input disabled value={formData.city} className="w-full h-12 px-4 rounded-xl bg-slate-100 dark:bg-black/40 border-none text-slate-500" />
+                                    <input required disabled value={formData.city} className="w-full h-12 px-4 rounded-xl bg-slate-100 dark:bg-black/40 border-none text-slate-500" />
                                 </div>
 
                                 <div className="md:col-span-2">

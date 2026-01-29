@@ -11,16 +11,22 @@ interface GeolocationState {
     accuracy: number | null;
     error: string | null;
     isTracking: boolean;
+    orderId: string | null;
 }
 
-export const useGeolocation = (userId: string | null, shouldTrack: boolean = false) => {
+export const useGeolocation = (userId: string | null, shouldTrack: boolean = false, orderId: string | null = null) => {
     const [state, setState] = useState<GeolocationState>({
         latitude: null,
         longitude: null,
         accuracy: null,
         error: null,
-        isTracking: false
+        isTracking: false,
+        orderId: null
     });
+
+    useEffect(() => {
+        setState(prev => ({ ...prev, orderId }));
+    }, [orderId]);
 
     useEffect(() => {
         if (!userId || !shouldTrack) {
@@ -59,13 +65,14 @@ export const useGeolocation = (userId: string | null, shouldTrack: boolean = fal
                         if (position) {
                             const { latitude, longitude, accuracy } = position.coords;
 
-                            setState({
+                            setState(prev => ({
+                                ...prev,
                                 latitude,
                                 longitude,
                                 accuracy,
                                 error: null,
                                 isTracking: true
-                            });
+                            }));
 
                             // --- ELITE 2.0: Telemetria ---
                             let batteryLevel: number | undefined;
@@ -81,7 +88,7 @@ export const useGeolocation = (userId: string | null, shouldTrack: boolean = fal
                                 console.warn('Falha ao obter telemetria:', e);
                             }
 
-                            // Atualizar no banco de dados (Otimizado + Telemetria)
+                            // 1. Atualizar perfil com última localização e telemetria
                             const { error: updateError } = await supabase
                                 .from('profiles')
                                 .update({
@@ -96,14 +103,28 @@ export const useGeolocation = (userId: string | null, shouldTrack: boolean = fal
 
                             if (updateError) console.error('Erro ao atualizar location:', updateError);
 
-                            // Salvar no historico de rotas
-                            await supabase
-                                .from('route_history')
-                                .insert({
-                                    motoboy_id: userId,
-                                    latitude,
-                                    longitude
+                            // 2. Invocar tracking-engine para Geofencing e Histórico (Inteligente)
+                            // Isso substitui a inserção direta em tabelas de histórico
+                            try {
+                                const { error: trackingError } = await supabase.functions.invoke('tracking-engine', {
+                                    body: {
+                                        motoboyId: userId,
+                                        latitude,
+                                        longitude,
+                                        orderId: state.orderId || null // Adicionar suporte a orderId no estado se necessário
+                                    }
                                 });
+                                if (trackingError) console.warn('Erro na tracking-engine:', trackingError);
+                            } catch (e) {
+                                // Fallback para inserção direta caso a Edge Function falhe
+                                await supabase
+                                    .from('location_history')
+                                    .insert({
+                                        motoboy_id: userId,
+                                        latitude,
+                                        longitude
+                                    });
+                            }
                         }
                     }
                 );
@@ -121,7 +142,7 @@ export const useGeolocation = (userId: string | null, shouldTrack: boolean = fal
             }
             setState(prev => ({ ...prev, isTracking: false }));
         };
-    }, [userId, shouldTrack]);
+    }, [userId, shouldTrack, orderId]);
 
     return state;
 };

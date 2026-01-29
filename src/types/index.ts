@@ -10,6 +10,8 @@ export interface User {
     role: 'customer' | 'merchant' | 'motoboy' | 'admin';
     is_active: boolean;
     is_online?: boolean;
+    battery_level?: number;
+    is_charging?: boolean;
     created_at: string;
 }
 

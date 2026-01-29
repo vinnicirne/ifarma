@@ -19,6 +19,8 @@ const Checkout = () => {
     const [address, setAddress] = useState('');
     const [addresses, setAddresses] = useState<any[]>([]);
     const [selectedAddressId, setSelectedAddressId] = useState<string>('');
+    const [needsChange, setNeedsChange] = useState(false);
+    const [changeFor, setChangeFor] = useState(0);
 
     useEffect(() => {
         fetchCartAndSettings();
@@ -118,23 +120,38 @@ const Checkout = () => {
             return;
         }
 
+        // Validação de Troco
+        if (selectedPayment === 'cash' && needsChange) {
+            if (changeFor < total) {
+                alert('O valor para troco deve ser maior que o total do pedido.');
+                return;
+            }
+        }
+
         setLoading(true);
         try {
             const { data: { session } } = await supabase.auth.getSession();
             if (!session) throw new Error('Sessão expirada');
 
             // Criar pedido
+            const payload: any = {
+                customer_id: session.user.id,
+                pharmacy_id: pharmacyId,
+                total_price: total,
+                payment_method: selectedPayment,
+                installments: selectedPayment === 'credit' ? installments : 1,
+                address: address,
+                status: 'pendente'
+            };
+
+            // Adicionar change_for se for dinheiro e precisar
+            if (selectedPayment === 'cash' && needsChange && changeFor > 0) {
+                payload.change_for = changeFor;
+            }
+
             const { data: order, error: orderError } = await supabase
                 .from('orders')
-                .insert({
-                    customer_id: session.user.id,
-                    pharmacy_id: pharmacyId,
-                    total_price: total,
-                    payment_method: selectedPayment,
-                    installments: selectedPayment === 'credit' ? installments : 1,
-                    address: address,
-                    status: 'pendente'
-                })
+                .insert(payload)
                 .select()
                 .single();
 
@@ -276,7 +293,7 @@ const Checkout = () => {
 
                 {/* Parcelamento (apenas para crédito) */}
                 {selectedPayment === 'credit' && getAvailableInstallments().length > 1 && (
-                    <div className="bg-white dark:bg-background-dark/40 rounded-2xl p-4 border border-gray-100 dark:border-gray-800">
+                    <div className="bg-white dark:bg-background-dark/40 rounded-2xl p-4 border border-gray-100 dark:border-gray-800 animate-fade-in">
                         <h3 className="text-sm font-bold uppercase tracking-wider text-gray-400 mb-3">Parcelamento</h3>
                         <select
                             value={installments}
@@ -289,6 +306,51 @@ const Checkout = () => {
                                 </option>
                             ))}
                         </select>
+                    </div>
+                )}
+
+                {/* Troco (apenas para dinheiro) */}
+                {selectedPayment === 'cash' && (
+                    <div className="bg-white dark:bg-background-dark/40 rounded-2xl p-4 border border-gray-100 dark:border-gray-800 animate-fade-in">
+                        <h3 className="text-sm font-bold uppercase tracking-wider text-gray-400 mb-3">Troco</h3>
+                        <div className="space-y-3">
+                            <label className="flex items-center gap-3 p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    checked={needsChange}
+                                    onChange={(e) => {
+                                        setNeedsChange(e.target.checked);
+                                        if (!e.target.checked) setChangeFor(0);
+                                    }}
+                                    className="accent-primary size-5"
+                                />
+                                <span className="text-sm font-bold text-slate-700 dark:text-white">Preciso de troco</span>
+                            </label>
+
+                            {needsChange && (
+                                <div>
+                                    <label className="text-xs font-bold text-slate-500 mb-1 block">Troco para quanto?</label>
+                                    <div className="relative">
+                                        <span className="absolute left-3 top-3 text-slate-500 font-bold">R$</span>
+                                        <input
+                                            type="number"
+                                            value={changeFor || ''}
+                                            onChange={(e) => setChangeFor(Number(e.target.value))}
+                                            className="w-full bg-white dark:bg-zinc-900 border border-slate-200 dark:border-slate-700 rounded-xl py-3 pl-10 pr-4 text-sm font-bold outline-none focus:border-primary"
+                                            placeholder="Ex: 50.00"
+                                        />
+                                    </div>
+                                    {changeFor > 0 && changeFor < total && (
+                                        <p className="text-xs text-red-500 font-bold mt-1">O valor deve ser maior que o total (R$ {total.toFixed(2)})</p>
+                                    )}
+                                    {changeFor >= total && (
+                                        <p className="text-xs text-green-500 font-bold mt-1">
+                                            Seu troco será: R$ {(changeFor - total).toFixed(2)}
+                                        </p>
+                                    )}
+                                </div>
+                            )}
+                        </div>
                     </div>
                 )}
             </main>
