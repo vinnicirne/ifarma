@@ -29,7 +29,7 @@ const MerchantLogin = () => {
             // const { data: profile } = await supabase.from('profiles').select('role').eq('id', data.user.id).single();
             // if (profile?.role !== 'store_owner' && profile?.role !== 'admin') { ... }
 
-            navigate('/merchant');
+            navigate('/gestor');
         } catch (error: any) {
             alert(error.message || 'Erro ao entrar');
         } finally {

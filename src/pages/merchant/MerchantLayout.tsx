@@ -12,15 +12,15 @@ const MerchantLayout = ({ children, activeTab, title }: { children: React.ReactN
 
     const handleLogout = async () => {
         await supabase.auth.signOut();
-        navigate('/merchant/login');
+        navigate('/gestor/login');
     };
 
     const navItems = [
-        { id: 'dashboard', label: 'Visão Geral', icon: 'dashboard', path: '/merchant' },
-        { id: 'orders', label: 'Pedidos', icon: 'receipt_long', path: '/merchant/orders' },
-        { id: 'products', label: 'Produtos', icon: 'inventory_2', path: '/merchant/products' },
-        { id: 'financial', label: 'Financeiro', icon: 'payments', path: '/merchant/financial' },
-        { id: 'settings', label: 'Configurações', icon: 'store', path: '/merchant/settings' },
+        { id: 'dashboard', label: 'Visão Geral', icon: 'dashboard', path: '/gestor' },
+        { id: 'orders', label: 'Pedidos', icon: 'receipt_long', path: '/gestor/orders' },
+        { id: 'products', label: 'Produtos', icon: 'inventory_2', path: '/gestor/products' },
+        { id: 'financial', label: 'Financeiro', icon: 'payments', path: '/gestor/financial' },
+        { id: 'settings', label: 'Configurações', icon: 'store', path: '/gestor/settings' },
     ];
 
     return (

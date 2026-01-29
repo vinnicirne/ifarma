@@ -83,7 +83,7 @@ const Auth = ({ view = 'login' }: { view?: 'login' | 'signup' }) => {
                 navigate('/dashboard');
                 break;
               case 'merchant':
-                navigate('/merchant-dashboard');
+                navigate('/gestor');
                 break;
               case 'motoboy':
                 navigate('/motoboy-dashboard');
@@ -232,7 +232,7 @@ const GestorRoute = ({ children, session, profile }: { children: React.ReactNode
           Esta área é exclusiva para parceiros gestores.
         </p>
         <div className="mt-8 flex gap-4">
-          <Link to="/merchant/login" className="px-6 py-3 bg-slate-200 dark:bg-white/10 text-slate-700 dark:text-white rounded-xl font-black uppercase tracking-widest text-xs hover:scale-105 transition-transform">
+          <Link to="/gestor/login" className="px-6 py-3 bg-slate-200 dark:bg-white/10 text-slate-700 dark:text-white rounded-xl font-black uppercase tracking-widest text-xs hover:scale-105 transition-transform">
             Trocar Conta
           </Link>
           <Link to="/" className="px-6 py-3 bg-primary text-background-dark rounded-xl font-black uppercase tracking-widest text-xs hover:scale-105 transition-transform">
@@ -3660,7 +3660,7 @@ function App() {
       return <Navigate to="/motoboy-login" replace />;
     }
     if (context === 'farmacia') {
-      return <Navigate to="/merchant/login" replace />;
+      return <Navigate to="/gestor/login" replace />;
     }
     return <ClientHome userLocation={userLocation} sortedPharmacies={sortedPharmacies} session={session} />;
   };
@@ -3719,14 +3719,14 @@ function App() {
             <Route path="settings" element={<SystemSettings profile={profile} />} />
           </Route>
 
-          {/* Protected Merchant Routes */}
-          <Route path="/merchant/login" element={<MerchantLogin />} />
-          <Route path="/merchant" element={<MerchantRoute session={session} profile={profile}><MerchantDashboard /></MerchantRoute>} />
-          <Route path="/merchant/orders" element={<MerchantRoute session={session} profile={profile}><MerchantOrderManagement /></MerchantRoute>} />
-          <Route path="/merchant/products" element={<MerchantRoute session={session} profile={profile}><InventoryControl /></MerchantRoute>} />
-          <Route path="/merchant/financial" element={<MerchantRoute session={session} profile={profile}><MerchantFinancial /></MerchantRoute>} />
-          <Route path="/merchant/settings" element={<MerchantRoute session={session} profile={profile}><StoreCustomization /></MerchantRoute>} />
-          <Route path="/merchant/motoboys" element={<MerchantRoute session={session} profile={profile}><MerchantMotoboys /></MerchantRoute>} />
+          {/* Protected Gestor Routes */}
+          <Route path="/gestor/login" element={<MerchantLogin />} />
+          <Route path="/gestor" element={<GestorRoute session={session} profile={profile}><MerchantDashboard /></GestorRoute>} />
+          <Route path="/gestor/orders" element={<GestorRoute session={session} profile={profile}><MerchantOrderManagement /></GestorRoute>} />
+          <Route path="/gestor/products" element={<GestorRoute session={session} profile={profile}><InventoryControl /></GestorRoute>} />
+          <Route path="/gestor/financial" element={<GestorRoute session={session} profile={profile}><MerchantFinancial /></GestorRoute>} />
+          <Route path="/gestor/settings" element={<GestorRoute session={session} profile={profile}><StoreCustomization /></GestorRoute>} />
+          <Route path="/gestor/motoboys" element={<GestorRoute session={session} profile={profile}><MerchantMotoboys /></GestorRoute>} />
 
           {/* Motoboy Routes */}
           <Route path="/motoboy-login" element={<MotoboyLogin />} />
