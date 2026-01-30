@@ -42,14 +42,17 @@ const TeamManagement = () => {
             setPharmacyId(profile.pharmacy_id);
             setMyRole(profile.role);
 
-            const { data: members, error } = await supabase
-                .from('profiles')
-                .select('*')
-                .eq('pharmacy_id', profile.pharmacy_id)
-                .in('role', ['manager', 'staff', 'motoboy', 'merchant']);
+            // FIX: Prevent fetching with null pharmacy_id (avoids 22P02 error)
+            if (profile.pharmacy_id) {
+                const { data: members, error } = await supabase
+                    .from('profiles')
+                    .select('*')
+                    .eq('pharmacy_id', profile.pharmacy_id)
+                    .in('role', ['manager', 'staff', 'motoboy', 'merchant']);
 
-            if (members) setTeam(members);
-            if (error) console.error(error);
+                if (members) setTeam(members);
+                if (error) console.error("Error fetching team:", error);
+            }
         }
         setLoading(false);
     };
@@ -64,6 +67,7 @@ const TeamManagement = () => {
 
             // Get session token explicitly to ensure auth
             const { data: { session } } = await supabase.auth.getSession();
+            if (!session) throw new Error("Sessão inválida. Recarregue a página.");
 
             // Usar a Edge Function para criar usuário sem deslogar o admin/manager
             const { data: authData, error: authErr } = await supabase.functions.invoke('create-user-admin', {
