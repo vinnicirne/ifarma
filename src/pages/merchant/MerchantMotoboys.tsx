@@ -118,7 +118,7 @@ const MerchantMotoboys = () => { // Assuming session/profile context or fetching
                 }
             });
 
-            if (authError) throw new Error(`Erro ao criar usuário: ${authError.message}`); // This variable 'authError' is not defined here. It should be 'error'
+            if (error) throw new Error(`Erro ao criar usuário: ${error.message}`);
             // The previous line is incorrect. Let's fix it in the next correction. 
             // Wait, I am replacing the file, so I should write the correct code.
 
