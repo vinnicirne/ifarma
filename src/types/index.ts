@@ -38,6 +38,8 @@ export interface Product {
     stock: number;
     category?: string;
     image_url?: string;
+    sku?: string;
+    ean?: string;
     requires_prescription: boolean;
     is_active: boolean;
     created_at: string;

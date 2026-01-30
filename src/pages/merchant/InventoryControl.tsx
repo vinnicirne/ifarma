@@ -14,9 +14,12 @@ interface Product {
     price: number;
     original_price?: number;
     promo_price?: number;
+    sku?: string;
+    ean?: string;
     image_url?: string;
     status: string;
     category?: string;
+    requires_prescription: boolean;
     is_active: boolean;
 }
 
@@ -26,6 +29,7 @@ interface CatalogItem {
     brand: string;
     category: string;
     requires_prescription: boolean;
+    ean?: string;
     image_url?: string;
 }
 
@@ -40,13 +44,15 @@ const InventoryControl = () => {
         name: '',
         brand: '',
         category: '',
-        price: '', // Preço de venda atual
+        price: '',
         original_price: '',
         promo_price: '',
         stock: '',
         requires_prescription: false,
-        image_url: ''
-    });
+        image_url: '',
+        sku: '',
+        ean: ''
+    } as Record<string, any>);
 
     const [editingProduct, setEditingProduct] = useState<Product | null>(null);
 
@@ -220,7 +226,7 @@ const InventoryControl = () => {
             original_price: product.original_price?.toString() || product.price.toString(),
             promo_price: product.promo_price?.toString() || '',
             stock: product.stock.toString(),
-            requires_prescription: (product as any).requires_prescription || false,
+            requires_prescription: product.requires_prescription || false,
             image_url: product.image_url || '',
             sku: product.sku || '',
             ean: product.ean || ''
