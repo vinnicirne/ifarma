@@ -33,12 +33,19 @@ const motoboyIcon = new L.Icon({
 const MotoboyDashboard = ({ session, profile }: { session: any, profile: any }) => {
     const navigate = useNavigate();
 
-    // Guard to prevent crash if session is not yet loaded
+    // Redirect to login if no session
+    useEffect(() => {
+        if (!session?.user) {
+            navigate('/motoboy-login');
+        }
+    }, [session, navigate]);
+
+    // Guard to prevent crash while redirecting
     if (!session?.user) {
         return (
             <div className="h-screen w-screen flex flex-col items-center justify-center bg-slate-900 text-white gap-4">
                 <div className="animate-spin size-8 border-4 border-primary border-t-transparent rounded-full" />
-                <p className="font-bold animate-pulse">Carregando sessão...</p>
+                <p className="font-bold animate-pulse">Redirecionando...</p>
             </div>
         );
     }
