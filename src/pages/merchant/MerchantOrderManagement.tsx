@@ -370,12 +370,14 @@ const MerchantOrderManagement = () => {
     const subscribeToOrders = (pId: string) => {
         // Unsubscribe previous active channel
         if (activeChannelRef.current) {
+            console.log("🧹 Cleaning up previous Realtime channel...");
             supabase.removeChannel(activeChannelRef.current);
             activeChannelRef.current = null;
         }
 
         const channelName = `orders_pharma_${pId.substring(0, 8)}`;
-        console.log("🔌 Subscribing to Realtime...", channelName);
+        console.log("🔌 Initializing Realtime connection...", channelName);
+        setRealtimeStatus('connecting');
 
         const channel = supabase
             .channel(channelName)
@@ -386,31 +388,34 @@ const MerchantOrderManagement = () => {
                 filter: `pharmacy_id=eq.${pId}`
             }, (payload: any) => {
                 const eventName = payload.eventType || payload.event;
-                console.log(`🔔 Realtime: ${eventName} | Order: ${payload.new?.id?.substring(0, 6)}`);
+                console.log(`🔔 Realtime Event: ${eventName} | Order: ${payload.new?.id?.substring(0, 6)}`);
 
                 if (eventName === 'INSERT') {
                     try {
-                        console.log('🔊 NOVO PEDIDO! Tocando alarme...');
-                        playNotificationSound(3).catch(e => console.error("❌ Erro no som:", e));
+                        console.log('🔊 NEW ORDER detected via Realtime!');
+                        playNotificationSound(3).catch(e => console.error("❌ Audio Error:", e));
 
                         setNewOrderAlert(`Novo Pedido #${payload.new.id.substring(0, 6)}`);
                         setTimeout(() => setNewOrderAlert(null), 8000);
                     } catch (err) {
-                        console.error("❌ Erro na notificação:", err);
+                        console.error("❌ Notification UI Error:", err);
                     }
                 }
 
-                // Sempre atualiza a lista para qualquer mudança relevante
+                // Always refresh list on relevant changes
                 fetchOrders(pId);
             })
             .subscribe((status) => {
                 console.log(`📡 Realtime Status (${channelName}): ${status}`);
                 if (status === 'SUBSCRIBED') {
                     setRealtimeStatus('connected');
-                } else if (status === 'CHANNEL_ERROR' || status === 'CLOSED') {
+                } else if (status === 'CLOSED') {
+                    setRealtimeStatus('connecting');
+                } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
                     setRealtimeStatus('error');
-                    console.error(`❌ Falha na conexão Realtime (${channelName}). Tentando novamente em 5s...`);
-                    // Retry logic with a safety check
+                    console.error(`❌ Realtime Connection Failed (${channelName}: ${status}). Retrying in 5s...`);
+
+                    // Safety retry with delay
                     setTimeout(() => {
                         if (pId) subscribeToOrders(pId);
                     }, 5000);
