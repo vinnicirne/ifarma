@@ -90,7 +90,7 @@ export const Auth = ({ view = 'login' }: { view?: 'login' | 'signup' }) => {
                         {isLogin ? 'Bem-vindo de volta' : 'Criar conta'}
                     </h2>
                     <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mt-2">
-                        PharmaLink Platform
+                        AppIfarma
                     </p>
                 </div>
 

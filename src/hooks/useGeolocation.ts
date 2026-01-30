@@ -42,7 +42,8 @@ export const useGeolocation = (userId: string | null, shouldTrack: boolean = fal
                 if (Capacitor.isNativePlatform()) {
                     const permission = await Geolocation.requestPermissions();
                     if (permission.location !== 'granted') {
-                        setState(prev => ({ ...prev, error: 'Permissao de localizacao negada', isTracking: false }));
+                        console.warn('Permissão de geolocalização negada pelo usuário.');
+                        setState(prev => ({ ...prev, error: 'Permissão de localização negada', isTracking: false }));
                         return;
                     }
                 }
@@ -105,18 +106,39 @@ export const useGeolocation = (userId: string | null, shouldTrack: boolean = fal
 
                             // 2. Invocar tracking-engine para Geofencing e Histórico (Inteligente)
                             // Isso substitui a inserção direta em tabelas de histórico
+                            // 2. Invocar tracking-engine para Geofencing e Histórico (Inteligente)
+                            // Isso substitui a inserção direta em tabelas de histórico
+                            let invokeSuccess = false;
+
                             try {
-                                const { error: trackingError } = await supabase.functions.invoke('tracking-engine', {
-                                    body: {
-                                        motoboyId: userId,
-                                        latitude,
-                                        longitude,
-                                        orderId: state.orderId || null // Adicionar suporte a orderId no estado se necessário
+                                // Obter sessão atual para garantir token válido
+                                const { data: { session } } = await supabase.auth.getSession();
+
+                                if (session?.access_token) {
+                                    const { error: trackingError } = await supabase.functions.invoke('tracking-engine', {
+                                        body: {
+                                            motoboyId: userId,
+                                            latitude,
+                                            longitude,
+                                            orderId: orderId || null
+                                        },
+                                        headers: {
+                                            Authorization: `Bearer ${session.access_token}`
+                                        }
+                                    });
+
+                                    if (trackingError) {
+                                        console.warn('Erro na tracking-engine (usando fallback):', trackingError);
+                                    } else {
+                                        invokeSuccess = true;
                                     }
-                                });
-                                if (trackingError) console.warn('Erro na tracking-engine:', trackingError);
+                                }
                             } catch (e) {
-                                // Fallback para inserção direta caso a Edge Function falhe
+                                console.warn('Exceção ao invocar tracking-engine:', e);
+                            }
+
+                            // Fallback para inserção direta caso a Edge Function falhe ou não tenha sessão
+                            if (!invokeSuccess) {
                                 await supabase
                                     .from('location_history')
                                     .insert({

@@ -141,4 +141,4 @@ Exemplo de arquivo de variáveis de ambiente
 ---
 
 **Desenvolvido por:** Vinicius Cirne  
-**Projeto:** Ifarma - PharmaLink Platform
+**Projeto:** AppIfarma - PharmaLink Platform

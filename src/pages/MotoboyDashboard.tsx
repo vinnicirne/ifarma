@@ -5,6 +5,8 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { supabase } from '../lib/supabase';
 import { useGeolocation } from '../hooks/useGeolocation';
+import { Geolocation } from '@capacitor/geolocation';
+import { Capacitor } from '@capacitor/core';
 
 const MaterialIcon = ({ name, className = "" }: { name: string, className?: string }) => (
     <span className={`material-symbols-outlined ${className}`}>{name}</span>
@@ -53,9 +55,87 @@ const MotoboyDashboard = ({ session, profile }: { session: any, profile: any }) 
     const [isOnline, setIsOnline] = useState(profile?.is_online || false);
     const [currentOrder, setCurrentOrder] = useState<any>(null);
     const [showMenu, setShowMenu] = useState(false);
+    const [showNavOptions, setShowNavOptions] = useState(false);
+
+    const openMap = (app: 'google' | 'waze' | 'apple') => {
+        if (!currentOrder?.pharmacies) return;
+
+        // Tenta usar coordenadas do pedido, senão usa do cliente (fallback)
+        // O ideal é ter lat/lng do destino no pedido. Vamos assumir que currentOrder tem delivery_lat/lng como visto no tracking-engine, 
+        // mas aqui no select ele pegou '*, pharmacies(name, address)'. 
+        // O código anterior usava currentOrder.address para display. 
+        // Se não tiver lat/lng, vamos usar o endereço como string para busca.
+
+        const destination = currentOrder.address; // Fallback string
+        const lat = currentOrder.delivery_lat;
+        const lng = currentOrder.delivery_lng;
+
+        let url = '';
+
+        if (lat && lng) {
+            // Se tem coordenadas precisas
+            switch (app) {
+                case 'google':
+                    url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
+                    break;
+                case 'waze':
+                    url = `https://waze.com/ul?ll=${lat},${lng}&navigate=yes`;
+                    break;
+                case 'apple':
+                    url = `http://maps.apple.com/?daddr=${lat},${lng}`;
+                    break;
+            }
+        } else {
+            // Se só tem endereço (menos preciso, mas funciona)
+            const encodedDest = encodeURIComponent(destination);
+            switch (app) {
+                case 'google':
+                    url = `https://www.google.com/maps/dir/?api=1&destination=${encodedDest}`;
+                    break;
+                case 'waze':
+                    url = `https://waze.com/ul?q=${encodedDest}&navigate=yes`;
+                    break;
+                case 'apple':
+                    url = `http://maps.apple.com/?daddr=${encodedDest}`;
+                    break;
+            }
+        }
+
+        window.open(url, '_blank');
+        setShowNavOptions(false);
+    };
 
     // Ativar rastreamento apenas quando online
     const geoState = useGeolocation(session?.user?.id, isOnline);
+
+
+
+    // ✅ Forçar solicitação de permissão de geolocalização E Notificação ao abrir o dashboard
+    useEffect(() => {
+        const requestInitialPermissions = async () => {
+            try {
+                // 1. Permissão de Geolocalização
+                if (Capacitor.isNativePlatform()) {
+                    await Geolocation.requestPermissions();
+                } else {
+                    navigator.geolocation.getCurrentPosition(
+                        () => console.log('📍 Permissão de localização concedida (Web)'),
+                        (err) => console.warn('⚠️ Permissão de localização (Web) negada ou fechada:', err)
+                    );
+                }
+
+                // 2. Permissão de Notificação
+                if (window.Notification && Notification.permission !== 'granted') {
+                    const permission = await Notification.requestPermission();
+                    console.log('🔔 Permissão de notificação status:', permission);
+                }
+            } catch (e) {
+                console.error('Erro ao solicitar permissões iniciais:', e);
+            }
+        };
+
+        requestInitialPermissions();
+    }, []);
 
     useEffect(() => {
         if (profile?.current_order_id) {
@@ -64,13 +144,32 @@ const MotoboyDashboard = ({ session, profile }: { session: any, profile: any }) 
     }, [profile]);
 
     const fetchCurrentOrder = async () => {
-        const { data } = await supabase
-            .from('orders')
-            .select('*, pharmacies(name, address)')
-            .eq('id', profile.current_order_id)
-            .single();
+        // Try getting from profile first
+        let orderId = profile?.current_order_id;
 
-        if (data) setCurrentOrder(data);
+        // If not in profile, check if there's any active order assigned to me (Robustness)
+        if (!orderId && session?.user?.id) {
+            const { data: activeOrder } = await supabase
+                .from('orders')
+                .select('id')
+                .eq('motoboy_id', session.user.id)
+                .in('status', ['aguardando_motoboy', 'em_rota'])
+                .order('created_at', { ascending: false })
+                .limit(1)
+                .single();
+
+            if (activeOrder) orderId = activeOrder.id;
+        }
+
+        if (orderId) {
+            const { data } = await supabase
+                .from('orders')
+                .select('*, pharmacies(name, address)')
+                .eq('id', orderId)
+                .single();
+
+            if (data) setCurrentOrder(data);
+        }
     };
 
     const toggleOnline = async () => {
@@ -273,7 +372,9 @@ const MotoboyDashboard = ({ session, profile }: { session: any, profile: any }) 
                                 </div>
                             </div>
 
-                            <button className="w-full bg-primary text-black font-black py-3 rounded-xl text-sm active:scale-95 transition-transform">
+                            <button
+                                onClick={() => setShowNavOptions(true)}
+                                className="w-full bg-primary text-black font-black py-3 rounded-xl text-sm active:scale-95 transition-transform">
                                 Iniciar Navegação
                             </button>
                         </>

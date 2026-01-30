@@ -130,7 +130,7 @@ const TeamManagement = () => {
                     <h1 className="text-2xl font-black italic text-slate-900 dark:text-white tracking-tighter">Gestão de Equipe</h1>
                     <p className="text-slate-500 dark:text-[#92c9a9] text-sm font-bold uppercase tracking-widest mt-1">Gerentes, Caixas e Motoboys</p>
                 </div>
-                {(myRole === 'merchant' || myRole === 'manager') && (
+                {['merchant', 'manager', 'admin'].includes(myRole || '') && (
                     <button
                         onClick={() => setShowModal(true)}
                         className="bg-primary hover:bg-primary/90 text-background-dark flex h-10 px-4 items-center justify-center rounded-2xl shadow-lg shadow-primary/20 transition-all active:scale-90 gap-2 text-xs font-black uppercase tracking-widest"

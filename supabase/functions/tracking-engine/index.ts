@@ -12,16 +12,26 @@ serve(async (req) => {
     }
 
     try {
-        const supabase = createClient(
-            Deno.env.get('SUPABASE_URL')!,
-            Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-        )
+        const supabaseUrl = Deno.env.get('SUPABASE_URL');
+        const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
-        const { motoboyId, latitude, longitude, orderId } = await req.json()
+        if (!supabaseUrl || !supabaseKey) {
+            throw new Error('Configuração de ambiente ausente (SUPABASE_URL ou KEY)');
+        }
+
+        const supabase = createClient(supabaseUrl, supabaseKey);
+
+        const body = await req.json().catch(() => ({}));
+        const { motoboyId, latitude, longitude, orderId } = body;
 
         if (!motoboyId || !latitude || !longitude) {
-            throw new Error('Motoboy ID e coordenadas são obrigatórios')
+            return new Response(JSON.stringify({ error: 'Motoboy ID e coordenadas são obrigatórios' }), {
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+                status: 400,
+            });
         }
+
+        console.log(`Recebido tracking para motoboy ${motoboyId} Lat: ${latitude} Lng: ${longitude}`);
 
         // 1. Atualizar localização atual e histórico
         const { error: historyError } = await supabase.from('location_history').insert({
@@ -29,34 +39,38 @@ serve(async (req) => {
             order_id: orderId,
             lat: latitude,
             lng: longitude
-        })
+        });
+
+        if (historyError) {
+            console.error('Erro ao inserir histórico:', historyError);
+            // Não retornar erro fatal, tentar atualizar perfil mesmo assim
+        }
 
         // 2. Atualizar localização atual no perfil para tempo real
         const { error: profileError } = await supabase.from('profiles').update({
             last_lat: latitude,
             last_lng: longitude,
             last_location_update: new Date().toISOString()
-        }).eq('id', motoboyId)
+        }).eq('id', motoboyId);
 
-        if (profileError) console.error('Erro ao atualizar perfil:', profileError)
+        if (profileError) console.error('Erro ao atualizar perfil:', profileError);
 
-        // 2. Lógica de Geofencing (Exemplo simplicado)
+        // 3. Lógica de Geofencing (Exemplo simplificado)
         if (orderId) {
             // Buscar destino do pedido
             const { data: order } = await supabase
                 .from('orders')
                 .select('delivery_lat, delivery_lng, customer_id')
                 .eq('id', orderId)
-                .single()
+                .single();
 
             if (order?.delivery_lat && order?.delivery_lng) {
-                // Cálculo de distância simples (Haversine ou similar)
-                const dist = calculateDistance(latitude, longitude, order.delivery_lat, order.delivery_lng)
+                const dist = calculateDistance(latitude, longitude, order.delivery_lat, order.delivery_lng);
 
                 // Se estiver a menos de 200 metros
                 if (dist < 0.2) {
-                    console.log(`Motoboy ${motoboyId} está próximo do destino do pedido ${orderId}`)
-                    // Trigger de push notification (reutilizando a função send-push-notification internamente se necessário)
+                    console.log(`Motoboy ${motoboyId} está próximo do destino do pedido ${orderId}`);
+                    // Futuro: Trigger de push notification
                 }
             }
         }
@@ -64,14 +78,15 @@ serve(async (req) => {
         return new Response(JSON.stringify({ success: true }), {
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
             status: 200,
-        })
-    } catch (error) {
+        });
+    } catch (error: any) {
+        console.error('Erro interno na tracking-engine:', error);
         return new Response(JSON.stringify({ error: error.message }), {
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-            status: 400,
-        })
+            status: 500, // Internal Server Error
+        });
     }
-})
+});
 
 // Função auxiliar simples para distância (km)
 function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number) {

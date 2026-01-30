@@ -34,7 +34,6 @@ const MotoboyLogin = () => {
         } catch (error: any) {
             console.error('Erro no login do motoboy:', error);
             alert(error.message || 'Erro ao entrar. Verifique seus dados.');
-        } finally {
             setLoading(false);
         }
     };
@@ -57,7 +56,7 @@ const MotoboyLogin = () => {
                 {/* Headline Section */}
                 <div className="mb-8">
                     <h2 className="text-slate-900 dark:text-white tracking-light text-[28px] font-bold leading-tight text-center pb-2">Bem-vindo à equipe de entregas</h2>
-                    <p className="text-slate-500 dark:text-[#90a4cb] text-center text-sm font-medium">PharmaLink Platform</p>
+                    <p className="text-slate-500 dark:text-[#90a4cb] text-center text-sm font-medium">AppIfarma</p>
                 </div>
 
                 {/* Form Section */}

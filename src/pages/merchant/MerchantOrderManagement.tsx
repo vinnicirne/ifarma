@@ -543,22 +543,28 @@ const MerchantOrderManagement = () => {
 
             // Iterate and update all
             for (const oId of targets) {
-                const { error } = await supabase
+                // Update Order Status
+                const { error: orderError } = await supabase
                     .from('orders')
                     .update({
-                        motoboy_id: driverId, // Corrected column name based on original schema
-                        status: 'em_rota' // Auto-move to em_rota
+                        motoboy_id: driverId,
+                        status: 'aguardando_motoboy' // Status correto para o motoboy aceitar/ver
                     })
                     .eq('id', oId);
 
-                if (error) {
-                    console.error("Supabase Update Error for Order ID " + oId, error);
-                    throw error;
-                }
+                if (orderError) throw orderError;
+
+                // CRITICAL FIX: Update Motoboy's Profile to see the order
+                const { error: profileError } = await supabase
+                    .from('profiles')
+                    .update({ current_order_id: oId })
+                    .eq('id', driverId);
+
+                if (profileError) console.error("Error updating motoboy profile:", profileError);
 
                 // Notify (Optional: could be batched or separate)
                 // const order = orders.find(o => o.id === oId);
-                // if (order) sendWhatsAppNotification(order, 'em_rota');
+                // if (order) sendWhatsAppNotification(order, 'aguardando_motoboy');
             }
 
             setIsDriverModalOpen(false);
@@ -944,7 +950,8 @@ const MerchantOrderManagement = () => {
                                                 <button
                                                     onClick={(e) => {
                                                         e.stopPropagation();
-                                                        if (isWaitingDriver) {
+                                                        // FIX: Allow dispatching if driver is already assigned
+                                                        if (isWaitingDriver && !order.motoboy) {
                                                             setSelectedOrderIdForDriver(order.id);
                                                             setIsDriverModalOpen(true);
                                                         } else {

@@ -67,7 +67,12 @@ function App() {
             lng: position.coords.longitude
           });
         },
-        (error) => console.warn("Erro ao obter localização ou permissão negada:", error)
+        (error) => {
+          // Ignore permission denied errors to reduce console noise
+          if (error.code !== error.PERMISSION_DENIED) {
+            console.warn("Erro ao obter localização:", error.message);
+          }
+        }
       );
     }
   }, []);
