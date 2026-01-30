@@ -7,12 +7,34 @@ import { MaterialIcon } from '../components/Shared';
 export const AdminRoute = ({ children, session, profile }: { children: React.ReactNode, session: any, profile: any }) => {
     if (!session) return <Auth view="login" />;
     if (profile?.role !== 'admin') {
+        const handleLogout = async () => {
+            await supabase.auth.signOut();
+            window.location.reload();
+        };
+
         return (
             <div className="min-h-screen bg-background-dark flex flex-col items-center justify-center p-6 text-center">
-                <MaterialIcon name="block" className="text-red-500 text-6xl mb-4" />
-                <h2 className="text-xl font-black italic text-white">Acesso Negado</h2>
-                <p className="text-slate-400 text-sm mt-2 max-w-xs">Esta área é restrita para administradores da plataforma.</p>
-                <Link to="/" className="mt-8 text-primary font-black uppercase tracking-widest text-xs hover:underline">Voltar para a Home</Link>
+                <div className="size-20 rounded-2xl bg-red-500/10 flex items-center justify-center mb-6">
+                    <MaterialIcon name="admin_panel_settings" className="text-red-500 text-5xl" />
+                </div>
+                <h2 className="text-2xl font-black italic text-white tracking-tighter">Acesso Negado</h2>
+                <p className="text-slate-400 text-sm mt-2 max-w-xs font-medium">
+                    Esta área é restrita para administradores da plataforma.
+                    Seu usuário atual não possui permissões suficientes.
+                </p>
+                <div className="mt-10 flex flex-col sm:flex-row gap-4">
+                    <button
+                        onClick={handleLogout}
+                        className="px-8 py-4 bg-slate-800 text-white rounded-2xl font-black uppercase tracking-widest text-xs hover:bg-slate-700 transition-all flex items-center gap-2"
+                    >
+                        <MaterialIcon name="logout" className="text-sm" />
+                        Trocar Conta
+                    </button>
+                    <Link to="/" className="px-8 py-4 bg-primary text-background-dark rounded-2xl font-black uppercase tracking-widest text-xs hover:scale-105 transition-all flex items-center gap-2">
+                        <MaterialIcon name="home" className="text-sm" />
+                        Voltar para Home
+                    </Link>
+                </div>
             </div>
         );
     }

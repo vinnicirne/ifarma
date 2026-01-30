@@ -17,11 +17,23 @@ const TeamManagement = () => {
         name: '',
         email: '',
         phone: '',
+        password: '',
         role: 'staff', // staff, manager, motoboy
         // Motoboy specific
         vehicle_plate: '',
         vehicle_model: ''
     });
+
+    const getPasswordStrength = (pass: string) => {
+        if (!pass) return { requirements: [], allMet: false };
+        const requirements = [
+            { id: 'length', text: 'Mínimo 6 caracteres', met: pass.length >= 6 },
+            { id: 'number', text: 'Pelo menos um número', met: /\d/.test(pass) },
+            { id: 'special', text: 'Um caractere especial (@$!%*?)', met: /[@$!%*?&#]/.test(pass) },
+        ];
+        const allMet = requirements.every(r => r.met);
+        return { requirements, allMet };
+    };
 
     useEffect(() => {
         fetchTeam();
@@ -63,51 +75,128 @@ const TeamManagement = () => {
 
         setSaving(true);
         try {
-            const tempPassword = Math.random().toString(36).slice(-8) + 'Aa1!';
+            let loginEmail = formData.email;
+            let loginPassword = formData.password;
+            let displayMessage = '';
 
-            // Get session token explicitly to ensure auth
-            const { data: { session } } = await supabase.auth.getSession();
-            if (!session) throw new Error("Sessão inválida. Recarregue a página.");
+            // Lógica específica para Motoboy
+            if (formData.role === 'motoboy') {
+                const { allMet } = getPasswordStrength(formData.password);
+                if (!formData.phone || !formData.password) {
+                    throw new Error("Telefone e Senha são obrigatórios para Motoboy.");
+                }
+                if (!allMet) {
+                    throw new Error("A senha não atende aos requisitos mínimos de segurança.");
+                }
+                // Gerar email de login baseado no telefone
+                loginEmail = `${formData.phone.replace(/\D/g, '')}@motoboy.ifarma.com`;
+                displayMessage = `Motoboy cadastrado!\nLogin: ${formData.phone.replace(/\D/g, '')}\nSenha: ${formData.password}`;
+            } else {
+                // Lógica para outros membros (Gerente, Caixa)
+                if (!formData.email) {
+                    throw new Error("E-mail é obrigatório.");
+                }
+                // Gerar senha aleatória se não for motoboy
+                loginPassword = Math.random().toString(36).slice(-8) + 'Aa1!';
+                displayMessage = `Membro cadastrado!\nEmail: ${loginEmail}\nSenha Temporária: ${loginPassword}`;
+            }
 
-            // Usar a Edge Function para criar usuário sem deslogar o admin/manager
-            const { data: authData, error: authErr } = await supabase.functions.invoke('create-user-admin', {
-                body: {
-                    email: formData.email,
-                    password: tempPassword,
+            // Manual Fetch to bypass potential Supabase Client invoke issues
+            const { data: { session: freshSession } } = await supabase.auth.getSession();
+            if (!freshSession) throw new Error("Sessão expirada. Por favor, faça login novamente.");
+
+            const baseUrl = import.meta.env.VITE_SUPABASE_URL;
+            const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+            console.log("🚀 Custom Invoke Start");
+
+            const response = await fetch(`${baseUrl}/functions/v1/create-user-admin`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${freshSession.access_token}`, // Restricted: Real user session token
+                    'apikey': anonKey
+                },
+                body: JSON.stringify({
+                    email: loginEmail,
+                    password: loginPassword,
                     metadata: {
                         full_name: formData.name,
                         role: formData.role,
-                        pharmacy_id: pharmacyId
+                        pharmacy_id: pharmacyId,
+                        phone: formData.phone,
+                        vehicle_plate: formData.role === 'motoboy' ? formData.vehicle_plate : undefined,
+                        vehicle_model: formData.role === 'motoboy' ? formData.vehicle_model : undefined,
                     }
-                },
-                headers: {
-                    Authorization: `Bearer ${session?.access_token}`
-                }
+                })
             });
 
-            if (authErr || authData?.error) throw new Error(authErr?.message || authData?.error);
+            console.log("📡 Response Status:", response.status);
 
-            // Criar perfil com dados adicionais
+            const result = await response.json().catch(() => ({}));
+
+            if (!response.ok) {
+                console.error("❌ Edge Function Error Detail:", result);
+                const errorMsg = result.error || result.message || "Erro desconhecido na Edge Function";
+                const error = new Error(errorMsg);
+                (error as any).status = response.status;
+                (error as any).code = result.code;
+                throw error;
+            }
+
+            const authData = result;
+
+            // Criar perfil com dados adicionais (Backup/Confirmação)
             const { error: profileError } = await supabase
                 .from('profiles')
                 .upsert({
                     id: authData.user.id,
-                    email: formData.email,
+                    email: loginEmail,
                     full_name: formData.name,
                     phone: formData.phone,
                     role: formData.role,
                     pharmacy_id: pharmacyId,
-                    is_active: true
+                    is_active: true,
                 });
 
-            if (profileError) throw profileError;
+            if (profileError) {
+                console.error("Erro ao atualizar perfil local:", profileError);
+            }
 
-            alert(`Membro da equipe cadastrado!\nEmail: ${formData.email}\nSenha: ${tempPassword}`);
+            alert(displayMessage);
             setShowModal(false);
-            setFormData({ name: '', email: '', phone: '', role: 'staff', vehicle_plate: '', vehicle_model: '' });
+            setFormData({ name: '', email: '', phone: '', password: '', role: 'staff', vehicle_plate: '', vehicle_model: '' });
             fetchTeam();
         } catch (error: any) {
-            alert("Erro: " + error.message);
+            console.error("Erro cadastro:", error);
+            let msg = error.message;
+
+            // Handle Supabase Function error object (FunctionsHttpError)
+            if (error.context?.json) {
+                const jsonErr = error.context.json;
+                msg = jsonErr.error || msg;
+            } else if (error.status === 401) {
+                msg = "Não autorizado. Sua sessão pode ter expirado. Por favor, faça login novamente.";
+            }
+
+            // Tratamento de mensagens comuns do Supabase Auth
+            if (msg.includes("non-2xx") || msg.toLowerCase().includes("status code")) {
+                if (error.status === 400 || error.context?.status === 400) {
+                    msg = "Erro nos dados enviados. Verifique se a senha atende aos requisitos ou se o usuário já existe.";
+                } else if (error.status === 401 || error.context?.status === 401) {
+                    msg = "Sessão inválida ou expirada. Recarregue a página.";
+                } else {
+                    msg = "Erro no servidor. Verifique os dados ou tente novamente mais tarde.";
+                }
+            }
+
+            if (msg.includes("User already registered") || msg.includes("already exists") || error.code === 'USER_ALREADY_EXISTS') {
+                msg = "Este usuário (telefone ou email) já está cadastrado no sistema. Tente fazer login ou use outro número.";
+            } else if (msg.includes("weak_password") || error.code === 'PASSWORD_TOO_WEAK') {
+                msg = "A senha é muito fraca. Certifique-se de seguir os requisitos: 6+ caracteres, números e símbolos.";
+            }
+
+            alert("Erro: " + msg);
         } finally {
             setSaving(false);
         }
@@ -187,7 +276,7 @@ const TeamManagement = () => {
                 <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
                     <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowModal(false)}></div>
                     <div className="relative w-full max-w-md bg-white dark:bg-[#1a2e22] rounded-[32px] shadow-2xl overflow-hidden border border-white/10">
-                        <form onSubmit={handleSave} className="p-8">
+                        <form onSubmit={handleSave} className="p-8 max-h-[90vh] overflow-y-auto">
                             <div className="flex justify-between items-center mb-6">
                                 <h2 className="text-2xl font-black italic tracking-tighter text-slate-900 dark:text-white">Novo Colaborador</h2>
                                 <button type="button" onClick={() => setShowModal(false)} className="size-10 rounded-full bg-slate-100 dark:bg-black/20 flex items-center justify-center hover:rotate-90 transition-transform"><MaterialIcon name="close" /></button>
@@ -207,6 +296,7 @@ const TeamManagement = () => {
                                         <option value="motoboy">Motoboy</option>
                                     </select>
                                 </div>
+
                                 <div>
                                     <label className="text-[10px] font-black uppercase text-slate-500 pl-1 block mb-1">Nome Completo</label>
                                     <input
@@ -217,25 +307,100 @@ const TeamManagement = () => {
                                         placeholder="Ex: Ana Souza"
                                     />
                                 </div>
+
+                                {/* Campos dinâmicos baseados no cargo */}
+                                {formData.role !== 'motoboy' ? (
+                                    <div>
+                                        <label className="text-[10px] font-black uppercase text-slate-500 pl-1 block mb-1">Email de Acesso</label>
+                                        <input
+                                            required
+                                            type="email"
+                                            value={formData.email}
+                                            onChange={e => setFormData({ ...formData, email: e.target.value })}
+                                            className="w-full h-12 px-4 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 rounded-xl outline-none font-bold italic"
+                                            placeholder="ana@suafarma.com"
+                                        />
+                                    </div>
+                                ) : (
+                                    <>
+                                        {/* Campos específicos de Motoboy */}
+                                        <div>
+                                            <label className="text-[10px] font-black uppercase text-slate-500 pl-1 block mb-1">Senha de Acesso</label>
+                                            <input
+                                                required
+                                                type="text"
+                                                value={formData.password}
+                                                onChange={e => setFormData({ ...formData, password: e.target.value })}
+                                                className="w-full h-12 px-4 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 rounded-xl outline-none font-bold italic"
+                                                placeholder="Crie uma senha forte"
+                                            />
+
+                                            {/* Password Requirements Guidance - Enhanced for Visibility */}
+                                            <div className="mt-3 p-4 bg-slate-50 dark:bg-black/20 rounded-[20px] border border-slate-100 dark:border-white/10 shadow-inner">
+                                                <p className="text-[10px] font-black uppercase text-slate-500 mb-3 tracking-widest flex items-center gap-2">
+                                                    <MaterialIcon name="security" className="text-[14px]" />
+                                                    Requisitos de Segurança
+                                                </p>
+                                                <div className="space-y-2">
+                                                    {getPasswordStrength(formData.password).requirements.map(req => (
+                                                        <div key={req.id} className="flex items-center gap-3">
+                                                            <div className={`size-5 rounded-lg flex items-center justify-center transition-all ${req.met ? 'bg-green-500 shadow-lg shadow-green-500/20' : 'bg-slate-200 dark:bg-white/5'}`}>
+                                                                {req.met ? (
+                                                                    <MaterialIcon name="check" className="text-[12px] text-white" />
+                                                                ) : (
+                                                                    <div className="size-1 bg-slate-400 rounded-full" />
+                                                                )}
+                                                            </div>
+                                                            <span className={`text-[11px] font-bold tracking-tight transition-colors ${req.met ? 'text-green-500' : 'text-slate-400'}`}>
+                                                                {req.text}
+                                                            </span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+
+                                            <p className="text-[10px] text-slate-400 mt-2 pl-1 leading-relaxed">Esta senha será necessária para o primeiro acesso no aplicativo do motoboy.</p>
+                                        </div>
+
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div>
+                                                <label className="text-[10px] font-black uppercase text-slate-500 pl-1 block mb-1">Placa</label>
+                                                <input
+                                                    required
+                                                    value={formData.vehicle_plate}
+                                                    onChange={e => setFormData({ ...formData, vehicle_plate: e.target.value })}
+                                                    className="w-full h-12 px-4 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 rounded-xl outline-none font-bold italic"
+                                                    placeholder="ABC-1234"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="text-[10px] font-black uppercase text-slate-500 pl-1 block mb-1">Modelo Moto</label>
+                                                <input
+                                                    required
+                                                    value={formData.vehicle_model}
+                                                    onChange={e => setFormData({ ...formData, vehicle_model: e.target.value })}
+                                                    className="w-full h-12 px-4 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 rounded-xl outline-none font-bold italic"
+                                                    placeholder="Ex: Fan 160"
+                                                />
+                                            </div>
+                                        </div>
+                                    </>
+                                )}
+
                                 <div>
-                                    <label className="text-[10px] font-black uppercase text-slate-500 pl-1 block mb-1">Email de Acesso</label>
+                                    <label className="text-[10px] font-black uppercase text-slate-500 pl-1 block mb-1">
+                                        {formData.role === 'motoboy' ? 'Telefone (Login)' : 'WhatsApp / Telefone'}
+                                    </label>
                                     <input
-                                        required
-                                        type="email"
-                                        value={formData.email}
-                                        onChange={e => setFormData({ ...formData, email: e.target.value })}
-                                        className="w-full h-12 px-4 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 rounded-xl outline-none font-bold italic"
-                                        placeholder="ana@suafarma.com"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="text-[10px] font-black uppercase text-slate-500 pl-1 block mb-1">WhatsApp / Telefone</label>
-                                    <input
+                                        required={formData.role === 'motoboy'}
                                         value={formData.phone}
                                         onChange={e => setFormData({ ...formData, phone: e.target.value })}
                                         className="w-full h-12 px-4 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 rounded-xl outline-none font-bold italic"
                                         placeholder="(00) 00000-0000"
                                     />
+                                    {formData.role === 'motoboy' && (
+                                        <p className="text-[10px] text-slate-400 mt-1 pl-1">Este número será usado como login.</p>
+                                    )}
                                 </div>
                             </div>
 

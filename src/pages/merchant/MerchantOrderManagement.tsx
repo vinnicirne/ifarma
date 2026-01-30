@@ -65,6 +65,7 @@ const AssignDriverModal = ({ isOpen, onClose, onAssign, pharmacyId }: any) => {
                                 <div className="flex-1">
                                     <p className="font-bold text-slate-900 dark:text-white text-sm">{driver.full_name || 'Motoboy'}</p>
                                     <p className="text-xs text-slate-500">{driver.phone || 'Sem telefone'}</p>
+                                    <p className="text-[10px] text-slate-400 font-mono">ID: {driver.id.substring(0, 8)}...</p>
                                 </div>
                                 <div className="size-8 rounded-full bg-primary/10 text-primary flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                                     <MaterialIcon name="check" />
@@ -543,12 +544,12 @@ const MerchantOrderManagement = () => {
 
             // Iterate and update all
             for (const oId of targets) {
-                // Update Order Status
+                // Update Order Status - DIRECT TO 'em_rota' (SAIU PARA ENTREGA)
                 const { error: orderError } = await supabase
                     .from('orders')
                     .update({
                         motoboy_id: driverId,
-                        status: 'aguardando_motoboy' // Status correto para o motoboy aceitar/ver
+                        status: 'em_rota' // Já sai para entrega imediatamente
                     })
                     .eq('id', oId);
 
@@ -562,9 +563,9 @@ const MerchantOrderManagement = () => {
 
                 if (profileError) console.error("Error updating motoboy profile:", profileError);
 
-                // Notify (Optional: could be batched or separate)
-                // const order = orders.find(o => o.id === oId);
-                // if (order) sendWhatsAppNotification(order, 'aguardando_motoboy');
+                // Notify Customer
+                const order = orders.find(o => o.id === oId);
+                if (order) sendWhatsAppNotification(order, 'em_rota');
             }
 
             setIsDriverModalOpen(false);
@@ -573,7 +574,7 @@ const MerchantOrderManagement = () => {
 
             // Refresh
             if (pharmacy?.id) fetchOrders(pharmacy.id);
-            alert(`Motoboy atribuído a ${targets.length} pedido(s) com sucesso!`);
+            alert(`Motoboy atribuído a ${targets.length} pedido(s) com sucesso! Status atualizado para 'Saiu para Entrega'.`);
 
         } catch (err) {
             console.error('Error assigning driver:', err);

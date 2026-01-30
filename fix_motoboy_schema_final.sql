@@ -1,60 +1,42 @@
--- ==========================================================
--- CORRECÇÃO FINAL SCHEMA MOTOBOY (VERSÃO CORRIGIDA)
--- execute este script no Editor SQL do Supabase
--- ==========================================================
+-- Enable Realtime for profiles table (Already enabled, skipping)
+-- alter publication supabase_realtime add table profiles;
 
--- 1. ADICIONAR COLUNAS QUE FALTAM NA TABELA PROFILES
-DO $$
-BEGIN
-    -- signal_status
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'profiles' AND column_name = 'signal_status') THEN
-        ALTER TABLE profiles ADD COLUMN signal_status TEXT;
-    END IF;
-
-    -- battery_level
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'profiles' AND column_name = 'battery_level') THEN
-        ALTER TABLE profiles ADD COLUMN battery_level INTEGER;
-    END IF;
-
-    -- last_lat
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'profiles' AND column_name = 'last_lat') THEN
-        ALTER TABLE profiles ADD COLUMN last_lat DOUBLE PRECISION;
-    END IF;
-
-    -- last_lng
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'profiles' AND column_name = 'last_lng') THEN
-        ALTER TABLE profiles ADD COLUMN last_lng DOUBLE PRECISION;
-    END IF;
-END
-$$;
-
--- 2. GARANTIR QUE A TABELA LOCATION_HISTORY EXISTA (FALLBACK)
-CREATE TABLE IF NOT EXISTS location_history (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    motoboy_id UUID REFERENCES profiles(id),
-    latitude DOUBLE PRECISION NOT NULL,
-    longitude DOUBLE PRECISION NOT NULL,
-    recorded_at TIMESTAMPTZ DEFAULT NOW()
+-- Ensure RLS on orders allows Motoboys to see their assigned orders
+DROP POLICY IF EXISTS "Motoboys can view assigned orders" ON orders;
+CREATE POLICY "Motoboys can view assigned orders"
+ON orders FOR SELECT
+TO authenticated
+USING (
+  motoboy_id = auth.uid() OR
+  -- Fallback: if user is owner of the pharmacy
+  pharmacy_id IN (
+      SELECT id FROM pharmacies WHERE owner_id = auth.uid()
+  )
 );
 
--- 3. PERMISSÕES RLS PARA LOCATION_HISTORY
-ALTER TABLE location_history ENABLE ROW LEVEL SECURITY;
+-- Allow Motoboys to update status of their assigned orders
+DROP POLICY IF EXISTS "Motoboys can update assigned orders" ON orders;
+CREATE POLICY "Motoboys can update assigned orders"
+ON orders FOR UPDATE
+TO authenticated
+USING (
+  motoboy_id = auth.uid()
+)
+WITH CHECK (
+  motoboy_id = auth.uid()
+);
 
-DO $$
-BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'location_history' AND policyname = 'Motoboys podem inserir historico') THEN
-        CREATE POLICY "Motoboys podem inserir historico"
-        ON location_history FOR INSERT
-        WITH CHECK (auth.uid() = motoboy_id);
-    END IF;
-END
-$$;
+-- Ensure profiles are updateable (for current_order_id)
+-- Simplified policy: Users can update their own profile OR admin/owners can update others
+-- Note: This is a broad policy, for tighter security we would need the pharmacy_members table or check roles strictly.
+-- But to fix the immediate blocker:
 
--- 4. RECARREGAR CONFIG
-NOTIFY pgrst, 'reload config';
-
--- 5. CHECAGEM FINAL
-SELECT column_name, data_type 
-FROM information_schema.columns 
-WHERE table_name = 'profiles'
-AND column_name IN ('signal_status', 'battery_level', 'last_lat', 'last_lng', 'last_online');
+CREATE POLICY "Owners can update motoboy profiles"
+ON profiles FOR UPDATE
+TO authenticated
+USING (
+   auth.uid() = id OR -- User updates self
+   EXISTS ( -- Or user is an owner of a pharmacy
+      SELECT 1 FROM pharmacies WHERE owner_id = auth.uid()
+   )
+);

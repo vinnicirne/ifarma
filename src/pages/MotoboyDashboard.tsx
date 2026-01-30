@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MapContainer, TileLayer, Marker, Circle, useMap } from 'react-leaflet';
 import L from 'leaflet';
@@ -56,6 +56,65 @@ const MotoboyDashboard = ({ session, profile }: { session: any, profile: any }) 
     const [currentOrder, setCurrentOrder] = useState<any>(null);
     const [showMenu, setShowMenu] = useState(false);
     const [showNavOptions, setShowNavOptions] = useState(false);
+
+    // Audio & Alerts States
+    const [notificationSound, setNotificationSound] = useState<'voice' | 'bell'>(() => {
+        return (localStorage.getItem('ifarma_motoboy_sound') as any) || 'voice';
+    });
+    const [isSoundBlocked, setIsSoundBlocked] = useState(false);
+    const [newOrderAlert, setNewOrderAlert] = useState<string | null>(null);
+    const notificationSoundRef = useRef(notificationSound);
+
+    useEffect(() => {
+        notificationSoundRef.current = notificationSound;
+    }, [notificationSound]);
+
+    const playNotificationSound = async (repeatCount = 1) => {
+        const currentSound = notificationSoundRef.current;
+        console.log("🔊 Tentando tocar som:", currentSound);
+
+        if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+
+        for (let i = 0; i < repeatCount; i++) {
+            try {
+                if (currentSound === 'voice') {
+                    if ('speechSynthesis' in window) {
+                        await new Promise<void>((resolve) => {
+                            const utterance = new SpeechSynthesisUtterance("Novo pedido Ifarma!");
+                            utterance.lang = 'pt-BR';
+                            const voices = window.speechSynthesis.getVoices();
+                            const ptVoice = voices.find(v => v.lang.includes('pt-BR') && v.name.includes('Google')) ||
+                                voices.find(v => v.lang.includes('pt-BR'));
+                            if (ptVoice) utterance.voice = ptVoice;
+
+                            const safetyTimeout = setTimeout(() => resolve(), 3000);
+                            utterance.onend = () => { clearTimeout(safetyTimeout); resolve(); };
+                            utterance.onerror = () => { clearTimeout(safetyTimeout); resolve(); };
+                            window.speechSynthesis.speak(utterance);
+                        });
+                    }
+                } else {
+                    await new Promise<void>((resolve) => {
+                        const src = 'https://assets.mixkit.co/active_storage/sfx/571/571-preview.mp3';
+                        const audio = new Audio(src);
+                        audio.volume = 0.8;
+                        const safetyTimeout = setTimeout(() => resolve(), 3000);
+                        audio.onended = () => { clearTimeout(safetyTimeout); resolve(); };
+                        audio.onerror = () => { clearTimeout(safetyTimeout); resolve(); };
+                        audio.play().catch(e => {
+                            console.error("Audio block:", e);
+                            setIsSoundBlocked(true);
+                            clearTimeout(safetyTimeout);
+                            resolve();
+                        });
+                    });
+                }
+                if (i < repeatCount - 1) await new Promise(r => setTimeout(r, 1000));
+            } catch (err) {
+                console.error("Erro na sequência de notificação:", err);
+            }
+        }
+    };
 
     const openMap = (app: 'google' | 'waze' | 'apple') => {
         if (!currentOrder?.pharmacies) return;
@@ -143,9 +202,62 @@ const MotoboyDashboard = ({ session, profile }: { session: any, profile: any }) 
         }
     }, [profile]);
 
+    // ✅ NOVO (V2): Escutar mudanças na tabela PEDIDOS diretamente (Mais robusto)
+    useEffect(() => {
+        if (!session?.user?.id) return;
+
+        console.log("🔌 Conectando Realtime para PEDIDOS do Motoboy...", session.user.id);
+
+        const channel = supabase
+            .channel(`orders_motoboy_${session.user.id}`)
+            .on(
+                'postgres_changes',
+                {
+                    event: 'UPDATE', // ou INSERT se for nova atribuição que cria linha (mas é update)
+                    schema: 'public',
+                    table: 'orders',
+                    filter: `motoboy_id=eq.${session.user.id}`
+                },
+                (payload) => {
+                    console.log("📦 Pedido atribuído/atualizado via Realtime:", payload);
+
+                    // Se fui atribuído ou status mudou, atualizo o estado
+                    if (payload.new && payload.new.id) {
+                        // Alerta Sonoro e Visual
+                        playNotificationSound(2);
+                        setNewOrderAlert(`VOCÊ TEM UM NOVO PEDIDO!`);
+                        setTimeout(() => setNewOrderAlert(null), 6000);
+
+                        console.log("🚀 Atualizando dashboard com pedido:", payload.new.id);
+                        fetchOrderById(payload.new.id);
+                    }
+                }
+            )
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    }, [session?.user?.id]);
+
+    const fetchOrderById = async (orderId: string) => {
+        const { data, error } = await supabase
+            .from('orders')
+            .select('*, pharmacies(name, address)')
+            .eq('id', orderId)
+            .single();
+
+        if (error) {
+            console.error("❌ Erro ao buscar dados do pedido (Provável RLS):", error);
+        }
+
+        if (data) setCurrentOrder(data);
+    };
+
     const fetchCurrentOrder = async () => {
         // Try getting from profile first
         let orderId = profile?.current_order_id;
+
 
         // If not in profile, check if there's any active order assigned to me (Robustness)
         if (!orderId && session?.user?.id) {
@@ -306,12 +418,24 @@ const MotoboyDashboard = ({ session, profile }: { session: any, profile: any }) 
                                 </div>
                             </div>
                         </div>
-                        <button
-                            onClick={() => setShowMenu(!showMenu)}
-                            className="w-9 h-9 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center active:scale-95 transition-transform"
-                        >
-                            <MaterialIcon name="menu" className="text-lg" />
-                        </button>
+                        <div className="flex items-center gap-2">
+                            <button
+                                onClick={() => {
+                                    setIsSoundBlocked(false);
+                                    playNotificationSound(1);
+                                }}
+                                className="w-9 h-9 bg-primary/20 text-primary rounded-full flex items-center justify-center active:scale-95 transition-transform"
+                                title="Testar Som"
+                            >
+                                <MaterialIcon name="volume_up" className="text-lg" />
+                            </button>
+                            <button
+                                onClick={() => setShowMenu(!showMenu)}
+                                className="w-9 h-9 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center active:scale-95 transition-transform"
+                            >
+                                <MaterialIcon name="menu" className="text-lg" />
+                            </button>
+                        </div>
                     </div>
 
                     {/* Status GPS - Compacto */}
@@ -332,6 +456,34 @@ const MotoboyDashboard = ({ session, profile }: { session: any, profile: any }) 
                     {geoState.error && (
                         <div className="mt-2 bg-red-500/10 border border-red-500/30 rounded-lg p-2">
                             <p className="text-red-500 text-[10px] font-bold">{geoState.error}</p>
+                        </div>
+                    )}
+
+                    {/* Banner de Som Bloqueado */}
+                    {isSoundBlocked && (
+                        <button
+                            onClick={() => {
+                                setIsSoundBlocked(false);
+                                playNotificationSound(1);
+                            }}
+                            className="mt-2 w-full bg-orange-500 text-white text-[10px] font-black uppercase py-2 rounded-xl flex items-center justify-center gap-2 animate-pulse"
+                        >
+                            <MaterialIcon name="volume_off" className="text-xs" />
+                            Toque aqui para liberar o som
+                        </button>
+                    )}
+
+                    {/* Alerta de Novo Pedido (Toast) */}
+                    {newOrderAlert && (
+                        <div
+                            className="mt-2 bg-green-500 text-white p-3 rounded-xl flex items-center gap-3 animate-bounce shadow-lg cursor-pointer"
+                            onClick={() => setNewOrderAlert(null)}
+                        >
+                            <MaterialIcon name="notifications_active" className="text-xl" />
+                            <div>
+                                <p className="font-black text-[10px] uppercase">Novo Pedido!</p>
+                                <p className="text-xs font-bold leading-none">{newOrderAlert}</p>
+                            </div>
                         </div>
                     )}
                 </div>
@@ -403,6 +555,9 @@ const MotoboyDashboard = ({ session, profile }: { session: any, profile: any }) 
                                     <p className="text-[8px] text-slate-500 uppercase font-bold">Total</p>
                                 </div>
                             </div>
+                            <p className="text-[9px] text-slate-600 dark:text-slate-400 text-center mt-4 font-mono select-all">
+                                ID: {session?.user?.id}
+                            </p>
                         </div>
                     )}
                 </div>

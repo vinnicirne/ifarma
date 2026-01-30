@@ -7,6 +7,7 @@ export const MotoboyManagement = ({ profile }: { profile: any }) => {
     const [motoboys, setMotoboys] = useState<any[]>([]);
     const [pharmacies, setPharmacies] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
+    const [saving, setSaving] = useState(false);
     const [formData, setFormData] = useState({
         name: '',
         cpf: '',
@@ -27,9 +28,7 @@ export const MotoboyManagement = ({ profile }: { profile: any }) => {
             .eq('role', 'motoboy')
             .order('full_name');
 
-        console.log('=== DEBUG ADMIN MOTOBOYS ===');
-        console.log('Motoboys encontrados:', boys);
-        console.log('Erro:', boysError);
+        if (boysError) console.error('Error fetching motoboys:', boysError);
 
         // Buscar nomes das farmácias
         const { data: pharms } = await supabase
@@ -70,32 +69,90 @@ export const MotoboyManagement = ({ profile }: { profile: any }) => {
     }, []);
 
     const handleSave = async () => {
-        if (!formData.name || !formData.pharmacy_id) return alert("Preencha os campos obrigatórios");
+        if (!formData.name || !formData.pharmacy_id || !formData.phone || !formData.password) {
+            return alert("Preencha os campos obrigatórios: Nome, Telefone, Senha e Farmácia.");
+        }
 
-        const { error } = await supabase.from('motoboys').insert([{
-            name: formData.name,
-            cpf: formData.cpf,
-            phone: formData.phone,
-            pharmacy_id: formData.pharmacy_id,
-            vehicle_plate: formData.vehicle_plate,
-            vehicle_model: formData.vehicle_model,
-            cnh_url: formData.cnh_url,
-            status: 'Disponível'
-            // Password logic omitted for now as it requires Auth API interaction
-        }]);
+        setSaving(true);
+        try {
+            // 1. Gerar e-mail de login baseado no telefone
+            const loginEmail = `${formData.phone.replace(/\D/g, '')}@motoboy.ifarma.com`;
 
-        if (error) alert("Erro ao salvar: " + error.message);
-        else {
+            // Manual Fetch to bypass potential Supabase Client invoke issues
+            const { data: { session: freshSession } } = await supabase.auth.getSession();
+            if (!freshSession) throw new Error("Sessão expirada. Por favor, faça login novamente.");
+
+            const baseUrl = import.meta.env.VITE_SUPABASE_URL;
+            const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+            console.log("🚀 Custom Invoke Start (Motoboy)");
+
+            const response = await fetch(`${baseUrl}/functions/v1/create-user-admin`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${freshSession.access_token}`, // Restricted: Real user session token
+                    'apikey': anonKey
+                },
+                body: JSON.stringify({
+                    email: loginEmail,
+                    password: formData.password,
+                    metadata: {
+                        role: 'motoboy',
+                        full_name: formData.name,
+                        pharmacy_id: formData.pharmacy_id,
+                        phone: formData.phone,
+                        vehicle_plate: formData.vehicle_plate,
+                        vehicle_model: formData.vehicle_model,
+                        cnh_url: formData.cnh_url
+                    }
+                })
+            });
+
+            console.log("📡 Response Status:", response.status);
+
+            const result = await response.json().catch(() => ({}));
+
+            if (!response.ok) {
+                console.error("❌ Edge Function Error Detail:", result);
+                const errorMsg = result.error || result.message || "Erro desconhecido na Edge Function";
+                const error = new Error(errorMsg);
+                (error as any).status = response.status;
+                (error as any).code = result.code;
+                throw error;
+            }
+
+            const data = result;
+
+            // Sucesso!
+            alert('Motoboy cadastrado com sucesso! Login: ' + formData.phone);
             setShowAddForm(false);
             setFormData({ name: '', cpf: '', phone: '', pharmacy_id: '', vehicle_plate: '', vehicle_model: '', cnh_url: '', password: '' });
             fetchData();
+
+        } catch (err: any) {
+            console.error('Erro ao salvar motoboy:', err);
+            alert("Erro ao salvar: " + err.message);
+        } finally {
+            setSaving(false);
         }
     };
 
     const handleDelete = async (id: string) => {
-        if (!confirm("Tem certeza?")) return;
-        await supabase.from('motoboys').delete().eq('id', id);
-        fetchData();
+        if (!confirm("Tem certeza que deseja remover este motoboy?")) return;
+
+        // TODO: Idealmente deletaríamos também o usuário do Auth via Edge Function 'delete-user-admin'
+        // Por enquanto, deletamos apenas o perfil se as políticas permitirem, ou marcamos como inativo.
+        // Como 'delete-user-admin' existe na lista de funções, vamos tentar usar se formos consistentes.
+        // Mas para simplificar agora, deletamos da tabela profiles.
+
+        const { error } = await supabase.from('profiles').delete().eq('id', id);
+
+        if (error) {
+            alert("Erro ao remover: " + error.message);
+        } else {
+            fetchData();
+        }
     };
 
     return (
@@ -213,10 +270,22 @@ export const MotoboyManagement = ({ profile }: { profile: any }) => {
                                         <input value={formData.cpf} onChange={e => setFormData({ ...formData, cpf: e.target.value })} className="h-14 px-5 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 rounded-2xl focus:ring-2 focus:ring-primary/20 outline-none font-bold italic" placeholder="000.000.000-00" />
                                     </label>
                                     <label className="flex flex-col gap-2">
-                                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 px-1">Telefone</span>
+                                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 px-1">Telefone (Login)</span>
                                         <input value={formData.phone} onChange={e => setFormData({ ...formData, phone: e.target.value })} className="h-14 px-5 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 rounded-2xl focus:ring-2 focus:ring-primary/20 outline-none font-bold italic" placeholder="(00) 00000-0000" />
                                     </label>
                                 </div>
+
+                                <label className="flex flex-col gap-2">
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 px-1">Senha de Acesso</span>
+                                    <input
+                                        type="text"
+                                        value={formData.password}
+                                        onChange={e => setFormData({ ...formData, password: e.target.value })}
+                                        className="h-14 px-5 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 rounded-2xl focus:ring-2 focus:ring-primary/20 outline-none font-bold italic"
+                                        placeholder="Mínimo 6 caracteres"
+                                    />
+                                    <span className="text-[10px] text-slate-400">Essa senha será usada pelo motoboy para entrar no app.</span>
+                                </label>
 
                                 <div className="grid grid-cols-2 gap-4">
                                     <label className="flex flex-col gap-2">
@@ -245,8 +314,8 @@ export const MotoboyManagement = ({ profile }: { profile: any }) => {
                                 </label>
                             </div>
 
-                            <button onClick={handleSave} className="w-full mt-8 bg-primary text-background-dark font-black py-5 rounded-3xl shadow-xl shadow-primary/20 active:scale-95 transition-all uppercase tracking-tighter">
-                                Finalizar Cadastro
+                            <button onClick={handleSave} disabled={saving} className="w-full mt-8 bg-primary text-background-dark font-black py-5 rounded-3xl shadow-xl shadow-primary/20 active:scale-95 transition-all uppercase tracking-tighter disabled:opacity-50 disabled:cursor-not-allowed">
+                                {saving ? 'Cadastrando...' : 'Finalizar Cadastro'}
                             </button>
                         </div>
                     </div>

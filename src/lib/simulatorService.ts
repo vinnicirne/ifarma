@@ -45,15 +45,20 @@ export const simulatorService = {
             const subtotal = selectedProducts.reduce((acc, p) => acc + (Math.random() * 50 + 10), 0);
             const deliveryFee = 0; // Grátis na simulação
 
-            // 3. Criar o pedido
+            // 3. Criar o pedido - FIXED: Added customer_id (required by schema)
+            const { data: { session } } = await supabase.auth.getSession();
+            const customerId = session?.user?.id;
+
             const { data: newOrder, error: orderError } = await supabase
                 .from('orders')
                 .insert([{
                     pharmacy_id: randomPharma.id,
+                    customer_id: customerId, // Associar ao usuário logado ou um fixo
                     customer_name: randomCustomer,
                     address: 'Rua das Flores, 123 - Centro, Rio de Janeiro',
                     total_price: subtotal + deliveryFee,
                     status: 'pendente',
+                    payment_method: 'Dinheiro', // Added to satisfy schema
                     created_at: new Date().toISOString()
                 }])
                 .select()

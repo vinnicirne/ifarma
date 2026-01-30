@@ -12,12 +12,72 @@ serve(async (req) => {
     }
 
     try {
-        const supabaseClient = createClient(
-            Deno.env.get('SUPABASE_URL') ?? '',
-            Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-        )
+        const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
+        // Fallback to custom name to avoid reserved prefix restriction in CLI
+        const serviceRoleKey = Deno.env.get('ADMIN_SERVICE_ROLE_KEY') || Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
+
+        console.log(`[Diagnostic] SUPABASE_URL: ${supabaseUrl ? 'OK' : 'MISSING'}`);
+        console.log(`[Diagnostic] ADMIN_SERVICE_ROLE_KEY: ${Deno.env.get('ADMIN_SERVICE_ROLE_KEY') ? 'OK' : 'NOT SET'}`);
+        console.log(`[Diagnostic] SUPABASE_SERVICE_ROLE_KEY: ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ? 'OK' : 'NOT SET'}`);
+
+        if (!supabaseUrl || !serviceRoleKey) {
+            throw new Error("Variáveis de ambiente (URL ou Service Role Key) não configuradas na Edge Function.");
+        }
+
+        const supabaseClient = createClient(supabaseUrl, serviceRoleKey)
+
+        // --- AUTH CHECK: Verify if the requester is an admin or manager ---
+        const authHeader = req.headers.get('Authorization')
+        if (!authHeader) {
+            return new Response(JSON.stringify({ error: 'No authorization header' }), {
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+                status: 401,
+            })
+        }
+
+        const token = authHeader.replace('Bearer ', '')
+        const { data: { user: requester }, error: authError } = await supabaseClient.auth.getUser(token)
+
+        if (authError || !requester) {
+            return new Response(JSON.stringify({ error: 'Invalid requester token', detail: authError?.message }), {
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+                status: 401,
+            })
+        }
+
+        // Fetch requester role from profiles
+        const { data: requesterProfile, error: profileError } = await supabaseClient
+            .from('profiles')
+            .select('role, pharmacy_id')
+            .eq('id', requester.id)
+            .single()
+
+        if (profileError || !requesterProfile) {
+            return new Response(JSON.stringify({ error: 'Could not verify requester profile' }), {
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+                status: 403,
+            })
+        }
+
+        const isAdmin = requesterProfile.role === 'admin'
+        const isManager = requesterProfile.role === 'manager'
+
+        if (!isAdmin && !isManager) {
+            return new Response(JSON.stringify({ error: 'Unauthorized: Only admins or managers can create users' }), {
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+                status: 403,
+            })
+        }
 
         const { email, password, metadata } = await req.json()
+
+        // Additional security: Managers can only create users for their own pharmacy
+        if (isManager && metadata?.pharmacy_id !== requesterProfile.pharmacy_id && !isAdmin) {
+            return new Response(JSON.stringify({ error: 'Unauthorized: Managers can only create users for their own pharmacy' }), {
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+                status: 403,
+            })
+        }
 
         console.log(`Tentando criar usuário: ${email} com role: ${metadata?.role}`)
 
@@ -83,11 +143,26 @@ serve(async (req) => {
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
             status: 200,
         })
-    } catch (error) {
+    } catch (error: any) {
         console.error('Erro na create-user-admin:', error.message)
-        return new Response(JSON.stringify({ error: error.message }), {
+
+        let status = 400;
+        let code = 'ERROR';
+
+        if (error.message?.includes('already registered') || error.message?.includes('already exists')) {
+            status = 409; // Conflict
+            code = 'USER_ALREADY_EXISTS';
+        } else if (error.message?.includes('weak_password') || error.message?.toLowerCase().includes('password is too weak')) {
+            status = 400;
+            code = 'PASSWORD_TOO_WEAK';
+        }
+
+        return new Response(JSON.stringify({
+            error: error.message,
+            code: code
+        }), {
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-            status: 400,
+            status: status,
         })
     }
 })

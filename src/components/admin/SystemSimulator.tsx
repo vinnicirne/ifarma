@@ -13,7 +13,7 @@ const SystemSimulator = ({ onFleetUpdate }: SystemSimulatorProps) => {
     const [autoAdvance, setAutoAdvance] = useState(false);
 
     const addLog = (text: string, type: 'success' | 'info' | 'error' = 'info') => {
-        setLogs(prev => [{ id: Date.now(), text, type }, ...prev].slice(0, 5));
+        setLogs(prev => [{ id: Date.now() + Math.random(), text, type }, ...prev].slice(0, 5));
     };
 
     // 1. Simulação de Pedido Completo
