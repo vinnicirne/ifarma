@@ -62,6 +62,9 @@ const TeamManagement = () => {
         try {
             const tempPassword = Math.random().toString(36).slice(-8) + 'Aa1!';
 
+            // Get session token explicitly to ensure auth
+            const { data: { session } } = await supabase.auth.getSession();
+
             // Usar a Edge Function para criar usuário sem deslogar o admin/manager
             const { data: authData, error: authErr } = await supabase.functions.invoke('create-user-admin', {
                 body: {
@@ -72,6 +75,9 @@ const TeamManagement = () => {
                         role: formData.role,
                         pharmacy_id: pharmacyId
                     }
+                },
+                headers: {
+                    Authorization: `Bearer ${session?.access_token}`
                 }
             });
 
@@ -139,8 +145,8 @@ const TeamManagement = () => {
                         <div key={member.id} className="bg-white dark:bg-[#1a2e23] p-5 rounded-[28px] border border-slate-200 dark:border-white/5 shadow-sm hover:shadow-md transition-all group">
                             <div className="flex items-start justify-between mb-4">
                                 <div className={`size-12 rounded-2xl flex items-center justify-center border border-slate-100 dark:border-white/5 ${member.role === 'manager' ? 'bg-amber-500/10 text-amber-500' :
-                                        member.role === 'staff' ? 'bg-blue-500/10 text-blue-500' :
-                                            member.role === 'motoboy' ? 'bg-green-500/10 text-green-500' : 'bg-slate-100 dark:bg-black/20 text-slate-400'
+                                    member.role === 'staff' ? 'bg-blue-500/10 text-blue-500' :
+                                        member.role === 'motoboy' ? 'bg-green-500/10 text-green-500' : 'bg-slate-100 dark:bg-black/20 text-slate-400'
                                     }`}>
                                     <MaterialIcon name={
                                         member.role === 'manager' ? 'admin_panel_settings' :
