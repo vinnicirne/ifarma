@@ -1,14 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
-import { MaterialIcon } from '../../App'; // We might need to adjust or refactor this shared component import
-
-// Mock helper or import real one if extracted
-const MaterialIconComponent = ({ name, className = "" }: { name: string, className?: string }) => (
-    <span className={`material-symbols-outlined ${className}`}>
-        {name}
-    </span>
-);
+import { MaterialIcon } from '../../components/Shared';
 
 const PharmacyManagement = ({ profile }: { profile: any }) => {
     const navigate = useNavigate();
@@ -150,7 +143,7 @@ const PharmacyManagement = ({ profile }: { profile: any }) => {
                     onClick={() => navigate('/dashboard/pharmacy/new')} // Navegar para página de criação
                     className="bg-primary hover:bg-primary/90 text-background-dark flex h-10 px-4 items-center justify-center rounded-2xl shadow-lg shadow-primary/20 transition-all active:scale-90 gap-2 text-xs font-black uppercase tracking-widest"
                 >
-                    <MaterialIconComponent name="add_business" />
+                    <MaterialIcon name="add_business" />
                     <span className="hidden sm:inline">Nova Farmácia</span>
                 </button>
             </header>
@@ -184,7 +177,7 @@ const PharmacyManagement = ({ profile }: { profile: any }) => {
                                                         {pharm.logo_url ? (
                                                             <img src={pharm.logo_url} alt={pharm.name} className="w-full h-full object-cover" />
                                                         ) : (
-                                                            <MaterialIconComponent name="store" className="text-xl text-primary/40" />
+                                                            <MaterialIcon name="store" className="text-xl text-primary/40" />
                                                         )}
                                                     </div>
                                                     <div>
@@ -196,7 +189,7 @@ const PharmacyManagement = ({ profile }: { profile: any }) => {
 
                                             <td className="p-5 hidden md:table-cell">
                                                 <div className="flex items-center gap-2 max-w-[200px]">
-                                                    <MaterialIconComponent name="location_on" className="text-slate-400 text-sm" />
+                                                    <MaterialIcon name="location_on" className="text-slate-400 text-sm" />
                                                     <span className="text-xs font-bold text-slate-600 dark:text-slate-300 truncate">{pharm.address || 'Endereço não informado'}</span>
                                                 </div>
                                             </td>
@@ -224,7 +217,7 @@ const PharmacyManagement = ({ profile }: { profile: any }) => {
                                                             className="size-9 rounded-xl bg-[#13ec6d]/10 hover:bg-[#13ec6d]/20 text-[#13ec6d] flex items-center justify-center transition-all"
                                                             title="Aprovar"
                                                         >
-                                                            <MaterialIconComponent name="check" className="text-lg" />
+                                                            <MaterialIcon name="check" className="text-lg" />
                                                         </button>
                                                     )}
 
@@ -233,7 +226,7 @@ const PharmacyManagement = ({ profile }: { profile: any }) => {
                                                         className="size-9 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-white/5 dark:hover:bg-white/10 text-slate-500 dark:text-white flex items-center justify-center transition-all"
                                                         title="Editar"
                                                     >
-                                                        <MaterialIconComponent name="edit" className="text-lg" />
+                                                        <MaterialIcon name="edit" className="text-lg" />
                                                     </button>
 
                                                     <button
@@ -241,7 +234,7 @@ const PharmacyManagement = ({ profile }: { profile: any }) => {
                                                         className="size-9 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-500 flex items-center justify-center transition-all"
                                                         title="Excluir"
                                                     >
-                                                        <MaterialIconComponent name="delete" className="text-lg" />
+                                                        <MaterialIcon name="delete" className="text-lg" />
                                                     </button>
                                                 </div>
                                             </td>

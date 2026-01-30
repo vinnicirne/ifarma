@@ -17,6 +17,7 @@ interface Product {
     image_url?: string;
     status: string;
     category?: string;
+    is_active: boolean;
 }
 
 interface CatalogItem {
@@ -76,7 +77,7 @@ const InventoryControl = () => {
             if (data) {
                 const mappedProducts = data.map(p => ({
                     ...p,
-                    status: p.stock === 0 ? 'Sem Estoque' : p.stock <= 10 ? 'Baixo Estoque' : 'Ativo'
+                    status: !p.is_active ? 'Pausado' : p.stock === 0 ? 'Sem Estoque' : p.stock <= 10 ? 'Baixo Estoque' : 'Ativo'
                 }));
                 setProducts(mappedProducts);
             }
@@ -93,7 +94,7 @@ const InventoryControl = () => {
 
         const { data } = await supabase
             .from('product_catalog')
-            .select('id, name, brand, category, requires_prescription')
+            .select('id, name, brand, category, requires_prescription, ean, image_url')
             .ilike('name', `%${val}%`)
             .limit(5);
 
@@ -108,7 +109,8 @@ const InventoryControl = () => {
             brand: item.brand || '',
             category: item.category || '',
             requires_prescription: item.requires_prescription,
-            image_url: item.image_url || prev.image_url
+            image_url: item.image_url || prev.image_url,
+            ean: item.ean || ''
         }));
         setCatalogSearch(item.name);
         setCatalogSuggestions([]);
@@ -166,7 +168,9 @@ const InventoryControl = () => {
                 promo_price: formData.promo_price ? parseFloat(formData.promo_price.toString().replace(',', '.')) : null,
                 stock: parseInt(formData.stock.toString()),
                 requires_prescription: formData.requires_prescription,
-                image_url: formData.image_url
+                image_url: formData.image_url,
+                sku: formData.sku,
+                ean: formData.ean
             };
 
             let error;
@@ -199,7 +203,8 @@ const InventoryControl = () => {
         setFormData({
             name: '', brand: '', category: '', price: '',
             original_price: '', promo_price: '', stock: '',
-            requires_prescription: false, image_url: ''
+            requires_prescription: false, image_url: '',
+            sku: '', ean: ''
         });
         setCatalogSearch('');
         setSelectedCatalogItem(null);
@@ -216,7 +221,9 @@ const InventoryControl = () => {
             promo_price: product.promo_price?.toString() || '',
             stock: product.stock.toString(),
             requires_prescription: (product as any).requires_prescription || false,
-            image_url: product.image_url || ''
+            image_url: product.image_url || '',
+            sku: product.sku || '',
+            ean: product.ean || ''
         });
         setIsAddModalOpen(true);
     };
@@ -227,6 +234,23 @@ const InventoryControl = () => {
         const { error } = await supabase.from('products').delete().eq('id', id);
         if (!error) fetchProducts();
         else alert('Erro ao excluir: ' + error.message);
+    };
+
+    const toggleProductStatus = async (product: Product) => {
+        const newStatus = !product.is_active;
+
+        // Optimistic Update
+        setProducts(prev => prev.map(p => p.id === product.id ? { ...p, is_active: newStatus } : p));
+
+        const { error } = await supabase
+            .from('products')
+            .update({ is_active: newStatus })
+            .eq('id', product.id);
+
+        if (error) {
+            alert('Erro ao atualizar status: ' + error.message);
+            fetchProducts(); // Revert on error
+        }
     };
 
     return (
@@ -266,7 +290,7 @@ const InventoryControl = () => {
                     ) : products.length === 0 ? (
                         <div className="p-10 text-center text-slate-400 font-bold uppercase tracking-widest text-xs">Nenhum produto cadastrado.</div>
                     ) : products.map((prod) => (
-                        <div key={prod.id} className="grid grid-cols-12 gap-4 p-5 items-center hover:bg-slate-50 dark:hover:bg-white/5 transition-colors group">
+                        <div key={prod.id} className={`grid grid-cols-12 gap-4 p-5 items-center hover:bg-slate-50 dark:hover:bg-white/5 transition-colors group ${!prod.is_active ? 'opacity-50 grayscale-[0.8]' : ''}`}>
                             <div className="col-span-5 flex items-center gap-4">
                                 <div className="size-12 rounded-xl bg-slate-100 dark:bg-black/20 flex items-center justify-center border border-slate-200 dark:border-white/5 overflow-hidden">
                                     {prod.image_url ? (
@@ -299,15 +323,26 @@ const InventoryControl = () => {
                             </div>
 
                             <div className="col-span-2 flex justify-center">
-                                <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-full border ${prod.stock === 0 ? 'border-red-500 text-red-500 bg-red-500/10' :
-                                    prod.stock <= 10 ? 'border-orange-500 text-orange-500 bg-orange-500/10' :
-                                        'border-green-500 text-green-500 bg-green-500/10'
+                                <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-full border ${prod.status === 'Pausado' ? 'border-slate-400 text-slate-500 bg-slate-100 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-600' :
+                                    prod.stock === 0 ? 'border-red-500 text-red-500 bg-red-500/10' :
+                                        prod.stock <= 10 ? 'border-orange-500 text-orange-500 bg-orange-500/10' :
+                                            'border-green-500 text-green-500 bg-green-500/10'
                                     }`}>
                                     {prod.status}
                                 </span>
                             </div>
 
                             <div className="col-span-1 flex justify-center gap-2">
+                                <button
+                                    onClick={() => toggleProductStatus(prod)}
+                                    title={prod.is_active ? "Pausar Vendas" : "Retomar Vendas"}
+                                    className={`size-8 rounded-lg flex items-center justify-center shadow-sm transition-colors ${prod.is_active
+                                        ? 'bg-amber-100 hover:bg-amber-200 text-amber-600'
+                                        : 'bg-green-100 hover:bg-green-200 text-green-600'
+                                        }`}
+                                >
+                                    <MaterialIcon name={prod.is_active ? "pause" : "play_arrow"} className="text-sm" />
+                                </button>
                                 <button onClick={() => handleEdit(prod)} className="size-8 rounded-lg bg-slate-100 dark:bg-white/5 hover:bg-primary/20 text-slate-400 hover:text-primary transition-colors flex items-center justify-center shadow-sm">
                                     <MaterialIcon name="edit" className="text-sm" />
                                 </button>
@@ -373,6 +408,16 @@ const InventoryControl = () => {
                                         <input required value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} className="w-full h-12 px-4 rounded-xl bg-slate-50 dark:bg-black/20 border-none text-sm font-bold" />
                                     </div>
 
+                                    <div className="col-span-1">
+                                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">EAN (Código de Barras)</label>
+                                        <input placeholder="Opcional" value={formData.ean} onChange={e => setFormData({ ...formData, ean: e.target.value })} className="w-full h-12 px-4 rounded-xl bg-slate-50 dark:bg-black/20 border-none text-sm font-bold shadow-inner" />
+                                    </div>
+
+                                    <div className="col-span-1">
+                                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">SKU (Cód. Interno)</label>
+                                        <input placeholder="Opcional" value={formData.sku} onChange={e => setFormData({ ...formData, sku: e.target.value })} className="w-full h-12 px-4 rounded-xl bg-slate-50 dark:bg-black/20 border-none text-sm font-bold shadow-inner" />
+                                    </div>
+
                                     <div className="grid grid-cols-2 gap-4">
                                         <div className="col-span-1">
                                             <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Marca</label>
@@ -422,7 +467,15 @@ const InventoryControl = () => {
                                                     <span className="text-[10px] font-black uppercase tracking-widest text-primary">Subindo...</span>
                                                 </div>
                                             ) : formData.image_url ? (
-                                                <img src={formData.image_url} alt="Preview" className="w-full h-full object-cover" />
+                                                <img
+                                                    src={formData.image_url}
+                                                    alt="Preview"
+                                                    className="w-full h-full object-cover"
+                                                    onError={(e) => {
+                                                        e.currentTarget.src = 'https://placehold.co/400x400?text=Erro+Imagem';
+                                                        e.currentTarget.classList.add('opacity-50');
+                                                    }}
+                                                />
                                             ) : (
                                                 <div className="flex flex-col items-center gap-4 text-primary/40 group-hover:text-primary transition-colors">
                                                     <div className="size-20 rounded-full bg-primary/10 flex items-center justify-center">
@@ -436,6 +489,18 @@ const InventoryControl = () => {
                                             )}
                                             <input type="file" className="hidden" accept="image/*" onChange={handleFileUpload} disabled={uploading} />
                                         </label>
+
+                                        {formData.name && (
+                                            <button
+                                                type="button"
+                                                onClick={() => window.open(`https://www.google.com/search?tbm=isch&q=${encodeURIComponent(formData.name + ' ' + (formData.brand || '') + ' png')}`, '_blank')}
+                                                className="mt-4 w-full h-10 rounded-xl bg-blue-500 hover:bg-blue-600 text-white shadow-lg shadow-blue-500/20 text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 hover:scale-[1.02] active:scale-95"
+                                            >
+                                                <MaterialIcon name="search" className="text-sm" />
+                                                Buscar Foto no Google
+                                            </button>
+                                        )}
+
                                         {formData.image_url && !uploading && (
                                             <button
                                                 type="button"

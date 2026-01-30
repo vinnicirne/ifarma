@@ -1,13 +1,9 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
+import { MaterialIcon } from '../../components/Shared';
 
-// Material Icon Component
-const MaterialIcon = ({ name, className = '' }: { name: string; className?: string }) => (
-    <span className={`material-symbols-outlined ${className}`}>{name}</span>
-);
-
-const Cart = () => {
+export const Cart = () => {
     const navigate = useNavigate();
     const [loading, setLoading] = useState(false);
     const [cartItems, setCartItems] = useState<any[]>([]);
@@ -211,5 +207,3 @@ const Cart = () => {
         </div>
     );
 };
-
-export default Cart;

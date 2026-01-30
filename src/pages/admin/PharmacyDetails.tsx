@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
-import { MaterialIcon } from '../../App';
+import { MaterialIcon } from '../../components/Shared';
 import AdminMap from '../../components/admin/AdminMap';
 import RealtimeMetrics from '../../components/dashboard/RealtimeMetrics';
+import PharmacyFinanceTab from '../../components/admin/PharmacyFinanceTab';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
 
 const PharmacyDetails = () => {
@@ -11,7 +12,7 @@ const PharmacyDetails = () => {
     const navigate = useNavigate();
     const [loading, setLoading] = useState(false);
     const [initialLoading, setInitialLoading] = useState(true);
-    const [activeTab, setActiveTab] = useState<'overview' | 'orders' | 'settings'>('overview');
+    const [activeTab, setActiveTab] = useState<'overview' | 'orders' | 'settings' | 'finance'>('overview');
     const [orders, setOrders] = useState<any[]>([]);
     const [searchTerm, setSearchTerm] = useState('');
 
@@ -307,6 +308,7 @@ const PharmacyDetails = () => {
                         {[
                             { id: 'overview', label: 'Visão Geral', icon: 'dashboard' },
                             { id: 'orders', label: 'Pedidos', icon: 'receipt_long' },
+                            { id: 'finance', label: 'Financeiro', icon: 'payments' },
                             { id: 'settings', label: 'Configurações', icon: 'settings' }
                         ].map(tab => (
                             <button
@@ -425,6 +427,11 @@ const PharmacyDetails = () => {
                         </div>
                     )
                 }
+
+                {/* 2.5 FINANCE TAB */}
+                {activeTab === 'finance' && id && (
+                    <PharmacyFinanceTab pharmacyId={id} />
+                )}
 
 
                 {/* 3. SETTINGS TAB (Original Form) */}
