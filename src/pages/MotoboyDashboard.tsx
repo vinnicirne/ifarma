@@ -615,6 +615,48 @@ const MotoboyDashboard = ({ session, profile }: { session: any, profile: any }) 
                     </div>
                 </div>
             )}
+
+            {/* Modal de Seleção de Navegação */}
+            {showNavOptions && (
+                <div className="absolute inset-0 z-[100] flex items-end justify-center p-4 bg-black/60 backdrop-blur-sm sm:items-center" onClick={() => setShowNavOptions(false)}>
+                    <div
+                        className="w-full max-w-sm bg-white dark:bg-slate-900 rounded-[32px] p-6 shadow-2xl animate-in fade-in slide-in-from-bottom-10 duration-300"
+                        onClick={e => e.stopPropagation()}
+                    >
+                        <div className="flex justify-between items-center mb-6">
+                            <h2 className="text-xl font-black italic tracking-tighter text-slate-900 dark:text-white">Escolha o GPS</h2>
+                            <button
+                                onClick={() => setShowNavOptions(false)}
+                                className="size-10 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-500"
+                            >
+                                <MaterialIcon name="close" />
+                            </button>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                            <button
+                                onClick={() => openMap('google')}
+                                className="flex flex-col items-center gap-3 p-6 bg-slate-50 dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-white/5 active:scale-95 transition-all hover:bg-slate-100 dark:hover:bg-slate-700"
+                            >
+                                <div className="size-12 bg-white rounded-2xl shadow-sm flex items-center justify-center p-2">
+                                    <img src="https://upload.wikimedia.org/wikipedia/commons/3/39/Google_Maps_icon_%282020%29.svg" className="w-full h-full" alt="Google Maps" />
+                                </div>
+                                <span className="font-black text-xs uppercase tracking-widest text-slate-900 dark:text-white">Google Maps</span>
+                            </button>
+
+                            <button
+                                onClick={() => openMap('waze')}
+                                className="flex flex-col items-center gap-3 p-6 bg-slate-50 dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-white/5 active:scale-95 transition-all hover:bg-slate-100 dark:hover:bg-slate-700"
+                            >
+                                <div className="size-12 bg-white rounded-2xl shadow-sm flex items-center justify-center p-2">
+                                    <img src="https://upload.wikimedia.org/wikipedia/commons/6/66/Waze_icon.svg" className="w-full h-full" alt="Waze" />
+                                </div>
+                                <span className="font-black text-xs uppercase tracking-widest text-slate-900 dark:text-white">Waze</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
