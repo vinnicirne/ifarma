@@ -13,11 +13,13 @@ import UserProfile from '../pages/UserProfile';
 import Favorites from '../pages/Favorites';
 import Notifications from '../pages/Notifications';
 import { UserOrderTracking } from '../pages/client/UserOrderTracking';
+import UserOrders from '../pages/client/UserOrders';
 import { PrescriptionUpload } from '../pages/client/PrescriptionUpload';
 import { PharmacyChat } from '../pages/client/PharmacyChat';
 import { Auth } from '../components/auth/Auth';
 import PartnerRegistration from '../pages/PartnerRegistration';
 import ForgotPassword from '../pages/ForgotPassword';
+import ResetPassword from '../pages/ResetPassword';
 import DiagnosticPage from '../pages/DiagnosticPage';
 import HelpSupport from '../pages/HelpSupport';
 import PrivacyData from '../pages/PrivacyData';
@@ -76,6 +78,7 @@ export const AppRoutes = ({ session, profile, userLocation, sortedPharmacies }: 
             <Route path="/signup" element={<Auth view="signup" />} />
             <Route path="/partner/register" element={<PartnerRegistration />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
 
             {/* Diagnostic Route - Public */}
             <Route path="/diagnostic" element={<DiagnosticPage />} />
@@ -87,7 +90,9 @@ export const AppRoutes = ({ session, profile, userLocation, sortedPharmacies }: 
             <Route path="/profile" element={<ProtectedRoute session={session}><UserProfile session={session} profile={profile} /></ProtectedRoute>} />
             <Route path="/favorites" element={<ProtectedRoute session={session}><Favorites /></ProtectedRoute>} />
             <Route path="/notifications" element={<ProtectedRoute session={session}><Notifications /></ProtectedRoute>} />
+            <Route path="/meus-pedidos" element={<ProtectedRoute session={session}><UserOrders /></ProtectedRoute>} />
             <Route path="/order-tracking/:orderId?" element={<ProtectedRoute session={session}><UserOrderTracking /></ProtectedRoute>} />
+            <Route path="/pedido/:orderId?" element={<ProtectedRoute session={session}><UserOrderTracking /></ProtectedRoute>} />
             <Route path="/prescription-upload" element={<ProtectedRoute session={session}><PrescriptionUpload /></ProtectedRoute>} />
             <Route path="/chat/:orderId?" element={<ProtectedRoute session={session}><PharmacyChat /></ProtectedRoute>} />
 

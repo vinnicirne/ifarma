@@ -48,6 +48,11 @@ export const UserOrderTracking = () => {
         if (hasNotifiedProximity.current || !order || !session) return;
 
         hasNotifiedProximity.current = true;
+
+        // Play horn sound
+        const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2855/2855-preview.mp3');
+        audio.play().catch(e => console.warn("Audio play blocked:", e));
+
         await supabase.from('notifications').insert({
             user_id: session.user.id,
             title: '🛵 Seu pedido está chegando!',
@@ -122,6 +127,7 @@ export const UserOrderTracking = () => {
 
         // Tempo adicional baseado no status
         let additionalTime = 2; // Margem de segurança
+        if (order.status === 'aguardando_motoboy') additionalTime += 5;
         if (order.status === 'preparando') additionalTime += 10;
         if (order.status === 'pendente') additionalTime += 15;
 
@@ -221,7 +227,8 @@ export const UserOrderTracking = () => {
     const steps = [
         { status: 'pendente', label: 'Pedido Recebido', sub: `Confirmado às ${new Date(order.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`, icon: 'check' },
         { status: 'preparando', label: 'Preparando seu pedido', sub: 'Em andamento', icon: 'pill' },
-        { status: 'em_rota', label: 'Em rota de entrega', sub: 'Aguardando saída', icon: 'local_shipping' },
+        { status: 'aguardando_motoboy', label: 'Aguardando entregador', sub: 'Pronto na farmácia', icon: 'person_search' },
+        { status: 'em_rota', label: 'Em rota de entrega', sub: 'A caminho', icon: 'local_shipping' },
         { status: 'entregue', label: 'Entregue', sub: 'Pedido finalizado', icon: 'home' }
     ];
 

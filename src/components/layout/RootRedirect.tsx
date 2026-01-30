@@ -14,9 +14,11 @@ export const RootRedirect = ({ userLocation, sortedPharmacies, session }: RootRe
     console.log('🚀 Redirecionando com contexto:', context);
 
     if (context === 'motoboy') {
+        if (session) return <Navigate to="/motoboy-dashboard" replace />;
         return <Navigate to="/motoboy-login" replace />;
     }
     if (context === 'farmacia') {
+        if (session) return <Navigate to="/gestor" replace />;
         return <Navigate to="/gestor/login" replace />;
     }
     return <ClientHome userLocation={userLocation} sortedPharmacies={sortedPharmacies} session={session} />;

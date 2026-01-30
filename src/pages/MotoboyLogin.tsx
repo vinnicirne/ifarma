@@ -7,7 +7,36 @@ const MaterialIcon = ({ name, className = "", style = {} }: { name: string, clas
 
 const MotoboyLogin = () => {
     const navigate = useNavigate();
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
+    const [loading, setLoading] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
+
+    const handleLogin = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setLoading(true);
+
+        try {
+            // Se o usuário digitou apenas o telefone, tentamos converter para um formato de e-mail interno se necessário
+            // Ou assumimos que ele digitou o e-mail cadastrado
+            const loginEmail = email.includes('@') ? email : `${email.replace(/\D/g, '')}@motoboy.ifarma.com`;
+
+            const { error, data } = await supabase.auth.signInWithPassword({
+                email: loginEmail,
+                password
+            });
+
+            if (error) throw error;
+
+            console.log('✅ Motoboy logado:', data.user.id);
+            navigate('/motoboy-dashboard');
+        } catch (error: any) {
+            console.error('Erro no login do motoboy:', error);
+            alert(error.message || 'Erro ao entrar. Verifique seus dados.');
+        } finally {
+            setLoading(false);
+        }
+    };
 
     return (
         <div className="relative flex min-h-screen w-full flex-col bg-background-light dark:bg-background-dark overflow-x-hidden font-display text-white transition-colors duration-200">
@@ -27,19 +56,22 @@ const MotoboyLogin = () => {
                 {/* Headline Section */}
                 <div className="mb-8">
                     <h2 className="text-slate-900 dark:text-white tracking-light text-[28px] font-bold leading-tight text-center pb-2">Bem-vindo à equipe de entregas</h2>
-                    <p className="text-slate-500 dark:text-[#90a4cb] text-center text-sm font-medium">Farmácia Vinculada</p>
+                    <p className="text-slate-500 dark:text-[#90a4cb] text-center text-sm font-medium">PharmaLink Platform</p>
                 </div>
 
                 {/* Form Section */}
-                <div className="space-y-4">
+                <form onSubmit={handleLogin} className="space-y-4">
                     {/* Phone Field */}
                     <div className="flex flex-wrap items-end gap-4 py-1">
                         <label className="flex flex-col min-w-40 flex-1">
-                            <p className="text-slate-700 dark:text-white text-base font-medium leading-normal pb-2">Telefone</p>
+                            <p className="text-slate-700 dark:text-white text-base font-medium leading-normal pb-2">E-mail ou Telefone</p>
                             <input
+                                required
+                                value={email}
+                                onChange={e => setEmail(e.target.value)}
                                 className="form-input flex w-full min-w-0 flex-1 resize-none overflow-hidden rounded-lg text-slate-900 dark:text-white focus:outline-0 focus:ring-2 focus:ring-primary/50 border border-slate-300 dark:border-[#314368] bg-white dark:bg-[#182234] focus:border-primary h-14 placeholder:text-slate-400 dark:placeholder:text-[#90a4cb] p-[15px] text-base font-normal leading-normal transition-colors"
-                                placeholder="(00) 00000-0000"
-                                type="tel"
+                                placeholder="seu@email.com ou 00000000000"
+                                type="text"
                             />
                         </label>
                     </div>
@@ -50,6 +82,9 @@ const MotoboyLogin = () => {
                             <p className="text-slate-700 dark:text-white text-base font-medium leading-normal pb-2">Senha</p>
                             <div className="flex w-full flex-1 items-stretch rounded-lg">
                                 <input
+                                    required
+                                    value={password}
+                                    onChange={e => setPassword(e.target.value)}
                                     className="form-input flex w-full min-w-0 flex-1 resize-none overflow-hidden rounded-lg text-slate-900 dark:text-white focus:outline-0 focus:ring-2 focus:ring-primary/50 border border-slate-300 dark:border-[#314368] bg-white dark:bg-[#182234] focus:border-primary h-14 placeholder:text-slate-400 dark:placeholder:text-[#90a4cb] p-[15px] rounded-r-none border-r-0 pr-2 text-base font-normal leading-normal transition-colors"
                                     placeholder="Digite sua senha"
                                     type={showPassword ? "text" : "password"}
@@ -63,25 +98,30 @@ const MotoboyLogin = () => {
                             </div>
                         </label>
                     </div>
-                </div>
 
-                {/* Forgot Password */}
-                <div className="flex justify-end mt-2">
-                    <button
-                        onClick={() => navigate('/forgot-password')}
-                        className="text-primary text-sm font-medium hover:underline"
-                    >
-                        Esqueceu a senha?
-                    </button>
-                </div>
+                    {/* Forgot Password */}
+                    <div className="flex justify-end mt-2">
+                        <button
+                            type="button"
+                            onClick={() => navigate('/forgot-password')}
+                            className="text-primary text-sm font-medium hover:underline"
+                        >
+                            Esqueceu a senha?
+                        </button>
+                    </div>
 
-                {/* Login Button */}
-                <div className="mt-10">
-                    <button className="w-full h-14 bg-primary hover:bg-primary/90 text-white font-bold text-lg rounded-xl shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2">
-                        <span>Entrar</span>
-                        <MaterialIcon name="arrow_forward" />
-                    </button>
-                </div>
+                    {/* Login Button */}
+                    <div className="mt-10">
+                        <button
+                            type="submit"
+                            disabled={loading || !email || !password}
+                            className="w-full h-14 bg-primary hover:bg-primary/90 text-background-dark font-black text-lg rounded-xl shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50"
+                        >
+                            <span>{loading ? 'Entrando...' : 'Entrar'}</span>
+                            {!loading && <MaterialIcon name="arrow_forward" />}
+                        </button>
+                    </div>
+                </form>
 
                 {/* Image/Banner Section (Subtle) */}
                 <div className="mt-12 @container">

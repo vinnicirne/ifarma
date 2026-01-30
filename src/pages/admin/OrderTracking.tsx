@@ -10,7 +10,7 @@ const OrderTracking = () => {
     const [viewMode, setViewMode] = useState<'active' | 'global'>('active');
     const [showPharmacies, setShowPharmacies] = useState(true);
     const [showMotoboys, setShowMotoboys] = useState(true);
-    const [statusFilter, setStatusFilter] = useState<'all' | 'pendente' | 'preparando' | 'em_rota'>('all');
+    const [statusFilter, setStatusFilter] = useState<'all' | 'pendente' | 'preparando' | 'aguardando_motoboy' | 'em_rota'>('all');
     const [showStatusMenu, setShowStatusMenu] = useState(false);
     const [allPharmacies, setAllPharmacies] = useState<any[]>([]);
     const [showAssignModal, setShowAssignModal] = useState(false);
@@ -66,7 +66,7 @@ const OrderTracking = () => {
             const { data } = await supabase
                 .from('orders')
                 .select('id, status, created_at, customer_name, address, pharmacy_id, pharmacies(name, latitude, longitude)')
-                .in('status', ['pendente', 'preparando', 'em_rota'])
+                .in('status', ['pendente', 'preparando', 'aguardando_motoboy', 'em_rota'])
                 .order('created_at', { ascending: false });
 
             if (data) {
@@ -74,7 +74,7 @@ const OrderTracking = () => {
                     id: `#${o.id.substring(0, 4)}`,
                     fullId: o.id,
                     fullStatus: o.status,
-                    status: o.status === 'em_rota' ? 'Em Trânsito' : o.status === 'preparando' ? 'Em Preparo' : 'Pendente',
+                    status: o.status === 'em_rota' ? 'Em Trânsito' : o.status === 'aguardando_motoboy' ? 'Aguardando Entregador' : o.status === 'preparando' ? 'Em Preparo' : 'Pendente',
                     time: 'Calc...',
                     motoboy: 'Atribuindo...',
                     origin: o.pharmacies?.name || 'Farmácia',
@@ -334,7 +334,7 @@ const OrderTracking = () => {
 
                         {showStatusMenu && (
                             <div className="absolute top-14 right-0 w-48 bg-[#1a2b23] border border-white/10 rounded-2xl shadow-2xl p-2 z-50 animate-slide-up">
-                                {['all', 'pendente', 'preparando', 'em_rota'].map((s) => (
+                                {['all', 'pendente', 'preparando', 'aguardando_motoboy', 'em_rota'].map((s) => (
                                     <button
                                         key={s}
                                         onClick={() => {
@@ -343,7 +343,7 @@ const OrderTracking = () => {
                                         }}
                                         className={`w-full text-left px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-colors ${statusFilter === s ? 'bg-primary text-black' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}
                                     >
-                                        {s === 'all' ? 'Todos os Status' : s === 'em_rota' ? 'Em Rota' : s}
+                                        {s === 'all' ? 'Todos os Status' : s === 'em_rota' ? 'Em Rota' : s === 'aguardando_motoboy' ? 'Aguardando' : s}
                                     </button>
                                 ))}
                             </div>

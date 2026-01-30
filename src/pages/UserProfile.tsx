@@ -177,6 +177,27 @@ const UserProfile = ({ session, profile }: { session: any, profile: any }) => {
                     </div>
                 </section>
 
+                {/* Orders Section */}
+                <section className="mt-4">
+                    <div className="px-4">
+                        <button
+                            onClick={() => navigate('/meus-pedidos')}
+                            className="w-full bg-primary/10 hover:bg-primary/20 p-4 rounded-3xl border border-primary/20 flex items-center justify-between group transition-colors"
+                        >
+                            <div className="flex items-center gap-4">
+                                <div className="p-3 bg-primary text-background-dark rounded-2xl shadow-lg shadow-primary/20">
+                                    <MaterialIcon name="receipt_long" />
+                                </div>
+                                <div className="text-left">
+                                    <h3 className="text-slate-900 dark:text-white font-black text-base uppercase tracking-tight">Meus Pedidos</h3>
+                                    <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest mt-0.5">Andamento e histórico</p>
+                                </div>
+                            </div>
+                            <MaterialIcon name="arrow_forward_ios" className="text-primary text-sm transition-transform group-hover:translate-x-1" />
+                        </button>
+                    </div>
+                </section>
+
                 {/* Addresses Section */}
                 <section className="mt-4">
                     <div className="flex items-center justify-between px-4 mb-2">

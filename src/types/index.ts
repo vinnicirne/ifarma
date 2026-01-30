@@ -53,7 +53,7 @@ export interface Order {
     customer_name?: string;
     address: string;
     total_price: number;
-    status: 'pendente' | 'preparando' | 'em_rota' | 'entregue' | 'cancelado';
+    status: 'pendente' | 'preparando' | 'aguardando_motoboy' | 'em_rota' | 'entregue' | 'cancelado';
     payment_method?: string;
     installments?: number;
     notes?: string;

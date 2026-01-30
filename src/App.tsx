@@ -87,6 +87,53 @@ function App() {
     fetchPharmacies();
   }, []);
 
+  // Realtime Order Listener for Client
+  useEffect(() => {
+    if (!session?.user?.id || profile?.role !== 'cliente') return;
+
+    const playNotificationSound = (status: string) => {
+      const sounds: any = {
+        default: 'https://assets.mixkit.co/active_storage/sfx/571/571-preview.mp3',
+        horn: 'https://assets.mixkit.co/active_storage/sfx/2855/2855-preview.mp3', // Bike horn for em_rota
+        success: 'https://assets.mixkit.co/active_storage/sfx/2013/2013-preview.mp3' // Cash sound for delivered
+      };
+
+      let src = sounds.default;
+      if (status === 'em_rota') src = sounds.horn;
+      if (status === 'entregue') src = sounds.success;
+
+      const audio = new Audio(src);
+      audio.play().catch(e => console.warn("Audio play blocked:", e));
+    };
+
+    const channel = supabase
+      .channel(`client_orders_${session.user.id}`)
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'orders',
+        filter: `customer_id=eq.${session.user.id}`
+      }, (payload) => {
+        if (payload.new.status !== payload.old.status) {
+          console.log('📦 Pedido atualizado:', payload.new.status);
+          playNotificationSound(payload.new.status);
+
+          // Opcional: Mostrar notificação visual se não estiver na página de tracking
+          if (window.Notification?.permission === 'granted') {
+            new Notification('Ifarma: Atualização do Pedido', {
+              body: `Seu pedido está agora: ${payload.new.status.replace('_', ' ')}`,
+              icon: '/pwa-192x192.png'
+            });
+          }
+        }
+      })
+      .subscribe();
+
+    return () => {
+      channel.unsubscribe();
+    };
+  }, [session?.user?.id, profile?.role]);
+
   // Process and sort nearby pharmacies (with fallback)
   const sortedPharmacies = useMemo(() => {
     const referenceLoc = userLocation || { lat: -22.8269, lng: -43.0539 };

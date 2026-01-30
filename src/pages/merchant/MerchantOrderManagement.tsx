@@ -374,7 +374,7 @@ const MerchantOrderManagement = () => {
             activeChannelRef.current = null;
         }
 
-        const channelName = 'merchant_orders_channel';
+        const channelName = `orders_pharma_${pId.substring(0, 8)}`;
         console.log("🔌 Subscribing to Realtime...", channelName);
 
         const channel = supabase
@@ -382,19 +382,13 @@ const MerchantOrderManagement = () => {
             .on('postgres_changes', {
                 event: '*',
                 schema: 'public',
-                table: 'orders'
+                table: 'orders',
+                filter: `pharmacy_id=eq.${pId}`
             }, (payload: any) => {
                 const eventName = payload.eventType || payload.event;
+                console.log(`🔔 Realtime: ${eventName} | Order: ${payload.new?.id?.substring(0, 6)}`);
 
-                // Filtro manual por Farmácia
-                const isNewRelevant = payload.new?.pharmacy_id === pId;
-                const isOldRelevant = payload.old?.pharmacy_id === pId;
-
-                if (!isNewRelevant && !isOldRelevant) return;
-
-                console.log(`🔔 Realtime: ${eventName} | Pharma: ${pId}`);
-
-                if (eventName === 'INSERT' && isNewRelevant) {
+                if (eventName === 'INSERT') {
                     try {
                         console.log('🔊 NOVO PEDIDO! Tocando alarme...');
                         playNotificationSound(3).catch(e => console.error("❌ Erro no som:", e));
@@ -410,13 +404,16 @@ const MerchantOrderManagement = () => {
                 fetchOrders(pId);
             })
             .subscribe((status) => {
-                console.log(`📡 Realtime Status: ${status}`);
+                console.log(`📡 Realtime Status (${channelName}): ${status}`);
                 if (status === 'SUBSCRIBED') {
                     setRealtimeStatus('connected');
                 } else if (status === 'CHANNEL_ERROR' || status === 'CLOSED') {
                     setRealtimeStatus('error');
-                    console.error("❌ Falha na conexão Realtime. Tentando novamente em 3s...");
-                    setTimeout(() => subscribeToOrders(pId), 3000);
+                    console.error(`❌ Falha na conexão Realtime (${channelName}). Tentando novamente em 5s...`);
+                    // Retry logic with a safety check
+                    setTimeout(() => {
+                        if (pId) subscribeToOrders(pId);
+                    }, 5000);
                 }
             });
 
@@ -491,7 +488,7 @@ const MerchantOrderManagement = () => {
 
         if (status === 'em_rota') {
             message = `Olá *${name}*! 🛵\n\nSeu pedido *#${order.id.substring(0, 6)}* saiu para entrega e chegará em breve!\n\nObrigado por escolher a *${pharmacy?.name || 'Ifarma'}*.`;
-        } else if (status === 'pronto_entrega') {
+        } else if (status === 'aguardando_motoboy') {
             message = `Olá *${name}*! ✅\n\nSeu pedido *#${order.id.substring(0, 6)}* está pronto e aguardando o entregador.`;
         }
 
@@ -574,7 +571,7 @@ const MerchantOrderManagement = () => {
     };
 
     const moveOrder = (orderId: string, currentStatus: string) => {
-        const statusOrder = ['pendente', 'preparando', 'pronto_entrega', 'em_rota', 'entregue'];
+        const statusOrder = ['pendente', 'preparando', 'aguardando_motoboy', 'em_rota', 'entregue'];
         const currentIndex = statusOrder.indexOf(currentStatus);
         const nextStatus = statusOrder[currentIndex + 1];
 
@@ -714,10 +711,10 @@ const MerchantOrderManagement = () => {
                     {/* TOP: Horizontal Status Tabs - Premium Design */}
                     <div className="shrink-0 grid grid-cols-2 lg:grid-cols-4 gap-4 pb-2">
                         {columns.map((col) => {
-                            // SPECIAL LOGIC: 'preparando' includes 'pronto_entrega'
+                            // SPECIAL LOGIC: 'preparando' includes 'aguardando_motoboy'
                             const count = orders.filter(o => {
                                 if (col.id === 'preparando') {
-                                    return o.status === 'preparando' || o.status === 'pronto_entrega';
+                                    return o.status === 'preparando' || o.status === 'aguardando_motoboy';
                                 }
                                 return o.status?.toLowerCase() === col.id;
                             }).length;
@@ -806,12 +803,12 @@ const MerchantOrderManagement = () => {
                         <div className="flex flex-col gap-4">
                             {orders.filter(o => {
                                 if (activeTabId === 'preparando') {
-                                    return o.status === 'preparando' || o.status === 'pronto_entrega';
+                                    return o.status === 'preparando' || o.status === 'aguardando_motoboy';
                                 }
                                 return o.status?.toLowerCase() === activeTabId;
                             }).map((order) => {
                                 const late = isLate(order);
-                                const isWaitingDriver = order.status === 'pronto_entrega';
+                                const isWaitingDriver = order.status === 'aguardando_motoboy';
 
                                 return (
                                     <div key={order.id} className={`bg-white dark:bg-zinc-800 p-5 rounded-2xl shadow-sm hover:shadow-md transition-all duration-300 group relative border-l-4 ${late ? 'border-l-red-500' : isWaitingDriver ? 'border-l-yellow-400' : 'border-l-primary'
@@ -839,7 +836,7 @@ const MerchantOrderManagement = () => {
                                         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
 
                                             {/* CHECKBOX FOR BATCH SELECTION */}
-                                            {(activeTabId === 'preparando' || activeTabId === 'pronto_entrega') && (
+                                            {(activeTabId === 'preparando' || activeTabId === 'aguardando_motoboy') && (
                                                 <div className="flex items-center justify-center p-1">
                                                     <input
                                                         type="checkbox"
@@ -921,7 +918,7 @@ const MerchantOrderManagement = () => {
 
                                                 {['pendente', 'preparando'].includes(order.status?.toLowerCase()) && (
                                                     <button
-                                                        onClick={(e) => { e.stopPropagation(); updateStatus(order.id, 'pronto_entrega'); }}
+                                                        onClick={(e) => { e.stopPropagation(); updateStatus(order.id, 'aguardando_motoboy'); }}
                                                         className="size-10 rounded-xl bg-orange-100 text-orange-600 hover:bg-orange-200 flex items-center justify-center transition-colors"
                                                         title="Pronto / Aguardando Motoboy"
                                                     >
@@ -929,7 +926,7 @@ const MerchantOrderManagement = () => {
                                                     </button>
                                                 )}
 
-                                                {['pendente', 'preparando', 'pronto_entrega'].includes(order.status?.toLowerCase()) && (
+                                                {['pendente', 'preparando', 'aguardando_motoboy'].includes(order.status?.toLowerCase()) && (
                                                     <button
                                                         onClick={(e) => { e.stopPropagation(); setSelectedOrderIdForDriver(order.id); setIsDriverModalOpen(true); }}
                                                         className="size-10 rounded-xl bg-primary/10 text-primary hover:bg-primary hover:text-white flex items-center justify-center transition-colors animate-pulse"
@@ -964,7 +961,7 @@ const MerchantOrderManagement = () => {
                                                             ? 'Concluído'
                                                             : isWaitingDriver
                                                                 ? 'Enviar'
-                                                                : order.status === 'preparando' || order.status === 'pronto_entrega'
+                                                                : order.status === 'preparando' || order.status === 'aguardando_motoboy'
                                                                     ? 'Enviar'
                                                                     : order.status === 'em_rota'
                                                                         ? 'Entregue'
@@ -985,7 +982,7 @@ const MerchantOrderManagement = () => {
 
                             {orders.filter(o => {
                                 if (activeTabId === 'preparando') {
-                                    return o.status === 'preparando' || o.status === 'pronto_entrega';
+                                    return o.status === 'preparando' || o.status === 'aguardando_motoboy';
                                 }
                                 return o.status?.toLowerCase() === activeTabId;
                             }).length === 0 && (

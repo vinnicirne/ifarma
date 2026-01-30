@@ -14,6 +14,14 @@ if (!supabaseUrl || !supabaseAnonKey) {
     console.log('✅ Variáveis de ambiente carregadas com sucesso');
 }
 
-export const supabase = createClient(supabaseUrl || '', supabaseAnonKey || '');
+export const supabase = createClient(supabaseUrl || '', supabaseAnonKey || '', {
+    auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true,
+        storageKey: 'ifarma-auth-session',
+        storage: window.localStorage // Garantindo o uso do localStorage para persistência
+    }
+});
 
 console.log('✅ Cliente Supabase criado');
