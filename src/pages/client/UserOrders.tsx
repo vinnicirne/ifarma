@@ -3,16 +3,23 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { MaterialIcon } from '../../components/Shared';
 import BottomNavigation from '../../components/BottomNavigation';
+import { useNotifications } from '../../hooks/useNotifications';
 
 const UserOrders = () => {
     const navigate = useNavigate();
+    const [userId, setUserId] = useState<string | null>(null);
     const [activeOrders, setActiveOrders] = useState<any[]>([]);
     const [historyOrders, setHistoryOrders] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
+        supabase.auth.getSession().then(({ data: { session } }) => {
+            if (session) setUserId(session.user.id);
+        });
         fetchOrders();
     }, []);
+
+    const { unreadCount } = useNotifications(userId);
 
     const fetchOrders = async () => {
         setLoading(true);
@@ -103,7 +110,17 @@ const UserOrders = () => {
                     <MaterialIcon name="arrow_back_ios" />
                 </button>
                 <h1 className="font-bold text-lg text-slate-900 dark:text-white">Meus Pedidos</h1>
-                <div className="w-10"></div>
+                <button
+                    onClick={() => navigate('/notifications')}
+                    className="p-2 text-slate-900 dark:text-white relative active:scale-90 transition-transform"
+                >
+                    <MaterialIcon name="notifications" />
+                    {unreadCount > 0 && (
+                        <span className="absolute top-1.5 right-1.5 size-4 bg-primary text-background-dark text-[10px] font-black rounded-full flex items-center justify-center border-2 border-background-light dark:border-background-dark">
+                            {unreadCount}
+                        </span>
+                    )}
+                </button>
             </header>
 
             <main className="flex-1 p-4 pb-24 max-w-md mx-auto w-full">
