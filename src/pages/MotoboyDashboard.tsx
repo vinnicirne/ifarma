@@ -32,6 +32,17 @@ const motoboyIcon = new L.Icon({
 
 const MotoboyDashboard = ({ session, profile }: { session: any, profile: any }) => {
     const navigate = useNavigate();
+
+    // Guard to prevent crash if session is not yet loaded
+    if (!session?.user) {
+        return (
+            <div className="h-screen w-screen flex flex-col items-center justify-center bg-slate-900 text-white gap-4">
+                <div className="animate-spin size-8 border-4 border-primary border-t-transparent rounded-full" />
+                <p className="font-bold animate-pulse">Carregando sessão...</p>
+            </div>
+        );
+    }
+
     const [isOnline, setIsOnline] = useState(profile?.is_online || false);
     const [currentOrder, setCurrentOrder] = useState<any>(null);
     const [showMenu, setShowMenu] = useState(false);
