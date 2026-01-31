@@ -212,8 +212,27 @@ export const UserOrderTracking = () => {
                 .subscribe();
         }
 
+        // Subscription para mensagens (Buzina)
+        const messageSubscription = supabase
+            .channel(`order_messages_${orderId}`)
+            .on('postgres_changes', {
+                event: 'INSERT',
+                schema: 'public',
+                table: 'order_messages',
+                filter: `order_id=eq.${orderId}`
+            }, (payload) => {
+                if (payload.new.message_type === 'horn') {
+                    console.log("🎺 BUZINA RECEBIDA!");
+                    const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/1271/1271-preview.mp3');
+                    audio.volume = 1.0;
+                    audio.play().catch(e => console.warn("Erro ao tocar buzina:", e));
+                }
+            })
+            .subscribe();
+
         return () => {
             orderSubscription.unsubscribe();
+            messageSubscription.unsubscribe();
             if (motoboySubscription) motoboySubscription.unsubscribe();
         };
     }, [orderId, order?.motoboy_id]);

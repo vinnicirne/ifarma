@@ -549,7 +549,7 @@ const MerchantOrderManagement = () => {
                     .from('orders')
                     .update({
                         motoboy_id: driverId,
-                        status: 'em_rota' // Já sai para entrega imediatamente
+                        status: 'pronto_entrega' // Aguardando o motoboy confirmar retirada
                     })
                     .eq('id', oId);
 

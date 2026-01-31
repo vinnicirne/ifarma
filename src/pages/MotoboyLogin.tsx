@@ -70,7 +70,7 @@ const MotoboyLogin = () => {
                                 value={email}
                                 onChange={e => setEmail(e.target.value)}
                                 className="form-input flex w-full min-w-0 flex-1 resize-none overflow-hidden rounded-lg text-slate-900 dark:text-white focus:outline-0 focus:ring-2 focus:ring-primary/50 border border-slate-300 dark:border-[#314368] bg-white dark:bg-[#182234] focus:border-primary h-14 placeholder:text-slate-400 dark:placeholder:text-[#90a4cb] p-[15px] text-base font-normal leading-normal transition-colors"
-                                placeholder="seu@email.com ou 00000000000"
+                                placeholder="seu@email.com ou (11) 99999-9999"
                                 type="text"
                             />
                         </label>
@@ -146,3 +146,4 @@ const MotoboyLogin = () => {
 };
 
 export default MotoboyLogin;
+// Forced update

@@ -50,8 +50,9 @@ import MotoboyLogin from '../pages/MotoboyLogin';
 import MotoboyDashboard from '../pages/MotoboyDashboard';
 import MotoboyOrders from '../pages/MotoboyOrders';
 import { MotoboyDeliveryDetailWithETA } from '../pages/motoboy/MotoboyDeliveryDetailWithETA';
-import MotoboyRouteStatus from '../pages/MotoboyRouteStatus';
 import MotoboyDeliveryConfirm from '../pages/MotoboyDeliveryConfirm';
+import MotoboyEarnings from '../pages/MotoboyEarnings';
+import MotoboyRouteStatus from '../pages/MotoboyRouteStatus';
 import MotoboyHistory from '../pages/MotoboyHistory';
 
 // Route Guards
@@ -124,8 +125,9 @@ export const AppRoutes = ({ session, profile, userLocation, sortedPharmacies }: 
             <Route path="/motoboy-orders" element={<MotoboyOrders />} />
             <Route path="/motoboy-delivery/:id" element={<MotoboyDeliveryDetailWithETA />} />
             <Route path="/motoboy-route-status" element={<MotoboyRouteStatus />} />
-            <Route path="/motoboy-delivery-confirm" element={<MotoboyDeliveryConfirm />} />
             <Route path="/motoboy-history" element={<MotoboyHistory />} />
+            <Route path="/motoboy-earnings" element={<MotoboyEarnings />} />
+            <Route path="/motoboy-confirm/:orderId" element={<MotoboyDeliveryConfirm />} />
         </Routes>
     );
 };

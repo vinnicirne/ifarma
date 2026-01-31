@@ -37,20 +37,20 @@ serve(async (req) => {
         const { error: historyError } = await supabase.from('location_history').insert({
             motoboy_id: motoboyId,
             order_id: orderId,
-            lat: latitude,
-            lng: longitude
+            latitude: latitude, // Fixed field name
+            longitude: longitude, // Fixed field name
+            accuracy: body.accuracy || 0
         });
 
         if (historyError) {
             console.error('Erro ao inserir histórico:', historyError);
-            // Não retornar erro fatal, tentar atualizar perfil mesmo assim
         }
 
         // 2. Atualizar localização atual no perfil para tempo real
         const { error: profileError } = await supabase.from('profiles').update({
             last_lat: latitude,
             last_lng: longitude,
-            last_location_update: new Date().toISOString()
+            last_online: new Date().toISOString() // Fixed: using last_online from schema
         }).eq('id', motoboyId);
 
         if (profileError) console.error('Erro ao atualizar perfil:', profileError);

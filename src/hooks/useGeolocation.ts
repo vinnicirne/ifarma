@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { Geolocation } from '@capacitor/geolocation';
 import { Device } from '@capacitor/device';
@@ -28,6 +28,8 @@ export const useGeolocation = (userId: string | null, shouldTrack: boolean = fal
         setState(prev => ({ ...prev, orderId }));
     }, [orderId]);
 
+    const lastUpdate = useRef<{ lat: number; lng: number; time: number } | null>(null);
+
     useEffect(() => {
         if (!userId || !shouldTrack) {
             setState(prev => ({ ...prev, isTracking: false }));
@@ -53,7 +55,7 @@ export const useGeolocation = (userId: string | null, shouldTrack: boolean = fal
                 watchId = await Geolocation.watchPosition(
                     {
                         enableHighAccuracy: true,
-                        timeout: 10000,
+                        timeout: 30000,
                         maximumAge: 0
                     },
                     async (position, err) => {
@@ -66,6 +68,7 @@ export const useGeolocation = (userId: string | null, shouldTrack: boolean = fal
                         if (position) {
                             const { latitude, longitude, accuracy } = position.coords;
 
+                            // 1. Atualizar UI Local (Sempre Instantâneo para o Mapa fluir)
                             setState(prev => ({
                                 ...prev,
                                 latitude,
@@ -75,77 +78,91 @@ export const useGeolocation = (userId: string | null, shouldTrack: boolean = fal
                                 isTracking: true
                             }));
 
-                            // --- ELITE 2.0: Telemetria ---
-                            let batteryLevel: number | undefined;
-                            let connectionType: string = 'Desconhecido';
+                            // 2. Throttling Inteligente para Backend (Economia de Bateria/Dados)
+                            const now = Date.now();
+                            const THROTTLE_TIME_MS = 30000; // 30 segundos
+                            const THROTTLE_DIST_M = 20;     // 20 metros
 
-                            try {
-                                const info = await Device.getBatteryInfo();
-                                batteryLevel = Math.round((info.batteryLevel || 0) * 100);
+                            let shouldUpdateDB = false;
 
-                                const status = await Network.getStatus();
-                                connectionType = status.connectionType.toUpperCase();
-                            } catch (e) {
-                                console.warn('Falha ao obter telemetria:', e);
-                            }
+                            if (!lastUpdate.current) {
+                                shouldUpdateDB = true;
+                            } else {
+                                const timeDelta = now - lastUpdate.current.time;
+                                const distDelta = calculateDistance(
+                                    lastUpdate.current.lat,
+                                    lastUpdate.current.lng,
+                                    latitude,
+                                    longitude
+                                );
 
-                            // 1. Atualizar perfil com última localização e telemetria
-                            const { error: updateError } = await supabase
-                                .from('profiles')
-                                .update({
-                                    last_lat: latitude,
-                                    last_lng: longitude,
-                                    battery_level: batteryLevel,
-                                    signal_status: connectionType,
-                                    last_online: new Date().toISOString(),
-                                    updated_at: new Date().toISOString()
-                                })
-                                .eq('id', userId);
-
-                            if (updateError) console.error('Erro ao atualizar location:', updateError);
-
-                            // 2. Invocar tracking-engine para Geofencing e Histórico (Inteligente)
-                            // Isso substitui a inserção direta em tabelas de histórico
-                            // 2. Invocar tracking-engine para Geofencing e Histórico (Inteligente)
-                            // Isso substitui a inserção direta em tabelas de histórico
-                            let invokeSuccess = false;
-
-                            try {
-                                // Obter sessão atual para garantir token válido
-                                const { data: { session } } = await supabase.auth.getSession();
-
-                                if (session?.access_token) {
-                                    const { error: trackingError } = await supabase.functions.invoke('tracking-engine', {
-                                        body: {
-                                            motoboyId: userId,
-                                            latitude,
-                                            longitude,
-                                            orderId: orderId || null
-                                        },
-                                        headers: {
-                                            Authorization: `Bearer ${session.access_token}`
-                                        }
-                                    });
-
-                                    if (trackingError) {
-                                        console.warn('Erro na tracking-engine (usando fallback):', trackingError);
-                                    } else {
-                                        invokeSuccess = true;
-                                    }
+                                if (timeDelta > THROTTLE_TIME_MS || distDelta > THROTTLE_DIST_M) {
+                                    shouldUpdateDB = true;
                                 }
-                            } catch (e) {
-                                console.warn('Exceção ao invocar tracking-engine:', e);
                             }
 
-                            // Fallback para inserção direta caso a Edge Function falhe ou não tenha sessão
-                            if (!invokeSuccess) {
-                                await supabase
-                                    .from('location_history')
-                                    .insert({
+                            if (shouldUpdateDB) {
+                                lastUpdate.current = { lat: latitude, lng: longitude, time: now };
+
+                                // --- ELITE 2.0: Telemetria ---
+                                let batteryLevel: number | undefined;
+                                let connectionType: string = 'Desconhecido';
+
+                                try {
+                                    const info = await Device.getBatteryInfo();
+                                    batteryLevel = Math.round((info.batteryLevel || 0) * 100);
+
+                                    const status = await Network.getStatus();
+                                    connectionType = status.connectionType.toUpperCase();
+                                } catch (e) {
+                                    console.warn('Falha ao obter telemetria:', e);
+                                }
+
+                                // Atualizar perfil com última localização e telemetria
+                                const { error: updateError } = await supabase
+                                    .from('profiles')
+                                    .update({
+                                        last_lat: latitude,
+                                        last_lng: longitude,
+                                        battery_level: batteryLevel,
+                                        signal_status: connectionType,
+                                        last_online: new Date().toISOString(),
+                                        updated_at: new Date().toISOString()
+                                    })
+                                    .eq('id', userId);
+
+                                if (updateError) console.error('Erro ao atualizar location:', updateError);
+
+                                // Invocar tracking-engine
+                                let invokeSuccess = false;
+                                try {
+                                    const { data: { session } } = await supabase.auth.getSession();
+                                    if (session?.access_token) {
+                                        const { error: trackingError } = await supabase.functions.invoke('tracking-engine', {
+                                            body: {
+                                                motoboyId: userId,
+                                                latitude,
+                                                longitude,
+                                                orderId: orderId || null
+                                            },
+                                            headers: { Authorization: `Bearer ${session.access_token}` }
+                                        });
+
+                                        if (!trackingError) invokeSuccess = true;
+                                        else console.warn('Erro tracking-engine:', trackingError);
+                                    }
+                                } catch (e) {
+                                    console.warn('Exceção tracking-engine:', e);
+                                }
+
+                                // Fallback
+                                if (!invokeSuccess) {
+                                    await supabase.from('location_history').insert({
                                         motoboy_id: userId,
                                         latitude,
                                         longitude
                                     });
+                                }
                             }
                         }
                     }
@@ -159,12 +176,22 @@ export const useGeolocation = (userId: string | null, shouldTrack: boolean = fal
         startTracking();
 
         return () => {
-            if (watchId) {
-                Geolocation.clearWatch({ id: watchId });
-            }
+            if (watchId) Geolocation.clearWatch({ id: watchId });
             setState(prev => ({ ...prev, isTracking: false }));
         };
     }, [userId, shouldTrack, orderId]);
+
+    // Helper simples de distância (Haversine simplificado) para o Hook não depender de lib externa
+    const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+        const R = 6371e3;
+        const φ1 = lat1 * Math.PI / 180;
+        const φ2 = lat2 * Math.PI / 180;
+        const Δφ = (lat2 - lat1) * Math.PI / 180;
+        const Δλ = (lon2 - lon1) * Math.PI / 180;
+        const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) + Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        return R * c;
+    };
 
     return state;
 };
