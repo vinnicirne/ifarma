@@ -42,22 +42,36 @@ const MotoboyEarnings = () => {
             if (data) {
                 setDeliveries(data);
 
-                // Calcular estatísticas (Assumindo R$ 7.00 por entrega como taxa fixa para o motoboy)
-                const feePerDelivery = 7.00;
+                // Calcular estatísticas
                 const today = new Date();
                 today.setHours(0, 0, 0, 0);
-
-                const todayEarnings = data
-                    .filter(o => new Date(o.created_at) >= today)
-                    .length * feePerDelivery;
 
                 const monthStart = new Date();
                 monthStart.setDate(1);
                 monthStart.setHours(0, 0, 0, 0);
 
-                const monthEarnings = data
-                    .filter(o => new Date(o.created_at) >= monthStart)
-                    .length * feePerDelivery;
+                let todayEarnings = 0;
+                let monthEarnings = 0;
+
+                const processedData = data.map((order: any) => {
+                    // Use delivery_fee from DB or fallback to 7.00 or 0.00 if strict
+                    const fee = order.delivery_fee ? parseFloat(order.delivery_fee) : 7.00;
+
+                    const orderDate = new Date(order.created_at);
+                    if (orderDate >= today) todayEarnings += fee;
+                    if (orderDate >= monthStart) monthEarnings += fee;
+
+                    return { ...order, final_fee: fee };
+                });
+
+                setDeliveries(processedData);
+
+                setStats({
+                    today: todayEarnings,
+                    week: 0,
+                    month: monthEarnings,
+                    pending: 0
+                });
 
                 setStats({
                     today: todayEarnings,
@@ -134,8 +148,10 @@ const MotoboyEarnings = () => {
                                         </div>
                                     </div>
                                     <div className="text-right">
-                                        <p className="font-black text-green-500">+ R$ 7,00</p>
-                                        <p className="text-[9px] text-slate-400">Taxa Fixa</p>
+                                        <p className="font-black text-green-500">
+                                            + {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(delivery.final_fee)}
+                                        </p>
+                                        <p className="text-[9px] text-slate-400">Taxa de Entrega</p>
                                     </div>
                                 </div>
                             ))

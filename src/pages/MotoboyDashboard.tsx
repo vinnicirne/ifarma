@@ -6,6 +6,7 @@ import 'leaflet/dist/leaflet.css';
 import { supabase } from '../lib/supabase';
 import { useGeolocation } from '../hooks/useGeolocation';
 import { useRouteData } from '../hooks/useRouteData';
+import { useWakeLock } from '../hooks/useWakeLock';
 import { Geolocation } from '@capacitor/geolocation';
 import { Capacitor } from '@capacitor/core';
 
@@ -94,6 +95,9 @@ const MotoboyDashboard = ({ session, profile }: { session: any, profile: any }) 
 
     // Assuming latitude and longitude are available from geoState or another source
     const { latitude, longitude } = useGeolocation(session?.user?.id, isOnline, currentOrder?.id); // Pass currentOrder ID to geolocation
+
+    // Wake Lock (Impedir tela de apagar durante entrega)
+    useWakeLock(!!currentOrder && currentOrder.status === 'em_rota');
 
     const routeData = useRouteData(
         (latitude && longitude) ? { lat: latitude, lng: longitude } : null,
@@ -297,9 +301,9 @@ const MotoboyDashboard = ({ session, profile }: { session: any, profile: any }) 
             .eq('id', currentOrder.id);
 
         // Tenta usar coordenadas do pedido, senão usa do cliente (fallback)
-        // O ideal é ter lat/lng do destino no pedido. Vamos assumir que currentOrder tem delivery_lat/lng como visto no tracking-engine, 
-        // mas aqui no select ele pegou '*, pharmacies(name, address)'. 
-        // O código anterior usava currentOrder.address para display. 
+        // O ideal é ter lat/lng do destino no pedido. Vamos assumir que currentOrder tem delivery_lat/lng como visto no tracking-engine,
+        // mas aqui no select ele pegou '*, pharmacies(name, address)'.
+        // O código anterior usava currentOrder.address para display.
         // Se não tiver lat/lng, vamos usar o endereço como string para busca.
 
         const destination = currentOrder.address; // Fallback string
@@ -473,7 +477,7 @@ const MotoboyDashboard = ({ session, profile }: { session: any, profile: any }) 
 
     useEffect(() => {
         if (profile?.current_order_id) {
-            fetchCurrentOrder();
+            fetchOrdersQueue();
         }
     }, [profile]);
 
@@ -504,7 +508,7 @@ const MotoboyDashboard = ({ session, profile }: { session: any, profile: any }) 
                         setTimeout(() => setNewOrderAlert(null), 6000);
 
                         console.log("🚀 Atualizando dashboard com pedido:", payload.new.id);
-                        fetchOrderById(payload.new.id);
+                        fetchOrdersQueue();
                     }
                 }
             )
@@ -515,49 +519,10 @@ const MotoboyDashboard = ({ session, profile }: { session: any, profile: any }) 
         };
     }, [session?.user?.id]);
 
-    const fetchOrderById = async (orderId: string) => {
-        const { data, error } = await supabase
-            .from('orders')
-            .select('*, pharmacies(name, address)')
-            .eq('id', orderId)
-            .single();
-
-        if (error) {
-            console.error("❌ Erro ao buscar dados do pedido (Provável RLS):", error);
-        }
-
-        if (data) setCurrentOrder(data);
-    };
-
-    const fetchCurrentOrder = async () => {
-        // Try getting from profile first
-        let orderId = profile?.current_order_id;
+    // --- FETCH ORDERS QUEUE (Substitui lógica antiga de Single Order) ---
+    // A função fetchOrdersQueue já está definida acima e é a fonte da verdade.
 
 
-        // If not in profile, check if there's any active order assigned to me (Robustness)
-        if (!orderId && session?.user?.id) {
-            const { data: activeOrder } = await supabase
-                .from('orders')
-                .select('id')
-                .eq('motoboy_id', session.user.id)
-                .in('status', ['pronto_entrega', 'em_rota'])
-                .order('created_at', { ascending: false })
-                .limit(1)
-                .single();
-
-            if (activeOrder) orderId = activeOrder.id;
-        }
-
-        if (orderId) {
-            const { data } = await supabase
-                .from('orders')
-                .select('*, pharmacies(name, address)')
-                .eq('id', orderId)
-                .single();
-
-            if (data) setCurrentOrder(data);
-        }
-    };
 
     const toggleOnline = async () => {
         const newStatus = !isOnline;
@@ -621,8 +586,8 @@ const MotoboyDashboard = ({ session, profile }: { session: any, profile: any }) 
     }, [isOnline, session.user.id]);
 
     const center: [number, number] = [
-        geoState.latitude || -22.9068,
-        geoState.longitude || -43.1729
+        latitude || -22.9068,
+        longitude || -43.1729
     ];
 
     // --- RENDER ---
@@ -714,7 +679,7 @@ const MotoboyDashboard = ({ session, profile }: { session: any, profile: any }) 
                 {/* SingleButton Footer (Optional: Sync/Refresh) */}
                 <div className="p-4 bg-white dark:bg-slate-900 border-t border-[#dbe6df] dark:border-[#2a3d31] safe-area-inset-bottom">
                     <button
-                        onClick={fetchCurrentOrder}
+                        onClick={fetchOrdersQueue}
                         className="flex w-full cursor-pointer items-center justify-center overflow-hidden rounded-xl h-14 px-5 bg-slate-100 dark:bg-slate-800 text-[#111813] dark:text-white gap-3 text-sm font-bold leading-normal tracking-[0.015em] hover:bg-slate-200 dark:hover:bg-slate-700 active:scale-[0.98] transition-all"
                     >
                         <MaterialIcon name="sync" className="font-bold" />
@@ -831,7 +796,7 @@ const MotoboyDashboard = ({ session, profile }: { session: any, profile: any }) 
                             url="https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}"
                             attribution='&copy; <a href="https://www.google.com/maps">Google Maps</a>'
                         />
-                        {geoState.latitude && geoState.longitude && (
+                        {latitude && longitude && (
                             <>
                                 <MapUpdater center={center} />
                                 <Marker position={center} icon={motoboyIcon} />
@@ -908,7 +873,7 @@ const MotoboyDashboard = ({ session, profile }: { session: any, profile: any }) 
                             Observações
                         </h4>
                         <p className="text-sm text-blue-900 dark:text-blue-100 leading-relaxed font-medium">
-                            "Ao chegar, tocar o interfone 302. Cliente idoso, aguardar um pouco."
+                            {currentOrder.notes || "Nenhuma observação informada."}
                         </p>
                     </div>
                 </div>
@@ -917,16 +882,36 @@ const MotoboyDashboard = ({ session, profile }: { session: any, profile: any }) 
                 <div className="px-6 mb-6">
                     <div className="flex items-center justify-between mb-4">
                         <h4 className="text-lg font-bold">Itens do Pedido</h4>
-                        <span className="text-sm text-[#61896f] font-bold">Total: R$ {currentOrder.total_amount || '0,00'}</span>
+                        <span className="text-sm text-[#61896f] font-bold">
+                            Total: {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(currentOrder.total_amount || 0)}
+                        </span>
                     </div>
-                    <div className="flex items-center gap-4 p-3 bg-white dark:bg-slate-800/50 border border-gray-100 dark:border-slate-700 rounded-xl">
-                        <div className="bg-gray-100 dark:bg-slate-700 size-12 rounded-lg flex items-center justify-center">
-                            <MaterialIcon name="medication" className="text-gray-400" />
-                        </div>
-                        <div className="flex-1">
-                            <p className="font-bold text-sm">Pedido #{currentOrder.id.substring(0, 6)}</p>
-                            <p className="text-xs text-slate-500">Verificar itens na nota fiscal</p>
-                        </div>
+
+                    <div className="flex flex-col gap-3">
+                        {currentOrder.order_items && currentOrder.order_items.length > 0 ? (
+                            currentOrder.order_items.map((item: any, idx: number) => (
+                                <div key={item.id || idx} className="flex items-center gap-4 p-3 bg-white dark:bg-slate-800/50 border border-gray-100 dark:border-slate-700 rounded-xl">
+                                    <div className="bg-gray-100 dark:bg-slate-700 size-12 rounded-lg flex items-center justify-center shrink-0">
+                                        {item.products?.image_url ? (
+                                            <img src={item.products.image_url} alt={item.products.name} className="w-full h-full object-cover rounded-lg" />
+                                        ) : (
+                                            <MaterialIcon name="medication" className="text-gray-400" />
+                                        )}
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <p className="font-bold text-sm truncate">{item.products?.name || item.product_name || 'Produto'}</p>
+                                        <p className="text-xs text-slate-500">Qtd: {item.quantity}x</p>
+                                    </div>
+                                    <p className="text-sm font-bold text-slate-700 dark:text-slate-300">
+                                        {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.unit_price * item.quantity)}
+                                    </p>
+                                </div>
+                            ))
+                        ) : (
+                            <div className="text-center p-4 text-slate-400 text-sm">
+                                Nenhhum item listado.
+                            </div>
+                        )}
                     </div>
                 </div>
 
