@@ -143,7 +143,14 @@ const MotoboyDeliveryDetail = () => {
                 {/* Action Buttons */}
                 <div className="flex justify-stretch">
                     <div className="flex flex-1 gap-3 px-4 py-4 justify-between">
-                        <button className="flex flex-1 min-w-[140px] cursor-pointer items-center justify-center gap-2 rounded-xl h-14 bg-slate-200 dark:bg-white/10 hover:bg-slate-300 dark:hover:bg-white/20 text-slate-900 dark:text-white text-base font-bold leading-normal transition-colors active:scale-95">
+                        <button
+                            onClick={() => {
+                                const phone = order.profiles?.phone || order.phone;
+                                if (phone) window.location.href = `tel:${phone}`;
+                                else alert('Telefone do cliente não disponível');
+                            }}
+                            className="flex flex-1 min-w-[140px] cursor-pointer items-center justify-center gap-2 rounded-xl h-14 bg-slate-200 dark:bg-white/10 hover:bg-slate-300 dark:hover:bg-white/20 text-slate-900 dark:text-white text-base font-bold leading-normal transition-colors active:scale-95"
+                        >
                             <MaterialIcon name="call" />
                             <span className="truncate">Ligar</span>
                         </button>

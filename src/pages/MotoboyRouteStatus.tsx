@@ -2,10 +2,45 @@ import { useNavigate, Link, useParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useEffect, useState } from 'react';
 import { useGeolocation } from '../hooks/useGeolocation';
+import { MapContainer, TileLayer, Marker, useMap } from 'react-leaflet';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 
 const MaterialIcon = ({ name, className = "", style = {} }: { name: string, className?: string, style?: React.CSSProperties }) => (
     <span className={`material-symbols-outlined ${className}`} style={style}>{name}</span>
 );
+
+// Componente para centralizar o mapa na localização
+function MapUpdater({ center }: { center: [number, number] }) {
+    const map = useMap();
+    useEffect(() => {
+        map.setView(center, 15);
+    }, [center, map]);
+    return null;
+}
+
+// Ícone customizado para o motoboy
+const motoboyIcon = new L.Icon({
+    iconUrl: 'data:image/svg+xml;base64,' + btoa(`
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#00ff00" stroke="#ffffff" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/>
+        </svg>
+    `),
+    iconSize: [30, 30],
+    iconAnchor: [15, 15]
+});
+
+// Ícone customizado para o destino
+const destinationIcon = new L.Icon({
+    iconUrl: 'data:image/svg+xml;base64,' + btoa(`
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#ff0000" stroke="#ffffff" stroke-width="2">
+            <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/>
+            <circle cx="12" cy="9" r="2.5" fill="white"/>
+        </svg>
+    `),
+    iconSize: [35, 35],
+    iconAnchor: [17, 35]
+});
 
 const MotoboyRouteStatus = () => {
     const navigate = useNavigate();
@@ -93,6 +128,9 @@ const MotoboyRouteStatus = () => {
         '--route-text-light': '#92c9a9',
     } as React.CSSProperties;
 
+    const center: [number, number] = coords ? [coords.lat, coords.lng] : [-22.9068, -43.1729];
+    const destination: [number, number] | null = order.delivery_lat && order.delivery_lng ? [order.delivery_lat, order.delivery_lng] : null;
+
     return (
         <div className="bg-background-light dark:bg-[#102218] text-white min-h-screen flex flex-col font-display transition-colors duration-200" style={routeTheme}>
             {/* TopAppBar */}
@@ -134,32 +172,33 @@ const MotoboyRouteStatus = () => {
                 </div>
 
                 {/* Map Section */}
-                <div className="flex px-4 py-6 flex-1 min-h-[300px]">
-                    <div className="relative w-full h-full min-h-[300px] bg-slate-200 dark:bg-[#193324] rounded-xl overflow-hidden shadow-2xl border border-gray-200 dark:border-white/10">
-                        {/* Map Background - Em uma app real, aqui entraria o AdminMap configurado para motoboy */}
-                        <div
-                            className="absolute inset-0 bg-center bg-no-repeat bg-cover opacity-80 flex items-center justify-center flex-col gap-4 text-center p-8 bg-[#0a150f]"
+                <div className="flex px-4 py-6 flex-1 min-h-[350px]">
+                    <div className="relative w-full h-full min-h-[350px] bg-slate-200 dark:bg-[#193324] rounded-xl overflow-hidden shadow-2xl border border-gray-200 dark:border-white/10">
+                        <MapContainer
+                            center={center}
+                            zoom={15}
+                            style={{ height: '100%', width: '100%' }}
+                            zoomControl={false}
                         >
-                            <div className="p-4 bg-primary/10 rounded-full animate-bounce">
-                                <MaterialIcon name="gps_fixed" className="text-primary !text-4xl" />
-                            </div>
-                            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">Sinal GPS {coords ? 'Excelente' : 'Procurando...'}</p>
+                            <TileLayer
+                                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+                            />
                             {coords && (
-                                <p className="text-[8px] font-bold text-white/40">{coords.lat.toFixed(5)}, {coords.lng.toFixed(5)}</p>
+                                <>
+                                    <MapUpdater center={center} />
+                                    <Marker position={[coords.lat, coords.lng]} icon={motoboyIcon} />
+                                </>
                             )}
-                        </div>
+                            {destination && (
+                                <Marker position={destination} icon={destinationIcon} />
+                            )}
+                        </MapContainer>
 
                         {/* Map Overlay Elements */}
-                        <div className="absolute top-4 right-4 bg-white/90 dark:bg-[#102218]/80 backdrop-blur-md p-2 rounded-lg border border-gray-200 dark:border-white/10 shadow-sm">
-                            <p className="text-[10px] text-slate-500 dark:text-[#92c9a9] uppercase font-bold">Chegada em</p>
-                            <p className="text-slate-900 dark:text-white font-bold text-lg">Calc...</p>
-                        </div>
-
-                        {/* Destination Marker */}
-                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center">
-                            <div className="bg-[#13ec6d] text-[#102218] p-2 rounded-full shadow-lg animate-pulse">
-                                <MaterialIcon name="location_on" className="!text-3xl font-bold" />
-                            </div>
+                        <div className="absolute top-4 right-4 bg-white/90 dark:bg-[#102218]/80 backdrop-blur-md p-2 rounded-lg border border-gray-200 dark:border-white/10 shadow-sm z-[1000]">
+                            <p className="text-[10px] text-slate-500 dark:text-[#92c9a9] uppercase font-bold">Sinal GPS</p>
+                            <p className="text-slate-900 dark:text-white font-bold text-sm tracking-tighter">{coords ? 'Excelente' : 'Procurando...'}</p>
                         </div>
                     </div>
                 </div>

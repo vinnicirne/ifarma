@@ -116,8 +116,16 @@ const MotoboyDashboard = ({ session, profile }: { session: any, profile: any }) 
         }
     };
 
-    const openMap = (app: 'google' | 'waze' | 'apple') => {
-        if (!currentOrder?.pharmacies) return;
+    const openMap = async (app: 'google' | 'waze' | 'apple') => {
+        if (!currentOrder?.id) return;
+
+        // Atualizar status para 'em_rota' ao iniciar navegação
+        if (currentOrder.status === 'pronto_entrega') {
+            await supabase
+                .from('orders')
+                .update({ status: 'em_rota' })
+                .eq('id', currentOrder.id);
+        }
 
         // Tenta usar coordenadas do pedido, senão usa do cliente (fallback)
         // O ideal é ter lat/lng do destino no pedido. Vamos assumir que currentOrder tem delivery_lat/lng como visto no tracking-engine, 
@@ -162,6 +170,23 @@ const MotoboyDashboard = ({ session, profile }: { session: any, profile: any }) 
 
         window.open(url, '_blank');
         setShowNavOptions(false);
+    };
+
+    const handleArrived = async () => {
+        if (!currentOrder?.id) return;
+
+        const { error } = await supabase
+            .from('orders')
+            .update({ motoboy_arrived_at: new Date().toISOString() })
+            .eq('id', currentOrder.id);
+
+        if (error) {
+            alert('Erro ao sinalizar chegada: ' + error.message);
+        } else {
+            // Toast de confirmação ou feedback visual local
+            setNewOrderAlert('CLIENTE NOTIFICADO DA SUA CHEGADA!');
+            setTimeout(() => setNewOrderAlert(null), 4000);
+        }
     };
 
     // Ativar rastreamento apenas quando online
@@ -265,7 +290,7 @@ const MotoboyDashboard = ({ session, profile }: { session: any, profile: any }) 
                 .from('orders')
                 .select('id')
                 .eq('motoboy_id', session.user.id)
-                .in('status', ['aguardando_motoboy', 'em_rota'])
+                .in('status', ['pronto_entrega', 'em_rota'])
                 .order('created_at', { ascending: false })
                 .limit(1)
                 .single();
@@ -526,9 +551,18 @@ const MotoboyDashboard = ({ session, profile }: { session: any, profile: any }) 
 
                             <button
                                 onClick={() => setShowNavOptions(true)}
-                                className="w-full bg-primary text-black font-black py-3 rounded-xl text-sm active:scale-95 transition-transform">
+                                className="w-full bg-primary text-black font-black py-4 rounded-xl text-sm active:scale-95 transition-transform shadow-lg shadow-primary/20">
                                 Iniciar Navegação
                             </button>
+
+                            {currentOrder.status === 'em_rota' && (
+                                <button
+                                    onClick={handleArrived}
+                                    className="w-full mt-3 bg-white dark:bg-slate-800 text-primary border-2 border-primary font-black py-4 rounded-xl text-sm active:scale-95 transition-transform flex items-center justify-center gap-2">
+                                    <MaterialIcon name="notifications_active" />
+                                    Cheguei ao Destino (Buzina)
+                                </button>
+                            )}
                         </>
                     ) : (
                         <div className="text-center py-4">

@@ -63,12 +63,12 @@ const MotoboyDeliveryConfirm = () => {
             const { error } = await supabase
                 .from('orders')
                 .update({
-                    status: 'Delivered',
+                    status: 'entregue',
                     delivery_photo_url: photoUrl,
                     delivery_lat: latitude,
                     delivery_lng: longitude,
                     delivered_at: new Date().toISOString(),
-                    customer_notes: notes // Or another field for delivery notes
+                    notes: notes // Fixed: using field 'notes' from schema
                 })
                 .eq('id', orderId);
 

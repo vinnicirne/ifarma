@@ -494,7 +494,7 @@ const MerchantOrderManagement = () => {
 
         if (status === 'em_rota') {
             message = `Olá *${name}*! 🛵\n\nSeu pedido *#${order.id.substring(0, 6)}* saiu para entrega e chegará em breve!\n\nObrigado por escolher a *${pharmacy?.name || 'Ifarma'}*.`;
-        } else if (status === 'aguardando_motoboy') {
+        } else if (status === 'pronto_entrega') {
             message = `Olá *${name}*! ✅\n\nSeu pedido *#${order.id.substring(0, 6)}* está pronto e aguardando o entregador.`;
         }
 
@@ -583,7 +583,7 @@ const MerchantOrderManagement = () => {
     };
 
     const moveOrder = (orderId: string, currentStatus: string) => {
-        const statusOrder = ['pendente', 'preparando', 'aguardando_motoboy', 'em_rota', 'entregue'];
+        const statusOrder = ['pendente', 'preparando', 'pronto_entrega', 'em_rota', 'entregue'];
         const currentIndex = statusOrder.indexOf(currentStatus);
         const nextStatus = statusOrder[currentIndex + 1];
 
@@ -726,7 +726,7 @@ const MerchantOrderManagement = () => {
                             // SPECIAL LOGIC: 'preparando' includes 'aguardando_motoboy'
                             const count = orders.filter(o => {
                                 if (col.id === 'preparando') {
-                                    return o.status === 'preparando' || o.status === 'aguardando_motoboy';
+                                    return o.status === 'preparando' || o.status === 'pronto_entrega';
                                 }
                                 return o.status?.toLowerCase() === col.id;
                             }).length;
