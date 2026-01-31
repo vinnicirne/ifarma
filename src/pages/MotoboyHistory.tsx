@@ -29,7 +29,8 @@ const MotoboyHistory = () => {
                 .select('*, pharmacies(name)')
                 .eq('motoboy_id', user.id)
                 .eq('status', 'entregue')
-                .order('created_at', { ascending: false });
+                .order('created_at', { ascending: false })
+                .limit(50);
 
             if (error) throw error;
 

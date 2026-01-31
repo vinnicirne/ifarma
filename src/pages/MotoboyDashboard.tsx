@@ -202,7 +202,11 @@ const MotoboyDashboard = ({ session, profile }: { session: any, profile: any }) 
                     await new Promise<void>((resolve) => {
                         const src = 'https://assets.mixkit.co/active_storage/sfx/571/571-preview.mp3';
                         const audio = new Audio(src);
-                        audio.volume = 0.8;
+                        audio.volume = 1.0;
+
+                        // Add Vibration
+                        if (navigator.vibrate) navigator.vibrate([500, 200, 500]);
+
                         const safetyTimeout = setTimeout(() => resolve(), 3000);
                         audio.onended = () => { clearTimeout(safetyTimeout); resolve(); };
                         audio.onerror = () => { clearTimeout(safetyTimeout); resolve(); };
@@ -230,7 +234,7 @@ const MotoboyDashboard = ({ session, profile }: { session: any, profile: any }) 
         try {
             const { data, error } = await supabase
                 .from('orders')
-                .select('*, profiles:customer_id(full_name, avatar_url, phone)')
+                .select('*, profiles:customer_id(full_name, avatar_url, phone), order_items(*, products(*))')
                 .eq('motoboy_id', session.user.id)
                 .in('status', ['pronto_entrega', 'em_rota', 'aguardando_retirada'])
                 .order('delivery_sequence', { ascending: true }) // Prioridade definida pelo motoboy
@@ -726,6 +730,10 @@ const MotoboyDashboard = ({ session, profile }: { session: any, profile: any }) 
                             </div>
 
                             <div className="space-y-2">
+                                <button onClick={() => playNotificationSound(1)} className="w-full flex items-center gap-3 p-4 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+                                    <MaterialIcon name="volume_up" />
+                                    <span className="font-bold">Testar Alerta</span>
+                                </button>
                                 <button onClick={() => navigate('/motoboy-history')} className="w-full flex items-center gap-3 p-4 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
                                     <MaterialIcon name="history" />
                                     <span className="font-bold">Histórico</span>
@@ -821,14 +829,19 @@ const MotoboyDashboard = ({ session, profile }: { session: any, profile: any }) 
                         </button>
                     </div>
 
-                    {/* Top Bar Overlay */}
-                    <div className="absolute top-0 left-0 right-0 z-[400] bg-white/90 dark:bg-background-dark/90 backdrop-blur-md p-4 flex items-center justify-between border-b border-gray-100 dark:border-gray-800">
-                        <div className="flex size-10 items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 cursor-pointer" onClick={() => setShowMenu(true)}>
-                            <MaterialIcon name="menu" className="text-lg" />
+
+
+                    {/* Top Bar Overlay Glass */}
+                    <div className="absolute top-0 left-0 right-0 z-[400] bg-white/70 dark:bg-black/60 backdrop-blur-xl p-4 flex items-center justify-between border-b border-white/20 dark:border-white/5 shadow-sm">
+                        <div className="flex size-10 items-center justify-center rounded-full bg-white/20 hover:bg-white/40 cursor-pointer backdrop-blur-md transition-all active:scale-95" onClick={() => setShowMenu(true)}>
+                            <MaterialIcon name="menu" className="text-lg text-slate-800 dark:text-white" />
                         </div>
-                        <h2 className="text-lg font-bold leading-tight flex-1 text-center pr-10">
-                            Entrega #{currentOrder.id.substring(0, 4)}
-                        </h2>
+                        <div className="flex-1 text-center pr-10">
+                            <h2 className="text-lg font-black italic tracking-tighter text-slate-900 dark:text-white drop-shadow-sm">
+                                #{currentOrder.id.substring(0, 5)}
+                            </h2>
+                            <p className="text-[10px] uppercase tracking-widest font-bold text-slate-500 dark:text-slate-300">Em andamento</p>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -843,11 +856,14 @@ const MotoboyDashboard = ({ session, profile }: { session: any, profile: any }) 
 
                 {/* Actions Grid (Contact) */}
                 <div className="grid grid-cols-2 gap-4 px-6 mb-6">
-                    <a href={`tel:${currentOrder.client_phone || ''}`} className="flex items-center justify-center gap-2 py-3 bg-slate-50 dark:bg-slate-800 rounded-xl font-bold text-sm text-slate-700 dark:text-white border border-slate-200 dark:border-slate-700 active:bg-slate-100">
+                    <a href={`tel:${currentOrder.profiles?.phone || ''}`} className="flex items-center justify-center gap-2 py-3 bg-slate-50 dark:bg-slate-800 rounded-xl font-bold text-sm text-slate-700 dark:text-white border border-slate-200 dark:border-slate-700 active:bg-slate-100">
                         <MaterialIcon name="call" className="text-primary" />
                         Ligar
                     </a>
-                    <button className="flex items-center justify-center gap-2 py-3 bg-slate-50 dark:bg-slate-800 rounded-xl font-bold text-sm text-slate-700 dark:text-white border border-slate-200 dark:border-slate-700 active:bg-slate-100">
+                    <button
+                        onClick={() => navigate('/motoboy-chat/' + currentOrder.id)}
+                        className="flex items-center justify-center gap-2 py-3 bg-slate-50 dark:bg-slate-800 rounded-xl font-bold text-sm text-slate-700 dark:text-white border border-slate-200 dark:border-slate-700 active:bg-slate-100"
+                    >
                         <MaterialIcon name="chat" className="text-primary" />
                         Chat
                     </button>
@@ -857,10 +873,10 @@ const MotoboyDashboard = ({ session, profile }: { session: any, profile: any }) 
                 <div className="px-6 mb-6">
                     <div className="flex items-center gap-4">
                         <div className="size-14 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-xl font-black text-slate-400">
-                            {currentOrder.client_name?.charAt(0) || 'C'}
+                            {currentOrder.profiles?.full_name?.charAt(0) || 'C'}
                         </div>
                         <div className="flex-1">
-                            <p className="text-lg font-bold leading-none">{currentOrder.client_name || 'Cliente'}</p>
+                            <p className="text-lg font-bold leading-none">{currentOrder.profiles?.full_name || 'Cliente'}</p>
                             <p className="text-[#61896f] dark:text-gray-400 text-sm font-normal mt-1 leading-snug">
                                 {currentOrder.address}
                             </p>
@@ -903,7 +919,7 @@ const MotoboyDashboard = ({ session, profile }: { session: any, profile: any }) 
                                         <p className="text-xs text-slate-500">Qtd: {item.quantity}x</p>
                                     </div>
                                     <p className="text-sm font-bold text-slate-700 dark:text-slate-300">
-                                        {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.unit_price * item.quantity)}
+                                        {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format((item.unit_price || 0) * (item.quantity || 1))}
                                     </p>
                                 </div>
                             ))
@@ -941,16 +957,32 @@ const MotoboyDashboard = ({ session, profile }: { session: any, profile: any }) 
                                 CONFIRMAR RETIRADA
                             </button>
                         ) : (
-                            <button
-                                onClick={() => navigate(`/motoboy-confirm/${currentOrder.id}`)}
-                                disabled={!distanceToDest || distanceToDest > 150}
-                                className={`w-full font-black py-4 rounded-xl text-lg flex items-center justify-center gap-2 transition-all active:scale-95 shadow-lg
-                                    ${(!distanceToDest || distanceToDest > 150) ? 'bg-slate-200 text-slate-400 cursor-not-allowed' : 'bg-primary hover:bg-primary/90 text-black shadow-primary/20'}
-                                `}
-                            >
-                                <MaterialIcon name="check_circle" className="font-bold" />
-                                {(!distanceToDest || distanceToDest > 150) ? 'APROXIME-SE PARA ENTREGAR' : 'CONFIRMAR ENTREGA'}
-                            </button>
+                            <div className="flex flex-col gap-3">
+                                {/* INICIAR ROTA BUTTON */}
+                                <button
+                                    onClick={handleAutoOpenMap}
+                                    className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-4 rounded-xl text-lg flex items-center justify-center gap-2 transition-all active:scale-95 shadow-lg shadow-blue-500/20"
+                                >
+                                    <MaterialIcon name="near_me" className="font-bold" />
+                                    INICIAR ROTA
+                                </button>
+
+                                <button
+                                    onClick={() => navigate(`/motoboy-confirm/${currentOrder.id}`)}
+                                    disabled={!distanceToDest || distanceToDest > 150}
+                                    className={`w-full font-black py-4 rounded-xl text-lg flex items-center justify-center gap-2 transition-all active:scale-95 shadow-lg
+                                        ${(!distanceToDest || distanceToDest > 150) ? 'bg-slate-200 text-slate-400 cursor-not-allowed hidden' : 'bg-primary hover:bg-primary/90 text-black shadow-primary/20'}
+                                    `}
+                                >
+                                    <MaterialIcon name="check_circle" className="font-bold" />
+                                    CONFIRMAR ENTREGA
+                                </button>
+                                {!distanceToDest || distanceToDest > 150 && (
+                                    <p className="text-center text-xs text-slate-400 font-bold uppercase tracking-widest mt-2">
+                                        Aproxime-se para finalizar
+                                    </p>
+                                )}
+                            </div>
                         )}
                     </div>
                     {/* iOS Safe Area Spacer */}
@@ -960,39 +992,43 @@ const MotoboyDashboard = ({ session, profile }: { session: any, profile: any }) 
             </div>
 
             {/* Modals GPS (Reused code logic from showNavOptions) */}
-            {showNavOptions && !gpsPreference && (
-                <div className="absolute inset-0 z-[500] flex items-end justify-center p-4 bg-black/60 backdrop-blur-sm sm:items-center" onClick={() => setShowNavOptions(false)}>
-                    <div className="w-full max-w-sm bg-white dark:bg-slate-900 rounded-[32px] p-6 shadow-2xl animate-in fade-in slide-in-from-bottom-10 duration-300" onClick={e => e.stopPropagation()}>
-                        <h2 className="text-xl font-black italic tracking-tighter mb-4 text-center">Escolha o GPS</h2>
-                        <div className="grid grid-cols-2 gap-4">
-                            <button onClick={() => { openMap('google'); saveGpsPreference('google'); }} className="p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl font-bold flex flex-col items-center gap-2"><MaterialIcon name="map" className="text-red-500 text-3xl" />Google Maps</button>
-                            <button onClick={() => { openMap('waze'); saveGpsPreference('waze'); }} className="p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl font-bold flex flex-col items-center gap-2"><MaterialIcon name="directions_car" className="text-blue-500 text-3xl" />Waze</button>
+            {
+                showNavOptions && !gpsPreference && (
+                    <div className="absolute inset-0 z-[500] flex items-end justify-center p-4 bg-black/60 backdrop-blur-sm sm:items-center" onClick={() => setShowNavOptions(false)}>
+                        <div className="w-full max-w-sm bg-white dark:bg-slate-900 rounded-[32px] p-6 shadow-2xl animate-in fade-in slide-in-from-bottom-10 duration-300" onClick={e => e.stopPropagation()}>
+                            <h2 className="text-xl font-black italic tracking-tighter mb-4 text-center">Escolha o GPS</h2>
+                            <div className="grid grid-cols-2 gap-4">
+                                <button onClick={() => { openMap('google'); saveGpsPreference('google'); }} className="p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl font-bold flex flex-col items-center gap-2"><MaterialIcon name="map" className="text-red-500 text-3xl" />Google Maps</button>
+                                <button onClick={() => { openMap('waze'); saveGpsPreference('waze'); }} className="p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl font-bold flex flex-col items-center gap-2"><MaterialIcon name="directions_car" className="text-blue-500 text-3xl" />Waze</button>
+                            </div>
                         </div>
                     </div>
-                </div>
-            )}
+                )
+            }
 
             {/* Menu Modal (Duplicate needed here if showMenu is true while order active) */}
-            {showMenu && (
-                <div className="absolute inset-0 z-[500] bg-black/50 backdrop-blur-sm" onClick={() => setShowMenu(false)}>
-                    <div
-                        className="absolute right-0 top-0 bottom-0 w-80 bg-white dark:bg-slate-900 shadow-2xl p-6 overflow-y-auto"
-                        onClick={(e) => e.stopPropagation()}
-                    >
-                        <div className="flex items-center justify-between mb-6">
-                            <h2 className="text-2xl font-black italic tracking-tighter">Menu</h2>
-                            <button onClick={() => setShowMenu(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full">
-                                <MaterialIcon name="close" />
+            {
+                showMenu && (
+                    <div className="absolute inset-0 z-[500] bg-black/50 backdrop-blur-sm" onClick={() => setShowMenu(false)}>
+                        <div
+                            className="absolute right-0 top-0 bottom-0 w-80 bg-white dark:bg-slate-900 shadow-2xl p-6 overflow-y-auto"
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            <div className="flex items-center justify-between mb-6">
+                                <h2 className="text-2xl font-black italic tracking-tighter">Menu</h2>
+                                <button onClick={() => setShowMenu(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full">
+                                    <MaterialIcon name="close" />
+                                </button>
+                            </div>
+                            <button onClick={async () => { await supabase.auth.signOut(); navigate('/login'); }} className="w-full flex items-center gap-3 p-4 rounded-xl hover:bg-red-500/10 text-red-500 transition-colors">
+                                <MaterialIcon name="logout" />
+                                <span className="font-bold">Sair</span>
                             </button>
                         </div>
-                        <button onClick={async () => { await supabase.auth.signOut(); navigate('/login'); }} className="w-full flex items-center gap-3 p-4 rounded-xl hover:bg-red-500/10 text-red-500 transition-colors">
-                            <MaterialIcon name="logout" />
-                            <span className="font-bold">Sair</span>
-                        </button>
                     </div>
-                </div>
-            )}
-        </div>
+                )
+            }
+        </div >
     );
 };
 

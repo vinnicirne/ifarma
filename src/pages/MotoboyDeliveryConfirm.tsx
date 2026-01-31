@@ -12,6 +12,8 @@ const MotoboyDeliveryConfirm = () => {
     const { orderId } = useParams();
     const [showSuccess, setShowSuccess] = useState(false);
     const [receiverName, setReceiverName] = useState('');
+    const [proofFile, setProofFile] = useState<File | null>(null);
+    const [uploading, setUploading] = useState(false);
     const [loading, setLoading] = useState(false);
     const [userId, setUserId] = useState<string | null>(null);
 
@@ -30,11 +32,33 @@ const MotoboyDeliveryConfirm = () => {
 
         setLoading(true);
         try {
+            let proofUrl = null;
+
+            // Upload Proof if exists
+            if (proofFile) {
+                setUploading(true);
+                const fileExt = proofFile.name.split('.').pop();
+                const fileName = `${orderId}_${Date.now()}.${fileExt}`;
+                const { error: uploadError } = await supabase.storage
+                    .from('delivery-proofs')
+                    .upload(fileName, proofFile);
+
+                if (uploadError) throw uploadError;
+
+                const { data: publicUrlData } = supabase.storage
+                    .from('delivery-proofs')
+                    .getPublicUrl(fileName);
+
+                proofUrl = publicUrlData.publicUrl;
+                setUploading(false);
+            }
+
             const { error } = await supabase
                 .from('orders')
                 .update({
                     status: 'entregue',
-                    receiver_name: receiverName, // Requires 'receiver_name' column in DB
+                    receiver_name: receiverName,
+                    proof_url: proofUrl,
                     delivery_lat: latitude,
                     delivery_lng: longitude,
                     delivered_at: new Date().toISOString(),
@@ -103,6 +127,38 @@ const MotoboyDeliveryConfirm = () => {
                     </div>
                 </div>
 
+
+                {/* Section: Camera / Photo Proof */}
+                <div className="px-4 py-2 mt-4">
+                    <h3 className="text-slate-900 dark:text-white text-lg font-bold leading-tight tracking-tight mb-4">Comprovante (Opcional)</h3>
+                    <div className="flex flex-col gap-4">
+                        <label className="flex w-full items-center justify-center gap-3 p-4 border-2 border-dashed border-slate-300 dark:border-white/10 rounded-xl bg-slate-100 dark:bg-white/5 cursor-pointer active:scale-95 transition-transform">
+                            <input
+                                type="file"
+                                accept="image/*"
+                                capture="environment"
+                                className="hidden"
+                                onChange={(e) => setProofFile(e.target.files ? e.target.files[0] : null)}
+                            />
+                            <MaterialIcon name="photo_camera" className="text-3xl text-slate-400" />
+                            <span className="text-sm font-bold text-slate-500 dark:text-gray-400">
+                                {proofFile ? 'Foto Selecionada' : 'Tirar Foto do Comprovante'}
+                            </span>
+                        </label>
+                        {proofFile && (
+                            <div className="relative h-32 w-full rounded-xl overflow-hidden">
+                                <img src={URL.createObjectURL(proofFile)} alt="Preview" className="h-full w-full object-cover" />
+                                <button
+                                    onClick={() => setProofFile(null)}
+                                    className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 shadow-lg"
+                                >
+                                    <MaterialIcon name="close" className="text-sm" />
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                </div>
+
                 {/* Quick Tags for faster input */}
                 <div className="px-4 flex flex-wrap gap-2 mt-4">
                     {['Próprio Cliente', 'Portaria', 'Secretária', 'Vizinho'].map((tag) => (
@@ -124,7 +180,7 @@ const MotoboyDeliveryConfirm = () => {
                     disabled={loading || !receiverName.trim()}
                     className="w-full bg-[#13ec6d] hover:bg-[#13ec6d]/90 disabled:opacity-50 disabled:cursor-not-allowed text-[#102218] font-bold py-4 rounded-xl text-lg shadow-lg shadow-[#13ec6d]/20 flex items-center justify-center gap-2 transition-transform active:scale-[0.98]"
                 >
-                    {loading ? (
+                    {loading || uploading ? (
                         <span className="animate-spin text-xl">⌛</span>
                     ) : (
                         <>
@@ -136,21 +192,23 @@ const MotoboyDeliveryConfirm = () => {
             </footer>
 
             {/* Success Feedback Overlay */}
-            {showSuccess && (
-                <div className="fixed inset-0 z-[100] bg-background-light dark:bg-[#102218] flex flex-col items-center justify-center p-6 text-center animate-in fade-in duration-300">
-                    <div className="w-24 h-24 bg-[#13ec6d] rounded-full flex items-center justify-center mb-6 animate-bounce">
-                        <MaterialIcon name="check" className="text-[#102218] text-6xl" />
+            {
+                showSuccess && (
+                    <div className="fixed inset-0 z-[100] bg-background-light dark:bg-[#102218] flex flex-col items-center justify-center p-6 text-center animate-in fade-in duration-300">
+                        <div className="w-24 h-24 bg-[#13ec6d] rounded-full flex items-center justify-center mb-6 animate-bounce">
+                            <MaterialIcon name="check" className="text-[#102218] text-6xl" />
+                        </div>
+                        <h2 className="text-2xl font-bold mb-2 text-slate-900 dark:text-white">Sucesso!</h2>
+                        <p className="text-slate-500 dark:text-gray-400 mb-10 max-w-xs">A entrega foi registrada com sucesso.</p>
+                        <button
+                            onClick={handleBackToHome}
+                            className="w-full max-w-xs bg-slate-200 dark:bg-white/10 py-4 rounded-xl font-bold text-slate-900 dark:text-white hover:bg-slate-300 dark:hover:bg-white/20 transition-colors"
+                        >
+                            Voltar ao Início
+                        </button>
                     </div>
-                    <h2 className="text-2xl font-bold mb-2 text-slate-900 dark:text-white">Sucesso!</h2>
-                    <p className="text-slate-500 dark:text-gray-400 mb-10 max-w-xs">A entrega foi registrada com sucesso.</p>
-                    <button
-                        onClick={handleBackToHome}
-                        className="w-full max-w-xs bg-slate-200 dark:bg-white/10 py-4 rounded-xl font-bold text-slate-900 dark:text-white hover:bg-slate-300 dark:hover:bg-white/20 transition-colors"
-                    >
-                        Voltar ao Início
-                    </button>
-                </div>
-            )}
+                )
+            }
         </div>
     );
 };

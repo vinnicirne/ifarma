@@ -223,7 +223,7 @@ const MotoboyRouteStatus = () => {
                 {/* Sticky Action Button Container */}
                 <div className="p-4 mt-auto">
                     <Link
-                        to="/motoboy-delivery-confirm"
+                        to={`/motoboy-confirm/${orderId}`}
                         className="w-full bg-[#13ec6d] hover:bg-[#11d662] active:scale-[0.98] transition-all text-[#102218] h-16 rounded-xl flex items-center justify-center gap-3 shadow-[0_8px_20px_rgba(19,236,109,0.3)]"
                     >
                         <span className="text-xl font-black uppercase tracking-tight">Confirmar Entrega</span>

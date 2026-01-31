@@ -54,6 +54,7 @@ import MotoboyDeliveryConfirm from '../pages/MotoboyDeliveryConfirm';
 import MotoboyEarnings from '../pages/MotoboyEarnings';
 import MotoboyRouteStatus from '../pages/MotoboyRouteStatus';
 import MotoboyHistory from '../pages/MotoboyHistory';
+import MotoboyChat from '../pages/MotoboyChat';
 
 // Route Guards
 import { ProtectedRoute, AdminRoute, GestorRoute } from './RouteGuards';
@@ -127,7 +128,9 @@ export const AppRoutes = ({ session, profile, userLocation, sortedPharmacies }: 
             <Route path="/motoboy-route-status" element={<MotoboyRouteStatus />} />
             <Route path="/motoboy-history" element={<MotoboyHistory />} />
             <Route path="/motoboy-earnings" element={<MotoboyEarnings />} />
+
             <Route path="/motoboy-confirm/:orderId" element={<MotoboyDeliveryConfirm />} />
+            <Route path="/motoboy-chat/:orderId" element={<MotoboyChat />} />
         </Routes>
     );
 };
