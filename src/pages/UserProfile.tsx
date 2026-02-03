@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
+import { AddressAutocomplete } from '../components/AddressAutocomplete';
 
 const MaterialIcon = ({ name, className = "", style = {} }: { name: string, className?: string, style?: React.CSSProperties }) => (
     <span className={`material-symbols-outlined ${className}`} style={style}>{name}</span>
@@ -15,17 +16,20 @@ const UserProfile = ({ session, profile }: { session: any, profile: any }) => {
     const [addressForm, setAddressForm] = useState({
         label: '',
         address: '',
+        number: '',
+        complement: '',
         is_default: false
     });
     const [loading, setLoading] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
-    const [cepLoading, setCepLoading] = useState(false);
     const [formData, setFormData] = useState({
         full_name: '',
         cpf: '',
         phone: '',
         avatar_url: '',
-        address: ''
+        address: '',
+        number: '',
+        complement: ''
     });
 
     useEffect(() => {
@@ -35,7 +39,9 @@ const UserProfile = ({ session, profile }: { session: any, profile: any }) => {
                 cpf: profile.cpf || '',
                 phone: profile.phone || '',
                 avatar_url: profile.avatar_url || '',
-                address: profile.address || ''
+                address: profile.address || '',
+                number: '',
+                complement: ''
             });
             fetchAddresses();
         }
@@ -49,39 +55,25 @@ const UserProfile = ({ session, profile }: { session: any, profile: any }) => {
         if (data) setAddresses(data);
     };
 
-    const handleCEPBlur = async () => {
-        const cep = addressForm.address.replace(/\D/g, '');
-        if (cep.length !== 8) return;
-
-        setCepLoading(true);
-        try {
-            const response = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
-            const data = await response.json();
-            if (!data.erro) {
-                setAddressForm(prev => ({
-                    ...prev,
-                    address: `${data.logradouro}, ${data.bairro}, ${data.localidade} - ${data.uf}`
-                }));
-            }
-        } catch (error) {
-            console.error('Erro ao buscar CEP:', error);
-        } finally {
-            setCepLoading(false);
-        }
-    };
-
     const handleAddAddress = async () => {
         setLoading(true);
         try {
+            // Concatenate address + number + complement
+            let fullAddress = addressForm.address;
+            if (addressForm.number) fullAddress += `, ${addressForm.number}`;
+            if (addressForm.complement) fullAddress += ` - ${addressForm.complement}`;
+
             const { error } = await supabase
                 .from('user_addresses')
                 .insert({
                     user_id: session.user.id,
-                    ...addressForm
+                    label: addressForm.label,
+                    address: fullAddress,
+                    is_default: addressForm.is_default
                 });
             if (error) throw error;
             setIsAddingAddress(false);
-            setAddressForm({ label: '', address: '', is_default: false });
+            setAddressForm({ label: '', address: '', number: '', complement: '', is_default: false });
             fetchAddresses();
         } catch (error) {
             console.error('Erro ao adicionar endereço:', error);
@@ -107,6 +99,15 @@ const UserProfile = ({ session, profile }: { session: any, profile: any }) => {
     const handleSave = async () => {
         setLoading(true);
         try {
+            let fullAddress = formData.address;
+            // Only append if it doesn't look like it already has it (simple check)
+            if (formData.number && !fullAddress.includes(`, ${formData.number}`)) {
+                fullAddress += `, ${formData.number}`;
+            }
+            if (formData.complement && !fullAddress.includes(formData.complement)) {
+                fullAddress += ` - ${formData.complement}`;
+            }
+
             const { error } = await supabase
                 .from('profiles')
                 .update({
@@ -114,7 +115,7 @@ const UserProfile = ({ session, profile }: { session: any, profile: any }) => {
                     cpf: formData.cpf,
                     phone: formData.phone,
                     avatar_url: formData.avatar_url,
-                    address: formData.address
+                    address: fullAddress
                 })
                 .eq('id', session.user.id);
 
@@ -201,7 +202,7 @@ const UserProfile = ({ session, profile }: { session: any, profile: any }) => {
                 {/* Addresses Section */}
                 <section className="mt-4">
                     <div className="flex items-center justify-between px-4 mb-2">
-                        <h3 className="text-slate-900 dark:text-white text-lg font-bold tracking-tight">Meus Endereços</h3>
+                        <h3 className="text-slate-900 dark:text-white text-lg font-bold tracking-tight">Endereço Adicional</h3>
                         <button onClick={() => setIsAddingAddress(true)} className="text-primary text-sm font-semibold hover:opacity-80 transition-opacity flex items-center gap-1">
                             <MaterialIcon name="add_circle" className="text-sm" /> Adicionar
                         </button>
@@ -280,6 +281,18 @@ const UserProfile = ({ session, profile }: { session: any, profile: any }) => {
                             </div>
                             <MaterialIcon name="chevron_right" className="text-slate-400 text-[20px]" />
                         </div>
+                        <div className="flex items-center gap-4 bg-white dark:bg-slate-800/50 px-4 min-h-[64px] py-2 justify-between cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/70 transition-colors">
+                            <div className="flex items-center gap-4">
+                                <div className="text-primary flex items-center justify-center rounded-lg bg-primary/10 shrink-0 size-10">
+                                    <MaterialIcon name="location_on" className="text-[20px]" />
+                                </div>
+                                <div className="flex flex-col">
+                                    <p className="text-slate-900 dark:text-white text-sm font-medium">Endereço Principal</p>
+                                    <p className="text-slate-500 dark:text-slate-400 text-xs truncate max-w-[200px]">{profile?.address || 'Não informado'}</p>
+                                </div>
+                            </div>
+                            <MaterialIcon name="chevron_right" className="text-slate-400 text-[20px]" />
+                        </div>
                     </div>
                 </section>
 
@@ -296,7 +309,7 @@ const UserProfile = ({ session, profile }: { session: any, profile: any }) => {
             {/* Add Address Modal */}
             {isAddingAddress && (
                 <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-                    <div className="bg-white dark:bg-zinc-900 rounded-2xl w-full max-w-sm p-6 shadow-2xl">
+                    <div className="bg-white dark:bg-zinc-900 rounded-2xl w-full max-w-sm p-6 shadow-2xl overflow-y-auto max-h-[90vh]">
                         <div className="flex justify-between items-center mb-6">
                             <h3 className="text-xl font-bold text-slate-900 dark:text-white">Novo Endereço</h3>
                             <button onClick={() => setIsAddingAddress(false)} className="text-slate-400">
@@ -316,16 +329,36 @@ const UserProfile = ({ session, profile }: { session: any, profile: any }) => {
                                 />
                             </div>
                             <div>
-                                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Endereço (ou digite o CEP)</label>
-                                <textarea
+                                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Endereço (Busca Google)</label>
+                                <AddressAutocomplete
                                     value={addressForm.address}
-                                    onChange={(e) => setAddressForm({ ...addressForm, address: e.target.value })}
-                                    onBlur={handleCEPBlur}
-                                    className="w-full bg-slate-50 dark:bg-zinc-800 border-none rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary outline-none h-24 resize-none"
-                                    placeholder="Rua, Número, Bairro, Cidade ou CEP..."
+                                    onChange={(val) => setAddressForm({ ...addressForm, address: val })}
+                                    placeholder="Digite o endereço para buscar..."
                                 />
-                                {cepLoading && <p className="text-[10px] text-primary animate-pulse mt-1">Buscando endereço...</p>}
                             </div>
+                            <div className="flex gap-4">
+                                <div className="flex-1">
+                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Número</label>
+                                    <input
+                                        type="text"
+                                        value={addressForm.number}
+                                        onChange={(e) => setAddressForm({ ...addressForm, number: e.target.value })}
+                                        className="w-full bg-slate-50 dark:bg-zinc-800 border-none rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary outline-none"
+                                        placeholder="123"
+                                    />
+                                </div>
+                                <div className="flex-[2]">
+                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Complemento</label>
+                                    <input
+                                        type="text"
+                                        value={addressForm.complement}
+                                        onChange={(e) => setAddressForm({ ...addressForm, complement: e.target.value })}
+                                        className="w-full bg-slate-50 dark:bg-zinc-800 border-none rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary outline-none"
+                                        placeholder="Apto 101"
+                                    />
+                                </div>
+                            </div>
+
                             <div className="flex items-center gap-2">
                                 <input
                                     type="checkbox"
@@ -352,7 +385,7 @@ const UserProfile = ({ session, profile }: { session: any, profile: any }) => {
             {/* Edit Profile Modal */}
             {isEditing && (
                 <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-                    <div className="bg-white dark:bg-zinc-900 rounded-2xl w-full max-w-sm p-6 shadow-2xl">
+                    <div className="bg-white dark:bg-zinc-900 rounded-2xl w-full max-w-sm p-6 shadow-2xl overflow-y-auto max-h-[90vh]">
                         <div className="flex justify-between items-center mb-6">
                             <h3 className="text-xl font-bold text-slate-900 dark:text-white">Editar Perfil</h3>
                             <button onClick={() => setIsEditing(false)} className="text-slate-400 hover:text-slate-600">
@@ -401,14 +434,34 @@ const UserProfile = ({ session, profile }: { session: any, profile: any }) => {
                                 />
                             </div>
                             <div>
-                                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Endereço de Entrega</label>
-                                <input
-                                    type="text"
+                                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Endereço de Entrega (Busca Google)</label>
+                                <AddressAutocomplete
                                     value={formData.address}
-                                    onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                                    className="w-full bg-slate-50 dark:bg-zinc-800 border-none rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary outline-none"
-                                    placeholder="Rua, Número, Bairro, Cidade"
+                                    onChange={(val) => setFormData({ ...formData, address: val })}
+                                    placeholder="Digite o endereço para buscar..."
                                 />
+                            </div>
+                            <div className="flex gap-4">
+                                <div className="flex-1">
+                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Número</label>
+                                    <input
+                                        type="text"
+                                        value={formData.number}
+                                        onChange={(e) => setFormData({ ...formData, number: e.target.value })}
+                                        className="w-full bg-slate-50 dark:bg-zinc-800 border-none rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary outline-none"
+                                        placeholder="123"
+                                    />
+                                </div>
+                                <div className="flex-[2]">
+                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Complemento</label>
+                                    <input
+                                        type="text"
+                                        value={formData.complement}
+                                        onChange={(e) => setFormData({ ...formData, complement: e.target.value })}
+                                        className="w-full bg-slate-50 dark:bg-zinc-800 border-none rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary outline-none"
+                                        placeholder="Apto 101"
+                                    />
+                                </div>
                             </div>
 
                             <button

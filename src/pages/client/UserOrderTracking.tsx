@@ -12,6 +12,38 @@ export const UserOrderTracking = () => {
     const [motoboy, setMotoboy] = useState<{ id: string, lat: number, lng: number, name?: string } | null>(null);
     const [googleKey, setGoogleKey] = useState<string | null>(null);
     const [realTimeRoute, setRealTimeRoute] = useState<{ distance: string, duration: string } | null>(null);
+    const [routePath, setRoutePath] = useState<{ lat: number, lng: number }[]>([]);
+
+    // Função para decodificar Polyline do Google
+    const decodePolyline = (encoded: string) => {
+        const points = [];
+        let index = 0, len = encoded.length;
+        let lat = 0, lng = 0;
+
+        while (index < len) {
+            let b, shift = 0, result = 0;
+            do {
+                b = encoded.charCodeAt(index++) - 63;
+                result |= (b & 0x1f) << shift;
+                shift += 5;
+            } while (b >= 0x20);
+            const dlat = ((result & 1) ? ~(result >> 1) : (result >> 1));
+            lat += dlat;
+
+            shift = 0;
+            result = 0;
+            do {
+                b = encoded.charCodeAt(index++) - 63;
+                result |= (b & 0x1f) << shift;
+                shift += 5;
+            } while (b >= 0x20);
+            const dlng = ((result & 1) ? ~(result >> 1) : (result >> 1));
+            lng += dlng;
+
+            points.push({ lat: lat / 1e5, lng: lng / 1e5 });
+        }
+        return points;
+    };
 
     // Função para calcular o ângulo (bearing) entre dois pontos
     const calculateBearing = (start: { lat: number, lng: number }, end: { lat: number, lng: number }) => {
@@ -71,7 +103,7 @@ export const UserOrderTracking = () => {
         if (settings?.value) setGoogleKey(settings.value);
     };
 
-    const updateRealTimeETA = async (mbLat: number, mbLng: number) => {
+    const fetchRoute = async (mbLat: number, mbLng: number) => {
         if (!googleKey || !order) return;
 
         const destLat = order.latitude || order.pharmacies?.latitude;
@@ -79,29 +111,77 @@ export const UserOrderTracking = () => {
 
         if (!destLat || !destLng) return;
 
-        const url = `https://maps.googleapis.com/maps/api/distancematrix/json?origins=${mbLat},${mbLng}&destinations=${destLat},${destLng}&mode=driving&departure_time=now&key=${googleKey}`;
+        // Fetch Directions
+        const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${mbLat},${mbLng}&destination=${destLat},${destLng}&mode=driving&key=${googleKey}`;
 
         try {
             const response = await fetch(url);
             const data = await response.json();
-            if (data.status === 'OK' && data.rows[0].elements[0].status === 'OK') {
-                const element = data.rows[0].elements[0];
-                setRealTimeRoute({
-                    distance: element.distance.text,
-                    duration: element.duration_in_traffic ? element.duration_in_traffic.text : element.duration.text
-                });
+
+            if (data.status === 'OK' && data.routes.length > 0) {
+                const points = decodePolyline(data.routes[0].overview_polyline.points);
+                setRoutePath(points);
+
+                // Update ETA from directions if available
+                const leg = data.routes[0].legs[0];
+                if (leg) {
+                    setRealTimeRoute({
+                        distance: leg.distance.text,
+                        duration: leg.duration.text // Use normal duration or duration_in_traffic if fetched with traffic model
+                    });
+                }
             }
         } catch (error) {
-            console.error('Error fetching real-time ETA:', error);
+            console.error('Error fetching route:', error);
+        }
+    };
+
+    const fetchOsrmEta = async (startLat: number, startLng: number, destLat: number, destLng: number) => {
+        try {
+            const url = `https://router.project-osrm.org/route/v1/driving/${startLng},${startLat};${destLng},${destLat}?overview=false`;
+            const res = await fetch(url);
+            const data = await res.json();
+
+            if (data.code === 'Ok' && data.routes && data.routes.length > 0) {
+                const durationSeconds = data.routes[0].duration;
+                const minutes = Math.ceil(durationSeconds / 60);
+                // Mocking structure to match realTimeRoute state
+                setRealTimeRoute({
+                    distance: `${(data.routes[0].distance / 1000).toFixed(1)} km`,
+                    duration: `${minutes} min`
+                });
+            }
+        } catch (err) {
+            console.warn("OSRM ETA Error:", err);
+        }
+    };
+
+    const updateRealTimeETA = async (mbLat: number, mbLng: number) => {
+        if (!order) return;
+        const destLat = order.latitude || order.pharmacies?.latitude;
+        const destLng = order.longitude || order.pharmacies?.longitude;
+        if (!destLat || !destLng) return;
+
+        if (googleKey) {
+            fetchRoute(mbLat, mbLng);
+        } else {
+            fetchOsrmEta(mbLat, mbLng, destLat, destLng);
         }
     };
 
     const calculateETA = () => {
         if (realTimeRoute) return realTimeRoute.duration;
-        if (!motoboy || !order?.pharmacies) return 'Aguardando...';
+
+        // Se ainda não tem motoboy, mostra aguardando
+        if (!motoboy && !order?.motoboy_id) return 'Aguardando entregador...';
+
+        // Se tem motoboy mas ainda não temos a localização (está carregando), ou googleKey falhou
+        if (!motoboy || !order?.pharmacies) return 'Calculando...';
 
         const destLat = order.latitude || order.pharmacies.latitude;
         const destLng = order.longitude || order.pharmacies.longitude;
+
+        if (!destLat || !destLng) return 'Calculando...';
 
         const R = 6371; // Raio da Terra em km
         const dLat = (destLat - motoboy.lat) * Math.PI / 180;
@@ -137,6 +217,13 @@ export const UserOrderTracking = () => {
         return `${totalMinutes} min (est.)`;
     };
 
+    // Efeito para atualizar ETA automaticamente quando motoboy ou chave Google mudarem
+    useEffect(() => {
+        if (motoboy && googleKey && order) {
+            updateRealTimeETA(motoboy.lat, motoboy.lng);
+        }
+    }, [motoboy?.lat, motoboy?.lng, googleKey, order?.id]);
+
     useEffect(() => {
         if (!orderId) return;
         fetchGoogleKey();
@@ -145,15 +232,42 @@ export const UserOrderTracking = () => {
         const hasBuzzered = { current: false };
 
         const fetchOrder = async () => {
-            const { data: orderData } = await supabase
+
+            const { data } = await supabase
                 .from('orders')
                 .select('*, pharmacies(*)')
                 .eq('id', orderId)
                 .single();
 
-            if (orderData) {
-                setOrder(orderData);
-                // ... (items fetching logic)
+            if (data) {
+                console.log("Order Data:", data);
+                console.log("Pharmacy Data:", data.pharmacies);
+                setOrder(data);
+
+                // Fetch Motoboy Initial Location
+                if (data.motoboy_id) {
+                    const { data: mbData } = await supabase
+                        .from('profiles')
+                        .select('id, last_lat, last_lng')
+                        .eq('id', data.motoboy_id)
+                        .single();
+
+                    if (mbData && mbData.last_lat && mbData.last_lng) {
+                        const mbLoc = { id: mbData.id, lat: mbData.last_lat, lng: mbData.last_lng };
+                        setMotoboy(mbLoc);
+
+                        // Force ETA update with initial data
+                        // We use the function if available, otherwise just setting state prompts the map to render
+                        if (googleKey) {
+                            updateRealTimeETA(mbLoc.lat, mbLoc.lng);
+                        } else {
+                            // Calculates fallback ETA if no Google Key or just to show something
+                            // We can trigger a re-calc or just let the effect handle it when 'googleKey' changes?
+                            // But usually fetchGoogleKey is async.
+                            // Let's at least ensure the Map shows the marker.
+                        }
+                    }
+                }
             }
         };
 
@@ -202,9 +316,9 @@ export const UserOrderTracking = () => {
                     if (googleKey) updateRealTimeETA(newLoc.lat, newLoc.lng);
 
                     // Geofencing Realtime
-                    if (order) {
-                        const destLat = order.latitude || order.pharmacies.latitude;
-                        const destLng = order.longitude || order.pharmacies.longitude;
+                    if (order && (order.latitude || order.pharmacies?.latitude)) {
+                        const destLat = order.latitude || order.pharmacies?.latitude;
+                        const destLng = order.longitude || order.pharmacies?.longitude;
                         const dist = calculateDistance(payload.new.last_lat, payload.new.last_lng, destLat, destLng);
                         if (dist < 1.0) notifyProximity();
                     }
@@ -237,17 +351,72 @@ export const UserOrderTracking = () => {
         };
     }, [orderId, order?.motoboy_id]);
 
+    // Auto-redirect to Home
+    useEffect(() => {
+        if (order?.status === 'entregue' || order?.status === 'cancelado') {
+            const timer = setTimeout(() => {
+                navigate('/');
+            }, 4000);
+            return () => clearTimeout(timer);
+        }
+    }, [order?.status, navigate]);
+
     if (!order) return <div className="p-8 text-center text-white">Carregando pedido...</div>;
 
-    const steps = [
-        { status: 'pendente', label: 'Pedido Recebido', sub: `Confirmado às ${new Date(order.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`, icon: 'check' },
+    const allSteps = [
+        {
+            status: 'pendente',
+            label: order.status === 'pendente' ? 'Aguardando Confirmação' : 'Pedido Aceito',
+            sub: order.status === 'pendente' ? 'Aguardando a loja aceitar...' : `Confirmado às ${new Date(order.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`,
+            icon: order.status === 'pendente' ? 'hourglass_top' : 'check'
+        },
         { status: 'preparando', label: 'Preparando seu pedido', sub: 'Em andamento', icon: 'pill' },
-        { status: 'aguardando_motoboy', label: 'Aguardando entregador', sub: 'Pronto na farmácia', icon: 'person_search' },
+        // Step "Aguardando Entregador" - Only show if NO Motoboy or specifically in 'aguardando_motoboy' status (Pool)
+        {
+            status: 'aguardando_motoboy',
+            label: 'Aguardando entregador',
+            sub: order.motoboy_id ? 'Entregador à caminho da farmácia' : 'Procurando entregador...',
+            icon: 'person_search'
+        },
         { status: 'em_rota', label: 'Em rota de entrega', sub: 'A caminho', icon: 'local_shipping' },
         { status: 'entregue', label: 'Entregue', sub: 'Pedido finalizado', icon: 'home' }
     ];
 
-    const currentStepIndex = steps.findIndex(s => s.status === order.status);
+    // Use all steps (no hidden steps in this tracker)
+    const steps = allSteps;
+
+    // Calc index based on filtered steps
+    // Mapping DB status to Step Index needs care if we remove steps.
+    // We should find the index based on the current status matching the step status OR previous ones.
+
+    let currentStepIndex = 0;
+    if (order.status === 'pendente') {
+        currentStepIndex = steps.findIndex(s => s.status === 'pendente');
+    } else if (order.status === 'preparando') {
+        currentStepIndex = steps.findIndex(s => s.status === 'preparando');
+    } else if (order.status === 'aguardando_motoboy') {
+        currentStepIndex = steps.findIndex(s => s.status === 'aguardando_motoboy');
+    } else if (order.status === 'pronto_entrega') {
+        currentStepIndex = steps.findIndex(s => s.status === 'aguardando_motoboy');
+    } else if (order.status === 'em_rota') {
+        currentStepIndex = steps.findIndex(s => s.status === 'em_rota');
+    } else if (order.status === 'entregue') {
+        currentStepIndex = steps.findIndex(s => s.status === 'entregue');
+    }
+    // Ensure currentStepIndex is not -1 if a status doesn't directly map or is hidden
+    if (currentStepIndex === -1) {
+        // Fallback: find the closest preceding step or default to 0
+        const statusOrder = ['pendente', 'preparando', 'aguardando_motoboy', 'pronto_entrega', 'em_rota', 'entregue'];
+        const currentStatusIndexInOrder = statusOrder.indexOf(order.status);
+        for (let i = currentStatusIndexInOrder; i >= 0; i--) {
+            const mappedStepIndex = steps.findIndex(s => s.status === statusOrder[i]);
+            if (mappedStepIndex !== -1) {
+                currentStepIndex = mappedStepIndex;
+                break;
+            }
+        }
+    }
+
 
     return (
         <div className="relative mx-auto flex h-auto min-h-screen max-w-[480px] flex-col overflow-x-hidden shadow-2xl bg-white dark:bg-background-dark pb-10">
@@ -262,24 +431,24 @@ export const UserOrderTracking = () => {
             {/* Map Section */}
             <div className="px-4 py-3">
                 <div className="relative w-full aspect-[16/10] bg-slate-100 dark:bg-zinc-800 rounded-[32px] border border-gray-100 dark:border-gray-800 shadow-sm overflow-hidden">
-                    {motoboy && order ? (
+                    {order && (order.latitude || order.pharmacies?.latitude) ? (
                         <AdminMap
                             type="tracking"
-                            fleet={[{
+                            fleet={motoboy ? [{
                                 id: motoboy.id,
                                 lat: motoboy.lat,
                                 lng: motoboy.lng,
-                                bearing: calculateBearing(motoboy, { lat: order.latitude || order.pharmacies.latitude, lng: order.longitude || order.pharmacies.longitude })
-                            }]}
+                                bearing: calculateBearing(motoboy, { lat: order.latitude || order.pharmacies?.latitude || 0, lng: order.longitude || order.pharmacies?.longitude || 0 })
+                            }] : []}
                             markers={[
-                                { id: order.pharmacies.id, lat: order.pharmacies.latitude, lng: order.pharmacies.longitude, type: 'pharmacy' },
-                                { id: 'destination', lat: order.latitude || order.pharmacies.latitude, lng: order.longitude || order.pharmacies.longitude, type: 'user' }
+                                { id: order.pharmacies?.id || 'pharmacy', lat: order.pharmacies?.latitude || 0, lng: order.pharmacies?.longitude || 0, type: 'pharmacy' },
+                                { id: 'destination', lat: order.latitude || order.pharmacies?.latitude || 0, lng: order.longitude || order.pharmacies?.longitude || 0, type: 'user' }
                             ]}
                             polylines={[{
-                                path: [
+                                path: routePath.length > 0 ? routePath : (motoboy ? [
                                     { lat: motoboy.lat, lng: motoboy.lng },
                                     { lat: order.latitude || order.pharmacies.latitude, lng: order.longitude || order.pharmacies.longitude }
-                                ],
+                                ] : []),
                                 color: "#13ec6d"
                             }]}
                         />
@@ -325,7 +494,9 @@ export const UserOrderTracking = () => {
             {/* SectionHeader */}
             <div className="flex items-center justify-between px-6 pt-4 pb-2">
                 <h3 className="text-[#0d1b13] dark:text-white text-xl font-black leading-tight tracking-[-0.015em]">Status do Pedido</h3>
-                <span className="text-[10px] font-black text-primary bg-primary/10 px-3 py-1.5 rounded-full uppercase tracking-widest shadow-sm ring-1 ring-primary/5">#{orderId?.substring(0, 8)}</span>
+                <span className="text-[10px] font-black text-primary bg-primary/10 px-3 py-1.5 rounded-full uppercase tracking-widest shadow-sm ring-1 ring-primary/5">
+                    Pedido #{orderId?.substring(0, 8)}
+                </span>
             </div>
 
             {/* Timeline */}
@@ -355,7 +526,7 @@ export const UserOrderTracking = () => {
             </div>
 
             {/* Chat Button */}
-            <div className="flex px-6 py-4">
+            <div className="flex flex-col gap-3 px-6 py-4">
                 <button
                     onClick={() => navigate(`/chat/${orderId}`)}
                     className="flex min-w-[84px] w-full cursor-pointer items-center justify-center overflow-hidden rounded-[28px] h-14 px-5 bg-primary text-slate-900 gap-3 shadow-xl shadow-primary/20 hover:scale-[1.02] transition-transform active:scale-[0.98] uppercase tracking-tighter ring-1 ring-primary/5"
@@ -363,6 +534,29 @@ export const UserOrderTracking = () => {
                     <MaterialIcon name="chat" className="text-2xl font-bold" fill />
                     <span className="truncate text-base font-black leading-normal">Chat com a Farmácia</span>
                 </button>
+
+                {['pendente', 'aguardando_motoboy'].includes(order.status) && (
+                    <button
+                        onClick={async () => {
+                            if (window.confirm('Deseja realmente cancelar este pedido?')) {
+                                const { error } = await supabase
+                                    .from('orders')
+                                    .update({ status: 'cancelado' })
+                                    .eq('id', orderId);
+
+                                if (error) {
+                                    alert('Erro ao cancelar pedido. Tente novamente.');
+                                } else {
+                                    alert('Pedido cancelado com sucesso.');
+                                    navigate('/meus-pedidos');
+                                }
+                            }
+                        }}
+                        className="w-full h-12 rounded-2xl bg-red-50 text-red-600 font-bold uppercase tracking-widest text-xs hover:bg-red-100 transition-colors"
+                    >
+                        Cancelar Pedido
+                    </button>
+                )}
             </div>
 
             {/* Resumo do Pedido */}
@@ -396,6 +590,6 @@ export const UserOrderTracking = () => {
             <div className="h-10 flex justify-center items-center">
                 <div className="w-32 h-1.5 bg-slate-100 dark:bg-zinc-800 rounded-full opacity-50"></div>
             </div>
-        </div>
+        </div >
     );
 };

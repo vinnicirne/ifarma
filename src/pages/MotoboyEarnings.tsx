@@ -1,10 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-
-const MaterialIcon = ({ name, className = "" }: { name: string, className?: string }) => (
-    <span className={`material-symbols-outlined ${className}`}>{name}</span>
-);
+import { MaterialIcon } from '../components/MaterialIcon';
 
 const MotoboyEarnings = () => {
     const navigate = useNavigate();

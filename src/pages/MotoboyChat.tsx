@@ -22,10 +22,10 @@ export const MotoboyChat = () => {
         if (!orderId) return;
 
         const fetchData = async () => {
-            // Fetch Order + Customer Profile
+            // Fetch Order + Customer Profile + Pharmacy Name
             const { data: orderData } = await supabase
                 .from('orders')
-                .select('*, profiles:customer_id(*)') // Fetch customer profile
+                .select('*, profiles:customer_id(*), pharmacies(name)')
                 .eq('id', orderId)
                 .single();
 
@@ -121,18 +121,58 @@ export const MotoboyChat = () => {
                 )}
 
                 {messages.map((msg, idx) => {
-                    // Se o sender_id for o usuário logado, é "Minha Mensagem" (Direita)
+                    // Logic: Explicit Role Check
+                    let senderLabel = "";
+                    let isMeSender = false;
+                    let labelColor = "text-slate-500";
                     const isMe = msg.sender_id === session?.user?.id;
+
+                    if (msg.sender_role) {
+                        if (msg.sender_role === 'motoboy') {
+                            senderLabel = "Eu (Motoboy)";
+                            isMeSender = true;
+                        } else if (msg.sender_role === 'customer') {
+                            senderLabel = `Cliente - ${customer?.full_name || 'Cliente'}`;
+                            labelColor = "text-green-600 dark:text-green-400";
+                        } else if (msg.sender_role === 'pharmacy') {
+                            senderLabel = `Farmácia - ${order?.pharmacies?.name || 'Farmácia'}`;
+                            labelColor = "text-blue-600 dark:text-blue-400";
+                        }
+                    } else {
+                        // Legacy Logic
+                        const isCustomer = msg.sender_id === order?.customer_id;
+
+                        if (isMe) {
+                            senderLabel = "Eu (Motoboy)";
+                            isMeSender = true;
+                        } else if (isCustomer) {
+                            senderLabel = `Cliente - ${customer?.full_name || 'Cliente'}`;
+                            labelColor = "text-green-600 dark:text-green-400";
+                        } else {
+                            senderLabel = `Farmácia - ${order?.pharmacies?.name || 'Farmácia'}`;
+                            labelColor = "text-blue-600 dark:text-blue-400";
+                        }
+                    }
+
+                    // Alignment: Me (Motoboy) Right, Others Left
+                    // Use isMeSender (from role/ID) OR fallback ID check
+                    const alignRight = isMeSender || (order?.motoboy_id && msg.sender_id === order.motoboy_id);
+
                     return (
-                        <div key={idx} className={`flex w-full ${isMe ? 'justify-end' : 'justify-start'}`}>
-                            <div className={`max-w-[80%] p-3 rounded-2xl shadow-sm text-sm font-medium leading-relaxed
-                                ${isMe
-                                    ? 'bg-primary text-black rounded-tr-sm'
-                                    : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-white rounded-tl-sm border border-gray-100 dark:border-slate-700'}
-                            `}>
-                                <p>{msg.content}</p>
-                                <div className={`text-[10px] mt-1 flex justify-end ${isMe ? 'text-black/60' : 'text-slate-400'}`}>
-                                    {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        <div key={idx} className={`flex flex-col w-full ${alignRight ? 'items-end' : 'items-start'}`}>
+                            <span className={`text-[10px] font-bold uppercase tracking-wider mb-1 px-1 ${isMe ? 'text-slate-500' : labelColor}`}>
+                                {senderLabel}
+                            </span>
+                            <div className={`flex w-full ${alignRight ? 'justify-end' : 'justify-start'}`}>
+                                <div className={`max-w-[80%] p-3 rounded-2xl shadow-sm text-sm font-medium leading-relaxed
+                                    ${alignRight
+                                        ? 'bg-primary text-black rounded-tr-sm'
+                                        : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-white rounded-tl-sm border border-gray-100 dark:border-slate-700'}
+                                `}>
+                                    <p>{msg.content}</p>
+                                    <div className={`text-[10px] mt-1 flex justify-end ${alignRight ? 'text-black/60' : 'text-slate-400'}`}>
+                                        {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                    </div>
                                 </div>
                             </div>
                         </div>

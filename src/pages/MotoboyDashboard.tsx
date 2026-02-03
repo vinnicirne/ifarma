@@ -9,10 +9,8 @@ import { useRouteData } from '../hooks/useRouteData';
 import { useWakeLock } from '../hooks/useWakeLock';
 import { Geolocation } from '@capacitor/geolocation';
 import { Capacitor } from '@capacitor/core';
-
-const MaterialIcon = ({ name, className = "" }: { name: string, className?: string }) => (
-    <span className={`material-symbols-outlined ${className}`}>{name}</span>
-);
+import { MaterialIcon } from '../components/MaterialIcon';
+import { useAudio } from '../hooks/useAudio';
 
 // Componente para centralizar o mapa na localização
 function MapUpdater({ center }: { center: [number, number] }) {
@@ -92,71 +90,156 @@ const MotoboyDashboard = ({ session, profile }: { session: any, profile: any }) 
     // --- LÓGICA UBER STYLE: 3 TOQUES + GEOFENCING ---
     const [distanceToDest, setDistanceToDest] = useState<number | null>(null);
     const [loading, setLoading] = useState(false); // Assuming this state is needed for loading indicators
+    const [hasStartedRoute, setHasStartedRoute] = useState(false); // Controls sequential flow: Start Route -> Confirm Delivery
+    const [hasAccepted, setHasAccepted] = useState(false); // Controls step: Accept -> Confirm Pickup
 
+    // --- 1. GEOLOCATION FIRST (To avoid ReferenceError) ---
     // Assuming latitude and longitude are available from geoState or another source
-    const { latitude, longitude } = useGeolocation(session?.user?.id, isOnline, currentOrder?.id); // Pass currentOrder ID to geolocation
+    const { latitude, longitude } = useGeolocation(session?.user?.id, isOnline, currentOrder?.id);
 
-    // Wake Lock (Impedir tela de apagar durante entrega)
-    useWakeLock(!!currentOrder && currentOrder.status === 'em_rota');
+    // --- 2. STATE FOR ROUTE ---
+    const [routePath, setRoutePath] = useState<[number, number][]>([]);
 
-    const routeData = useRouteData(
-        (latitude && longitude) ? { lat: latitude, lng: longitude } : null,
-        (currentOrder?.delivery_lat && currentOrder?.delivery_lng) ? { lat: currentOrder.delivery_lat, lng: currentOrder.delivery_lng } : null
-    );
+    // --- 3. DECODE POLYLINE (Adapted for Leaflet [lat, lng]) ---
+    // OSRM returns precision 1e5 (same as Google standard)
+    const decodePolyline = (encoded: string): [number, number][] => {
+        const points: [number, number][] = [];
+        let index = 0, len = encoded.length;
+        let lat = 0, lng = 0;
 
-    // GPS Preference State
-    const [gpsPreference, setGpsPreference] = useState<'google' | 'waze' | null>(() => {
-        return (localStorage.getItem('ifarma_gps_preference') as 'google' | 'waze') || null;
-    });
+        while (index < len) {
+            let b, shift = 0, result = 0;
+            do {
+                b = encoded.charCodeAt(index++) - 63;
+                result |= (b & 0x1f) << shift;
+                shift += 5;
+            } while (b >= 0x20);
+            const dlat = ((result & 1) ? ~(result >> 1) : (result >> 1));
+            lat += dlat;
 
-    const saveGpsPreference = (pref: 'google' | 'waze') => {
-        setGpsPreference(pref);
-        localStorage.setItem('ifarma_gps_preference', pref);
+            shift = 0;
+            result = 0;
+            do {
+                b = encoded.charCodeAt(index++) - 63;
+                result |= (b & 0x1f) << shift;
+                shift += 5;
+            } while (b >= 0x20);
+            const dlng = ((result & 1) ? ~(result >> 1) : (result >> 1));
+            lng += dlng;
+
+            points.push([lat / 1e5, lng / 1e5]);
+        }
+        return points;
     };
 
-    const handleAutoOpenMap = () => {
-        if (gpsPreference) {
-            openMap(gpsPreference);
-        } else {
-            setShowNavOptions(true);
+    // --- 4. FETCH ROUTE (OSRM) ---
+    const fetchRoute = async (startLat: number, startLng: number, destLat: number, destLng: number) => {
+        // OSRM Request: driving profile, coordinates in Lng,Lat order
+        const url = `https://router.project-osrm.org/route/v1/driving/${startLng},${startLat};${destLng},${destLat}?overview=full&geometries=polyline`;
+
+        try {
+            const response = await fetch(url);
+            const data = await response.json();
+
+            if (data.code === 'Ok' && data.routes.length > 0) {
+                // OSRM returns encoded geometry similar to Google
+                const points = decodePolyline(data.routes[0].geometry);
+                setRoutePath(points);
+            }
+        } catch (error) {
+            console.error('Error fetching OSRM route:', error);
         }
     };
 
+    // --- 5. TRIGGER FETCH ---
     useEffect(() => {
-        if (latitude && longitude && currentOrder?.delivery_lat && currentOrder?.delivery_lng) {
-            const R = 6371e3; // Raio da Terra em metros
+        // Handle coordinate mismatch (some columns are latitude, some delivery_lat)
+        const dLat = currentOrder?.delivery_lat ?? currentOrder?.latitude;
+        const dLng = currentOrder?.delivery_lng ?? currentOrder?.longitude;
+
+        if (currentOrder && dLat && dLng && latitude && longitude) {
+            fetchRoute(latitude, longitude, dLat, dLng);
+        }
+    }, [currentOrder?.id, currentOrder?.delivery_lat, currentOrder?.latitude, latitude, longitude]);
+
+    // Wake Lock
+    useWakeLock(!!currentOrder && currentOrder.status === 'em_rota');
+
+    // Route Data Polyfill for Render
+    const routeData = { coordinates: routePath };
+
+
+
+    // --- START INTERNAL ROUTE ---
+    const startInternalRoute = async () => {
+        if (!currentOrder?.id) return;
+
+        // Atualizar status para 'em_rota'
+        await supabase
+            .from('orders')
+            .update({ status: 'em_rota' })
+            .eq('id', currentOrder.id);
+
+        setHasStartedRoute(true);
+        // Opcional: Ativar modo de "Seguir Motoboy" no mapa
+    };
+
+    const handleAutoOpenMap = () => {
+        startInternalRoute();
+    };
+
+    // Calculate Distance (Haversine) - reused for logic
+    useEffect(() => {
+        const dLat = currentOrder?.delivery_lat ?? currentOrder?.latitude;
+        const dLng = currentOrder?.delivery_lng ?? currentOrder?.longitude;
+
+        if (latitude && longitude && dLat && dLng) {
+            // Reusing existing logic if needed or ensuring it triggers
+            const R = 6371e3;
             const φ1 = latitude * Math.PI / 180;
-            const φ2 = currentOrder.delivery_lat * Math.PI / 180;
-            const Δφ = (currentOrder.delivery_lat - latitude) * Math.PI / 180;
-            const Δλ = (currentOrder.delivery_lng - longitude) * Math.PI / 180;
-
-            const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
-                Math.cos(φ1) * Math.cos(φ2) *
-                Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+            const φ2 = dLat * Math.PI / 180;
+            const Δφ = (dLat - latitude) * Math.PI / 180;
+            const Δλ = (dLng - longitude) * Math.PI / 180;
+            const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) + Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
             const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-
-            const d = R * c; // Distância em metros
-            setDistanceToDest(d);
+            setDistanceToDest(R * c);
         } else {
             setDistanceToDest(null);
         }
     }, [latitude, longitude, currentOrder]);
 
+    // Reset Route State
+    useEffect(() => {
+        setHasStartedRoute(false);
+        setHasAccepted(false);
+        setRoutePath([]); // Clear path on new order
+    }, [currentOrder?.id]);
+
     const handleConfirmPickup = async () => {
         if (!currentOrder) return;
         setLoading(true);
+
+        // Find ALL orders that are 'pronto_entrega' for this motoboy and batch update them
+        // This ensures the motoboy confirms pickup once for the whole batch
+        const ordersToUpdate = ordersQueue.filter(o => o.status === 'pronto_entrega').map(o => o.id);
+
+        if (ordersToUpdate.length === 0) {
+            // Should not happen if button is visible, but safety check
+            ordersToUpdate.push(currentOrder.id);
+        }
+
         const { error } = await supabase
             .from('orders')
             .update({ status: 'em_rota', updated_at: new Date().toISOString() })
-            .eq('id', currentOrder.id);
+            .in('id', ordersToUpdate);
+
         if (!error) {
-            // Em vez de mudar para em_rota aqui, apenas mantemos para o passo 2
             setNewOrderAlert('RETIRADA CONFIRMADA! AGORA INICIE A ROTA.');
             setTimeout(() => setNewOrderAlert(null), 4000);
 
-            // Update local queue state
+            // Update local queue state for ALL affected orders
             setOrdersQueue(prev => prev.map(o =>
-                o.id === currentOrder.id
+                ordersToUpdate.includes(o.id)
                     ? { ...o, status: 'em_rota', picked_up_at: new Date().toISOString() }
                     : o
             ));
@@ -168,65 +251,10 @@ const MotoboyDashboard = ({ session, profile }: { session: any, profile: any }) 
 
 
     // ------------------------------------------------
-    const notificationSoundRef = useRef(notificationSound);
+    // AUDIO SYSTEM (Centralized)
+    const { play: playAudio, stop: stopAudio } = useAudio();
 
-    useEffect(() => {
-        notificationSoundRef.current = notificationSound;
-    }, [notificationSound]);
-
-    const playNotificationSound = async (repeatCount = 1) => {
-        const currentSound = notificationSoundRef.current;
-        console.log("🔊 Tentando tocar som:", currentSound);
-
-        if ('speechSynthesis' in window) window.speechSynthesis.cancel();
-
-        for (let i = 0; i < repeatCount; i++) {
-            try {
-                if (currentSound === 'voice') {
-                    if ('speechSynthesis' in window) {
-                        await new Promise<void>((resolve) => {
-                            const utterance = new SpeechSynthesisUtterance("Novo pedido Ifarma!");
-                            utterance.lang = 'pt-BR';
-                            const voices = window.speechSynthesis.getVoices();
-                            const ptVoice = voices.find(v => v.lang.includes('pt-BR') && v.name.includes('Google')) ||
-                                voices.find(v => v.lang.includes('pt-BR'));
-                            if (ptVoice) utterance.voice = ptVoice;
-
-                            const safetyTimeout = setTimeout(() => resolve(), 3000);
-                            utterance.onend = () => { clearTimeout(safetyTimeout); resolve(); };
-                            utterance.onerror = () => { clearTimeout(safetyTimeout); resolve(); };
-                            window.speechSynthesis.speak(utterance);
-                        });
-                    }
-                } else {
-                    await new Promise<void>((resolve) => {
-                        const src = 'https://assets.mixkit.co/active_storage/sfx/571/571-preview.mp3';
-                        const audio = new Audio(src);
-                        audio.volume = 1.0;
-
-                        // Add Vibration
-                        if (navigator.vibrate) navigator.vibrate([500, 200, 500]);
-
-                        const safetyTimeout = setTimeout(() => resolve(), 3000);
-                        audio.onended = () => { clearTimeout(safetyTimeout); resolve(); };
-                        audio.onerror = () => { clearTimeout(safetyTimeout); resolve(); };
-                        audio.play().catch(e => {
-                            console.error("Audio block:", e);
-                            setIsSoundBlocked(true);
-                            clearTimeout(safetyTimeout);
-                            resolve(); // Continue loop even if blocked
-                        });
-                    });
-                }
-                // Small delay between alerts
-                if (repeatCount > 1) await new Promise(r => setTimeout(r, 1000));
-
-            } catch (err) {
-                console.warn("Audio playback error:", err);
-            }
-        }
-    };
-
+    // ------------------------------------------------
     // --- FETCH ORDERS QUEUE ---
     const fetchOrdersQueue = async () => {
         if (!session?.user?.id) return;
@@ -252,7 +280,8 @@ const MotoboyDashboard = ({ session, profile }: { session: any, profile: any }) 
 
                 if (newTopId && newTopId !== previousTopId && data.length > (ordersQueue.length || 0)) {
                     // Only play sound if it's genuinely a new assignment or list grew
-                    playNotificationSound(3);
+                    // Usar o hook useAudio
+                    playAudio(notificationSound === 'voice' ? 'voice' : 'new_order', 3);
                     setNewOrderAlert(`Você tem ${data.length} entregas na fila!`);
                     setTimeout(() => setNewOrderAlert(null), 5000);
                 }
@@ -295,59 +324,7 @@ const MotoboyDashboard = ({ session, profile }: { session: any, profile: any }) 
         };
     }, [session?.user?.id]);
 
-    const openMap = async (app: 'google' | 'waze' | 'apple') => {
-        if (!currentOrder?.id) return;
 
-        // Atualizar status para 'em_rota' (INICIAR CORRIDA) se ainda não estiver
-        await supabase
-            .from('orders')
-            .update({ status: 'em_rota' })
-            .eq('id', currentOrder.id);
-
-        // Tenta usar coordenadas do pedido, senão usa do cliente (fallback)
-        // O ideal é ter lat/lng do destino no pedido. Vamos assumir que currentOrder tem delivery_lat/lng como visto no tracking-engine,
-        // mas aqui no select ele pegou '*, pharmacies(name, address)'.
-        // O código anterior usava currentOrder.address para display.
-        // Se não tiver lat/lng, vamos usar o endereço como string para busca.
-
-        const destination = currentOrder.address; // Fallback string
-        const lat = currentOrder.delivery_lat;
-        const lng = currentOrder.delivery_lng;
-
-        let url = '';
-
-        if (lat && lng) {
-            // Se tem coordenadas precisas
-            switch (app) {
-                case 'google':
-                    url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
-                    break;
-                case 'waze':
-                    url = `https://waze.com/ul?ll=${lat},${lng}&navigate=yes`;
-                    break;
-                case 'apple':
-                    url = `http://maps.apple.com/?daddr=${lat},${lng}`;
-                    break;
-            }
-        } else {
-            // Se só tem endereço (menos preciso, mas funciona)
-            const encodedDest = encodeURIComponent(destination);
-            switch (app) {
-                case 'google':
-                    url = `https://www.google.com/maps/dir/?api=1&destination=${encodedDest}`;
-                    break;
-                case 'waze':
-                    url = `https://waze.com/ul?q=${encodedDest}&navigate=yes`;
-                    break;
-                case 'apple':
-                    url = `http://maps.apple.com/?daddr=${encodedDest}`;
-                    break;
-            }
-        }
-
-        window.open(url, '_blank');
-        setShowNavOptions(false);
-    };
 
     const moveOrder = async (index: number, direction: 'up' | 'down') => {
         if (index < 0 || index >= ordersQueue.length) return;
@@ -400,8 +377,7 @@ const MotoboyDashboard = ({ session, profile }: { session: any, profile: any }) 
         setNewOrderAlert('BUZINA ACIONADA! CLIENTE NOTIFICADO.');
         setTimeout(() => setNewOrderAlert(null), 4000);
 
-        const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/1271/1271-preview.mp3'); // Som de buzina
-        audio.play().catch(() => { });
+        playAudio('horn');
     };
 
     // --- RENDER QUEUE LIST HELPER ---
@@ -506,8 +482,8 @@ const MotoboyDashboard = ({ session, profile }: { session: any, profile: any }) 
 
                     // Se fui atribuído ou status mudou, atualizo o estado
                     if (payload.new && payload.new.id) {
-                        // Alerta Sonoro e Visual
-                        playNotificationSound(2);
+                        // Alerta Sonoro e Visual (Via hook)
+                        playAudio(notificationSound === 'voice' ? 'voice' : 'new_order', 3);
                         setNewOrderAlert(`VOCÊ TEM UM NOVO PEDIDO!`);
                         setTimeout(() => setNewOrderAlert(null), 6000);
 
@@ -522,11 +498,6 @@ const MotoboyDashboard = ({ session, profile }: { session: any, profile: any }) 
             supabase.removeChannel(channel);
         };
     }, [session?.user?.id]);
-
-    // --- FETCH ORDERS QUEUE (Substitui lógica antiga de Single Order) ---
-    // A função fetchOrdersQueue já está definida acima e é a fonte da verdade.
-
-
 
     const toggleOnline = async () => {
         const newStatus = !isOnline;
@@ -708,29 +679,10 @@ const MotoboyDashboard = ({ session, profile }: { session: any, profile: any }) 
                                 </button>
                             </div>
 
-                            {/* Seção de Configuração de GPS */}
-                            <div className="mb-8 p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-white/5">
-                                <h3 className="text-xs font-black uppercase tracking-widest text-slate-500 mb-3 ml-1">Navegação Padrão</h3>
-                                <div className="grid grid-cols-2 gap-3">
-                                    <button
-                                        onClick={() => saveGpsPreference('google')}
-                                        className={`flex flex-col items-center gap-2 p-3 rounded-xl border transition-all ${gpsPreference === 'google' ? 'bg-white dark:bg-slate-700 border-green-500 ring-2 ring-green-500/20' : 'border-transparent hover:bg-white/50 dark:hover:bg-slate-700/50'}`}
-                                    >
-                                        <MaterialIcon name="map" className={gpsPreference === 'google' ? "text-green-500" : "text-slate-400"} />
-                                        <span className={`text-[10px] font-bold ${gpsPreference === 'google' ? "text-slate-900 dark:text-white" : "text-slate-500"}`}>Google Maps</span>
-                                    </button>
-                                    <button
-                                        onClick={() => saveGpsPreference('waze')}
-                                        className={`flex flex-col items-center gap-2 p-3 rounded-xl border transition-all ${gpsPreference === 'waze' ? 'bg-white dark:bg-slate-700 border-blue-500 ring-2 ring-blue-500/20' : 'border-transparent hover:bg-white/50 dark:hover:bg-slate-700/50'}`}
-                                    >
-                                        <MaterialIcon name="directions_car" className={gpsPreference === 'waze' ? "text-blue-500" : "text-slate-400"} />
-                                        <span className={`text-[10px] font-bold ${gpsPreference === 'waze' ? "text-slate-900 dark:text-white" : "text-slate-500"}`}>Waze</span>
-                                    </button>
-                                </div>
-                            </div>
+
 
                             <div className="space-y-2">
-                                <button onClick={() => playNotificationSound(1)} className="w-full flex items-center gap-3 p-4 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+                                <button onClick={() => playAudio(notificationSound === 'voice' ? 'voice' : 'new_order', 1)} className="w-full flex items-center gap-3 p-4 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
                                     <MaterialIcon name="volume_up" />
                                     <span className="font-bold">Testar Alerta</span>
                                 </button>
@@ -758,22 +710,7 @@ const MotoboyDashboard = ({ session, profile }: { session: any, profile: any }) 
                                 <p className="text-[10px] text-slate-400 mb-4">Versão 2.1.0 (Elite)</p>
 
                                 <button
-                                    onClick={async () => {
-                                        if (window.confirm("CONFIRMAR EMERGÊNCIA?\nIsso enviará sua localização atual para a central e alertará os gestores.")) {
-                                            // 1. Enviar Alerta (Simulado via Order Messages ou Tabela de Alertas)
-                                            if (currentOrder?.id) {
-                                                await supabase.from('order_messages').insert({
-                                                    order_id: currentOrder.id,
-                                                    sender_id: session?.user.id,
-                                                    message_type: 'panic',
-                                                    content: '🚨 SOS! MOTOBOY SOLICITOU AJUDA!'
-                                                });
-                                            }
-
-                                            // 2. Feedback
-                                            alert("🚨 Sinal de Emergência Enviado! A central foi notificada.");
-                                        }
-                                    }}
+                                    onClick={() => navigate('/bug-report')}
                                     className="w-full bg-red-600 text-white font-black py-4 rounded-xl flex items-center justify-center gap-2 active:scale-95 transition-transform shadow-lg shadow-red-500/30"
                                 >
                                     <MaterialIcon name="sos" className="text-xl" />
@@ -818,16 +755,7 @@ const MotoboyDashboard = ({ session, profile }: { session: any, profile: any }) 
                         )}
                     </MapContainer>
 
-                    {/* Navigation Overlay Buttons */}
-                    <div className="absolute bottom-12 right-4 flex flex-col gap-2 z-[400]">
-                        <button
-                            onClick={handleAutoOpenMap}
-                            className="flex items-center gap-2 bg-primary text-black font-bold px-4 py-3 rounded-full shadow-xl active:scale-95 transition-transform"
-                        >
-                            <MaterialIcon name="directions" />
-                            <span>Abrir no GPS</span>
-                        </button>
-                    </div>
+
 
 
 
@@ -949,38 +877,78 @@ const MotoboyDashboard = ({ session, profile }: { session: any, profile: any }) 
 
                         {/* Ação Principal: Confirmar/Chequei */}
                         {currentOrder.status === 'pronto_entrega' ? (
-                            <button
-                                onClick={handleConfirmPickup}
-                                className="w-full bg-primary hover:bg-primary/90 text-black font-black py-4 rounded-xl text-lg flex items-center justify-center gap-2 transition-all active:scale-95 shadow-lg shadow-primary/20"
-                            >
-                                <MaterialIcon name="inventory" className="font-bold" />
-                                CONFIRMAR RETIRADA
-                            </button>
+                            !hasAccepted ? (
+                                <button
+                                    onClick={() => {
+                                        setHasAccepted(true);
+                                        stopAudio(); // Parar o som ao aceitar
+                                    }}
+                                    className="w-full bg-green-600 hover:bg-green-700 text-white font-black py-4 rounded-xl text-lg flex items-center justify-center gap-2 transition-all active:scale-95 shadow-lg shadow-green-600/20"
+                                >
+                                    <MaterialIcon name="thumb_up" className="font-bold" />
+                                    ACEITAR ENTREGA
+                                </button>
+                            ) : (
+                                <button
+                                    onClick={handleConfirmPickup}
+                                    className="w-full bg-primary hover:bg-primary/90 text-black font-black py-4 rounded-xl text-lg flex items-center justify-center gap-2 transition-all active:scale-95 shadow-lg shadow-primary/20"
+                                >
+                                    <MaterialIcon name="inventory" className="font-bold" />
+                                    CONFIRMAR RETIRADA
+                                </button>
+                            )
                         ) : (
                             <div className="flex flex-col gap-3">
-                                {/* INICIAR ROTA BUTTON */}
-                                <button
-                                    onClick={handleAutoOpenMap}
-                                    className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-4 rounded-xl text-lg flex items-center justify-center gap-2 transition-all active:scale-95 shadow-lg shadow-blue-500/20"
-                                >
-                                    <MaterialIcon name="near_me" className="font-bold" />
-                                    INICIAR ROTA
-                                </button>
+                                {/* INICIAR ROTA BUTTON - Só aparece se ainda não iniciou */}
+                                {!hasStartedRoute ? (
+                                    <button
+                                        onClick={() => {
+                                            handleAutoOpenMap();
+                                            // setHasStartedRoute(true) is called inside handleAutoOpenMap or here?
+                                            // Ideally handleAutoOpenMap handles the map opening, we set state here.
+                                            // But handleAutoOpenMap is defined elsewhere. I should update it or do it here.
+                                            // Let's do it here for clarity if handleAutoOpenMap logic allows.
+                                        }}
+                                        className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-4 rounded-xl text-lg flex items-center justify-center gap-2 transition-all active:scale-95 shadow-lg shadow-blue-500/20"
+                                    >
+                                        <MaterialIcon name="near_me" className="font-bold" />
+                                        INICIAR ROTA
+                                    </button>
+                                ) : (
+                                    /* CONFIRMAR ENTREGA - Lógica de Geofencing (100m) */
+                                    (() => {
+                                        const hasCoords = !!currentOrder.delivery_lat;
+                                        const isClose = distanceToDest !== null && distanceToDest <= 100;
+                                        // Permite se: não tem coordenadas (fallback) OU está perto
+                                        const canConfirm = !hasCoords || isClose;
 
-                                <button
-                                    onClick={() => navigate(`/motoboy-confirm/${currentOrder.id}`)}
-                                    disabled={!distanceToDest || distanceToDest > 150}
-                                    className={`w-full font-black py-4 rounded-xl text-lg flex items-center justify-center gap-2 transition-all active:scale-95 shadow-lg
-                                        ${(!distanceToDest || distanceToDest > 150) ? 'bg-slate-200 text-slate-400 cursor-not-allowed hidden' : 'bg-primary hover:bg-primary/90 text-black shadow-primary/20'}
-                                    `}
-                                >
-                                    <MaterialIcon name="check_circle" className="font-bold" />
-                                    CONFIRMAR ENTREGA
-                                </button>
-                                {!distanceToDest || distanceToDest > 150 && (
-                                    <p className="text-center text-xs text-slate-400 font-bold uppercase tracking-widest mt-2">
-                                        Aproxime-se para finalizar
-                                    </p>
+                                        return (
+                                            <button
+                                                onClick={() => {
+                                                    if (canConfirm) navigate(`/motoboy-confirm/${currentOrder.id}`);
+                                                }}
+                                                disabled={!canConfirm}
+                                                className={`w-full font-black py-4 rounded-xl text-lg flex items-center justify-center gap-2 transition-all shadow-lg
+                                                    ${canConfirm
+                                                        ? 'bg-primary hover:bg-primary/90 text-black shadow-primary/20 active:scale-95'
+                                                        : 'bg-slate-200 dark:bg-slate-800 text-slate-400 cursor-not-allowed shadow-none'
+                                                    }
+                                                `}
+                                            >
+                                                {canConfirm ? (
+                                                    <>
+                                                        <MaterialIcon name="check_circle" className="font-bold" />
+                                                        CONFIRMAR ENTREGA
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <MaterialIcon name="location_off" className="font-bold" />
+                                                        {distanceToDest === null ? "AGUARDANDO GPS..." : `APROXIME-SE (${Math.round(distanceToDest)}m)`}
+                                                    </>
+                                                )}
+                                            </button>
+                                        );
+                                    })()
                                 )}
                             </div>
                         )}
@@ -991,20 +959,7 @@ const MotoboyDashboard = ({ session, profile }: { session: any, profile: any }) 
 
             </div>
 
-            {/* Modals GPS (Reused code logic from showNavOptions) */}
-            {
-                showNavOptions && !gpsPreference && (
-                    <div className="absolute inset-0 z-[500] flex items-end justify-center p-4 bg-black/60 backdrop-blur-sm sm:items-center" onClick={() => setShowNavOptions(false)}>
-                        <div className="w-full max-w-sm bg-white dark:bg-slate-900 rounded-[32px] p-6 shadow-2xl animate-in fade-in slide-in-from-bottom-10 duration-300" onClick={e => e.stopPropagation()}>
-                            <h2 className="text-xl font-black italic tracking-tighter mb-4 text-center">Escolha o GPS</h2>
-                            <div className="grid grid-cols-2 gap-4">
-                                <button onClick={() => { openMap('google'); saveGpsPreference('google'); }} className="p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl font-bold flex flex-col items-center gap-2"><MaterialIcon name="map" className="text-red-500 text-3xl" />Google Maps</button>
-                                <button onClick={() => { openMap('waze'); saveGpsPreference('waze'); }} className="p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl font-bold flex flex-col items-center gap-2"><MaterialIcon name="directions_car" className="text-blue-500 text-3xl" />Waze</button>
-                            </div>
-                        </div>
-                    </div>
-                )
-            }
+
 
             {/* Menu Modal (Duplicate needed here if showMenu is true while order active) */}
             {

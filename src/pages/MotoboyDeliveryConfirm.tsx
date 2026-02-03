@@ -76,7 +76,7 @@ const MotoboyDeliveryConfirm = () => {
     };
 
     const handleBackToHome = () => {
-        navigate('/motoboy-orders'); // Assuming this goes back to orders list
+        navigate('/motoboy-dashboard');
     };
 
     // Custom theme constants for this specific dark/green flow
@@ -90,7 +90,7 @@ const MotoboyDeliveryConfirm = () => {
             {/* Top Navigation Bar */}
             <header className="sticky top-0 z-50 bg-background-light/80 dark:bg-[#102218]/80 backdrop-blur-md px-4 py-4 border-b border-gray-200 dark:border-white/10 flex items-center justify-between">
                 <button
-                    onClick={() => navigate(-1)}
+                    onClick={handleBackToHome}
                     className="flex items-center text-[#13ec6d] hover:text-[#13ec6d]/80 transition-colors"
                 >
                     <MaterialIcon name="arrow_back_ios" className="text-2xl" />

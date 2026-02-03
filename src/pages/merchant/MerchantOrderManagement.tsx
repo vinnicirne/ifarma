@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import MerchantLayout from './MerchantLayout';
 import { supabase } from '../../lib/supabase';
 import { OrderReceipt } from '../../components/merchant/OrderReceipt';
+import { OrderChatModal } from '../../components/merchant/OrderChatModal';
 
 // Local MaterialIcon definition to avoid dependency issues if Shared is missing
 const MaterialIcon = ({ name, className = "" }: { name: string, className?: string }) => (
@@ -80,7 +81,7 @@ const AssignDriverModal = ({ isOpen, onClose, onAssign, pharmacyId }: any) => {
 };
 
 // --- Subcomponent: Order Details Modal ---
-const OrderDetailsModal = ({ isOpen, onClose, order }: any) => {
+const OrderDetailsModal = ({ isOpen, onClose, order, updateStatus }: any) => {
     const [items, setItems] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
 
@@ -189,6 +190,17 @@ const OrderDetailsModal = ({ isOpen, onClose, order }: any) => {
                 </div>
 
                 <div className="mt-6 flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-white/5">
+                    <button
+                        onClick={() => {
+                            if (window.confirm('Tem certeza que deseja cancelar este pedido? A ação não pode ser desfeita.')) {
+                                updateStatus(order.id, 'cancelado');
+                                onClose();
+                            }
+                        }}
+                        className="px-6 py-2 rounded-xl bg-red-50 text-red-600 font-bold hover:bg-red-100 transition-colors border border-red-100 mr-auto"
+                    >
+                        Cancelar Pedido
+                    </button>
                     <button onClick={onClose} className="px-6 py-2 rounded-xl text-slate-500 font-bold hover:bg-slate-100 dark:hover:bg-white/10 transition-colors">
                         Fechar
                     </button>
@@ -210,9 +222,12 @@ const MerchantOrderManagement = () => {
     // Modal States
     const [isDriverModalOpen, setIsDriverModalOpen] = useState(false);
     const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
-
-    const [selectedOrderIdForDriver, setSelectedOrderIdForDriver] = useState<string | null>(null);
     const [selectedOrderDetails, setSelectedOrderDetails] = useState<any>(null);
+    const [selectedOrderIdForDriver, setSelectedOrderIdForDriver] = useState<string | null>(null);
+
+    // CHAT STATE
+    const [isChatModalOpen, setIsChatModalOpen] = useState(false);
+    const [selectedChatOrder, setSelectedChatOrder] = useState<any>(null);
 
     const [newOrderAlert, setNewOrderAlert] = useState<string | null>(null);
 
@@ -544,7 +559,7 @@ const MerchantOrderManagement = () => {
 
             // Iterate and update all
             for (const oId of targets) {
-                // Update Order Status - DIRECT TO 'em_rota' (SAIU PARA ENTREGA)
+                // Update Order Status - Reverted to 'pronto_entrega' so Motoboy can confirm pickup
                 const { error: orderError } = await supabase
                     .from('orders')
                     .update({
@@ -563,9 +578,9 @@ const MerchantOrderManagement = () => {
 
                 if (profileError) console.error("Error updating motoboy profile:", profileError);
 
-                // Notify Customer
-                const order = orders.find(o => o.id === oId);
-                if (order) sendWhatsAppNotification(order, 'em_rota');
+                // Notify Customer (Optional: maybe wait for actual Start Route)
+                // const order = orders.find(o => o.id === oId);
+                // if (order) sendWhatsAppNotification(order, 'em_rota');
             }
 
             setIsDriverModalOpen(false);
@@ -625,6 +640,12 @@ const MerchantOrderManagement = () => {
         setIsDetailsModalOpen(true);
     };
 
+    // --- Handlers for Chat ---
+    const openChat = (order: any) => {
+        setSelectedChatOrder(order);
+        setIsChatModalOpen(true);
+    };
+
     return (
         <MerchantLayout activeTab="orders" title="Pedidos">
             {/* Print Area (Separated from hidden UI) */}
@@ -640,7 +661,7 @@ const MerchantOrderManagement = () => {
             </div>
 
             {/* Main UI (Hidden when printing) */}
-            <div className="flex flex-col h-[calc(100vh-140px)] relative print:hidden">
+            <div className="flex flex-col h-auto lg:h-[calc(100vh-140px)] relative print:hidden pb-24 lg:pb-0">
 
                 <AssignDriverModal
                     isOpen={isDriverModalOpen}
@@ -649,13 +670,23 @@ const MerchantOrderManagement = () => {
                     pharmacyId={pharmacy?.id} // Only fetch if we have pharmacy
                 />
 
+                <OrderChatModal
+                    isOpen={isChatModalOpen}
+                    onClose={() => setIsChatModalOpen(false)}
+                    orderId={selectedChatOrder?.id}
+                    customerName={selectedChatOrder ? getCustomerName(selectedChatOrder) : ''}
+                    motoboyName={selectedChatOrder?.motoboy?.full_name}
+                />
+
                 {/* Floating Action Bar for Batch Operations */}
+
 
 
                 <OrderDetailsModal
                     isOpen={isDetailsModalOpen}
                     onClose={() => setIsDetailsModalOpen(false)}
                     order={selectedOrderDetails}
+                    updateStatus={updateStatus}
                 />
 
                 {/* Header */}
@@ -718,15 +749,15 @@ const MerchantOrderManagement = () => {
                         </div>
                     </div>
                 )}
-                <div className="flex flex-col gap-6 h-full overflow-hidden">
+                <div className="flex flex-col gap-6 h-auto lg:h-full overflow-visible lg:overflow-hidden">
 
                     {/* TOP: Horizontal Status Tabs - Premium Design */}
                     <div className="shrink-0 grid grid-cols-2 lg:grid-cols-4 gap-4 pb-2">
                         {columns.map((col) => {
-                            // SPECIAL LOGIC: 'preparando' includes 'aguardando_motoboy'
+                            // SPECIAL LOGIC: 'preparando' includes all intermediate states
                             const count = orders.filter(o => {
                                 if (col.id === 'preparando') {
-                                    return o.status === 'preparando' || o.status === 'pronto_entrega';
+                                    return ['preparando', 'aguardando_motoboy', 'pronto_entrega'].includes(o.status);
                                 }
                                 return o.status?.toLowerCase() === col.id;
                             }).length;
@@ -809,18 +840,18 @@ const MerchantOrderManagement = () => {
 
 
                     {/* RIGHT: Orders Grid */}
-                    <div className="flex-1 bg-gradient-to-br from-slate-50 to-slate-100 dark:from-zinc-900/50 dark:to-zinc-900 rounded-[32px] border border-slate-200/60 dark:border-white/5 p-4 md:p-6 overflow-y-auto overflow-x-hidden custom-scrollbar">
+                    <div className="flex-1 bg-gradient-to-br from-slate-50 to-slate-100 dark:from-zinc-900/50 dark:to-zinc-900 rounded-[32px] border border-slate-200/60 dark:border-white/5 p-4 md:p-6 overflow-visible lg:overflow-y-auto lg:overflow-x-hidden custom-scrollbar min-h-[400px]">
 
                         {/* List View Container */}
                         <div className="flex flex-col gap-4">
                             {orders.filter(o => {
                                 if (activeTabId === 'preparando') {
-                                    return o.status === 'preparando' || o.status === 'aguardando_motoboy';
+                                    return ['preparando', 'aguardando_motoboy', 'pronto_entrega'].includes(o.status);
                                 }
                                 return o.status?.toLowerCase() === activeTabId;
                             }).map((order) => {
                                 const late = isLate(order);
-                                const isWaitingDriver = order.status === 'aguardando_motoboy';
+                                const isWaitingDriver = ['aguardando_motoboy', 'pronto_entrega'].includes(order.status);
 
                                 return (
                                     <div key={order.id} className={`bg-white dark:bg-zinc-800 p-5 rounded-2xl shadow-sm hover:shadow-md transition-all duration-300 group relative border-l-4 ${late ? 'border-l-red-500' : isWaitingDriver ? 'border-l-yellow-400' : 'border-l-primary'
@@ -912,6 +943,17 @@ const MerchantOrderManagement = () => {
 
                                             {/* Right: Actions */}
                                             <div className="flex items-center gap-2 mt-4 sm:mt-0 w-full sm:w-auto justify-end border-t sm:border-t-0 border-slate-100 dark:border-white/5 pt-3 sm:pt-0">
+
+                                                {/* Chat Button */}
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); openChat(order); }}
+                                                    className="size-10 rounded-xl hover:bg-blue-50 dark:hover:bg-blue-900/20 text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 flex items-center justify-center transition-colors relative"
+                                                    title="Chat do Pedido"
+                                                >
+                                                    <MaterialIcon name="chat" className="text-xl" />
+                                                    {/* Notification dot functionality can be added here later */}
+                                                </button>
+
                                                 <button
                                                     onClick={(e) => { e.stopPropagation(); openDetails(order); }}
                                                     className="size-10 rounded-xl hover:bg-slate-100 dark:hover:bg-zinc-700 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 flex items-center justify-center transition-colors"
@@ -995,7 +1037,7 @@ const MerchantOrderManagement = () => {
 
                             {orders.filter(o => {
                                 if (activeTabId === 'preparando') {
-                                    return o.status === 'preparando' || o.status === 'aguardando_motoboy';
+                                    return ['preparando', 'aguardando_motoboy', 'pronto_entrega'].includes(o.status);
                                 }
                                 return o.status?.toLowerCase() === activeTabId;
                             }).length === 0 && (

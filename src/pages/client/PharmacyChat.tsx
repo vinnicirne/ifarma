@@ -10,6 +10,7 @@ export const PharmacyChat = () => {
     const [newMessage, setNewMessage] = useState("");
     const [order, setOrder] = useState<any>(null);
     const [pharmacy, setPharmacy] = useState<any>(null);
+    const [motoboyName, setMotoboyName] = useState("");
     const [session, setSession] = useState<any>(null);
     const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -30,6 +31,12 @@ export const PharmacyChat = () => {
             if (orderData) {
                 setOrder(orderData);
                 setPharmacy(orderData.pharmacies);
+
+                // Fetch Motoboy Name if assigned
+                if (orderData.motoboy_id) {
+                    const { data: mb } = await supabase.from('profiles').select('full_name').eq('id', orderData.motoboy_id).single();
+                    if (mb) setMotoboyName(mb.full_name);
+                }
             }
 
             const { data: msgs } = await supabase
@@ -76,7 +83,8 @@ export const PharmacyChat = () => {
             .insert({
                 order_id: orderId,
                 sender_id: session.user.id,
-                content: content
+                content: content,
+                sender_role: 'customer'
             });
 
         if (error) console.error("Error sending message:", error);
@@ -115,20 +123,46 @@ export const PharmacyChat = () => {
             <main ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-4 bg-background-light dark:bg-background-dark no-scrollbar">
                 {messages.map((msg, idx) => {
                     const isMe = msg.sender_id === session?.user?.id;
+                    const isMotoboy = msg.sender_id === order?.motoboy_id;
+
+                    let senderLabel = "";
+                    if (isMe) {
+                        senderLabel = "Eu (Cliente)"; // Or just "Cliente"
+                    } else if (isMotoboy) {
+                        senderLabel = `Motoboy - ${motoboyName || 'Entregador'}`;
+                    } else {
+                        senderLabel = `Farmácia - ${pharmacy?.name || 'Farmácia'}`;
+                    }
+
+                    const labelColor = isMotoboy ? 'text-orange-500' : 'text-primary';
+
+                    // Alignment Logic
+                    // Customer (Me) -> Right
+                    // Others -> Left
+                    const isCustomerSender = (order?.customer_id && msg.sender_id === order.customer_id);
+                    const alignRight = isMe || isCustomerSender;
+
                     return (
-                        <div key={idx} className={`flex items-end gap-2 ${isMe ? 'justify-end' : 'justify-start'}`}>
-                            {!isMe && (
-                                <div className="bg-primary/20 rounded-full w-8 h-8 shrink-0 mb-5 flex items-center justify-center text-primary">
-                                    <MaterialIcon name="store" className="text-lg" />
-                                </div>
-                            )}
-                            <div className={`flex flex-col gap-1 ${isMe ? 'items-end' : 'items-start'} max-w-[85%]`}>
-                                <div className={`text-sm font-bold leading-relaxed rounded-2xl px-4 py-2 shadow-sm italic ${isMe ? 'bg-primary text-[#0d1b13] rounded-br-sm' : 'bg-white dark:bg-[#1a2e22] text-[#0d1b13] dark:text-gray-100 rounded-bl-sm'}`}>
-                                    {msg.content}
-                                </div>
-                                <div className="flex items-center gap-1">
-                                    <p className="text-[10px] text-gray-400 font-bold uppercase">{new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
-                                    {isMe && <MaterialIcon name="done_all" className="text-sm text-primary" />}
+                        <div key={idx} className={`flex flex-col gap-1 ${alignRight ? 'items-end' : 'items-start'}`}>
+                            {/* Label */}
+                            <span className={`text-[10px] font-bold uppercase tracking-wider px-2 ${isMe ? 'text-gray-400' : labelColor}`}>
+                                {senderLabel}
+                            </span>
+
+                            <div className={`flex items-end gap-2 ${alignRight ? 'justify-end' : 'justify-start'}`}>
+                                {!alignRight && (
+                                    <div className={`rounded-full w-8 h-8 shrink-0 mb-5 flex items-center justify-center ${isMotoboy ? 'bg-orange-100 text-orange-600' : 'bg-primary/20 text-primary'}`}>
+                                        <MaterialIcon name={isMotoboy ? 'two_wheeler' : 'store'} className="text-lg" />
+                                    </div>
+                                )}
+                                <div className={`flex flex-col gap-1 ${alignRight ? 'items-end' : 'items-start'} max-w-[85%]`}>
+                                    <div className={`text-sm font-bold leading-relaxed rounded-2xl px-4 py-2 shadow-sm italic ${alignRight ? 'bg-primary text-[#0d1b13] rounded-br-sm' : 'bg-white dark:bg-[#1a2e22] text-[#0d1b13] dark:text-gray-100 rounded-bl-sm'}`}>
+                                        {msg.content}
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                        <p className="text-[10px] text-gray-400 font-bold uppercase">{new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                                        {alignRight && <MaterialIcon name="done_all" className="text-sm text-primary" />}
+                                    </div>
                                 </div>
                             </div>
                         </div>

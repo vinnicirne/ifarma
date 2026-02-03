@@ -1,10 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-
-const MaterialIcon = ({ name, className = "", style = {} }: { name: string, className?: string, style?: React.CSSProperties }) => (
-    <span className={`material-symbols-outlined ${className}`} style={style}>{name}</span>
-);
+import { MaterialIcon } from '../components/MaterialIcon';
+import { useAudio } from '../hooks/useAudio';
 
 const MotoboyOrders = () => {
     const navigate = useNavigate();
@@ -12,6 +10,7 @@ const MotoboyOrders = () => {
     const [loading, setLoading] = useState(true);
     const [userId, setUserId] = useState<string | null>(null);
     const [activeTab, setActiveTab] = useState<'queue' | 'history'>('queue');
+    const { play: playAudio } = useAudio();
 
     useEffect(() => {
         const checkUser = async () => {
@@ -35,13 +34,16 @@ const MotoboyOrders = () => {
             .on(
                 'postgres_changes',
                 {
-                    event: '*',
+                    event: 'UPDATE', // Listen specifically for updates
                     schema: 'public',
                     table: 'orders',
                     filter: `motoboy_id=eq.${userId}`
                 },
-                () => {
-                    playNotificationSound();
+                (payload: any) => {
+                    // Only alert if it's a relevant status change or assignment
+                    if (payload.new && ['pronto_entrega', 'em_rota'].includes(payload.new.status)) {
+                        playAudio('new_order');
+                    }
                     fetchOrders();
                 }
             )
@@ -68,11 +70,6 @@ const MotoboyOrders = () => {
         } finally {
             setLoading(false);
         }
-    };
-
-    const playNotificationSound = () => {
-        const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
-        audio.play().catch(e => console.log('Audio autoplay blocked', e));
     };
 
     const getStatusLabel = (status: string) => {

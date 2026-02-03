@@ -1,8 +1,8 @@
 import React from 'react';
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
 
 // Pages - Client
-import { ClientHome } from '../pages/client/ClientHome'; // Assuming RootRedirect uses it, but root route here uses RootRedirect
+import { ClientHome } from '../pages/client/ClientHome';
 import { RootRedirect } from '../components/layout/RootRedirect';
 import { PharmacyList } from '../pages/client/PharmacyList';
 import { PharmacyPage } from '../pages/client/PharmacyPage';
@@ -131,6 +131,9 @@ export const AppRoutes = ({ session, profile, userLocation, sortedPharmacies }: 
 
             <Route path="/motoboy-confirm/:orderId" element={<MotoboyDeliveryConfirm />} />
             <Route path="/motoboy-chat/:orderId" element={<MotoboyChat />} />
+
+            {/* Fallback Route */}
+            <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
     );
 };
