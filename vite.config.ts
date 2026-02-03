@@ -32,4 +32,17 @@ export default defineConfig({
       }
     })
   ],
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'react-vendor': ['react', 'react-dom', 'react-router-dom'],
+          'charts-vendor': ['recharts'],
+          'maps-vendor': ['leaflet', 'react-leaflet', '@react-google-maps/api'],
+          'db-vendor': ['@supabase/supabase-js'],
+        }
+      }
+    },
+    chunkSizeWarningLimit: 600,
+  }
 })

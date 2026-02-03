@@ -11,28 +11,30 @@ const LoadingScreen = () => (
     </div>
 );
 
-// Pages - Client (eager load - small and frequently accessed)
+// Pages - Client (eager load - critical)
 import { ClientHome } from '../pages/client/ClientHome';
 import { RootRedirect } from '../components/layout/RootRedirect';
 import { PharmacyList } from '../pages/client/PharmacyList';
-import { PharmacyPage } from '../pages/client/PharmacyPage';
-import { ProductPage } from '../pages/client/ProductPage';
-import { Cart } from '../pages/client/Cart';
-import Checkout from '../pages/client/Checkout';
-import UserProfile from '../pages/UserProfile';
-import Favorites from '../pages/Favorites';
-import Notifications from '../pages/Notifications';
-import { UserOrderTracking } from '../pages/client/UserOrderTracking';
-import UserOrders from '../pages/client/UserOrders';
-import { PrescriptionUpload } from '../pages/client/PrescriptionUpload';
-import { PharmacyChat } from '../pages/client/PharmacyChat';
 import { Auth } from '../components/auth/Auth';
-import PartnerRegistration from '../pages/PartnerRegistration';
-import ForgotPassword from '../pages/ForgotPassword';
-import ResetPassword from '../pages/ResetPassword';
-import DiagnosticPage from '../pages/DiagnosticPage';
-import HelpSupport from '../pages/HelpSupport';
-import PrivacyData from '../pages/PrivacyData';
+
+// Pages - Client (lazy load - non-critical)
+const PharmacyPage = lazy(() => import('../pages/client/PharmacyPage').then(m => ({ default: m.PharmacyPage })));
+const ProductPage = lazy(() => import('../pages/client/ProductPage').then(m => ({ default: m.ProductPage })));
+const Cart = lazy(() => import('../pages/client/Cart').then(m => ({ default: m.Cart })));
+const Checkout = lazy(() => import('../pages/client/Checkout'));
+const UserProfile = lazy(() => import('../pages/UserProfile'));
+const Favorites = lazy(() => import('../pages/Favorites'));
+const Notifications = lazy(() => import('../pages/Notifications'));
+const UserOrderTracking = lazy(() => import('../pages/client/UserOrderTracking').then(m => ({ default: m.UserOrderTracking })));
+const UserOrders = lazy(() => import('../pages/client/UserOrders'));
+const PrescriptionUpload = lazy(() => import('../pages/client/PrescriptionUpload').then(m => ({ default: m.PrescriptionUpload })));
+const PharmacyChat = lazy(() => import('../pages/client/PharmacyChat').then(m => ({ default: m.PharmacyChat })));
+const PartnerRegistration = lazy(() => import('../pages/PartnerRegistration'));
+const ForgotPassword = lazy(() => import('../pages/ForgotPassword'));
+const ResetPassword = lazy(() => import('../pages/ResetPassword'));
+const DiagnosticPage = lazy(() => import('../pages/DiagnosticPage'));
+const HelpSupport = lazy(() => import('../pages/HelpSupport'));
+const PrivacyData = lazy(() => import('../pages/PrivacyData'));
 
 // Pages - Admin (lazy load - large and admin-only)
 import AdminLayout from '../layouts/AdminLayout';
@@ -82,31 +84,31 @@ export const AppRoutes = ({ session, profile, userLocation, sortedPharmacies }: 
             {/* Public Routes */}
             <Route path="/" element={<RootRedirect userLocation={userLocation} sortedPharmacies={sortedPharmacies} session={session} />} />
             <Route path="/pharmacies" element={<PharmacyList pharmacies={sortedPharmacies} session={session} />} />
-            <Route path="/pharmacy/:id" element={<PharmacyPage session={session} />} />
-            <Route path="/product/:id" element={<ProductPage session={session} />} />
-            <Route path="/privacy" element={<PrivacyData />} />
-            <Route path="/help" element={<HelpSupport />} />
+            <Route path="/pharmacy/:id" element={<Suspense fallback={<LoadingScreen />}><PharmacyPage session={session} /></Suspense>} />
+            <Route path="/product/:id" element={<Suspense fallback={<LoadingScreen />}><ProductPage session={session} /></Suspense>} />
+            <Route path="/privacy" element={<Suspense fallback={<LoadingScreen />}><PrivacyData /></Suspense>} />
+            <Route path="/help" element={<Suspense fallback={<LoadingScreen />}><HelpSupport /></Suspense>} />
             <Route path="/login" element={<Auth view="login" />} />
             <Route path="/signup" element={<Auth view="signup" />} />
-            <Route path="/partner/register" element={<PartnerRegistration />} />
-            <Route path="/forgot-password" element={<ForgotPassword />} />
-            <Route path="/reset-password" element={<ResetPassword />} />
+            <Route path="/partner/register" element={<Suspense fallback={<LoadingScreen />}><PartnerRegistration /></Suspense>} />
+            <Route path="/forgot-password" element={<Suspense fallback={<LoadingScreen />}><ForgotPassword /></Suspense>} />
+            <Route path="/reset-password" element={<Suspense fallback={<LoadingScreen />}><ResetPassword /></Suspense>} />
 
             {/* Diagnostic Route - Public */}
-            <Route path="/diagnostic" element={<DiagnosticPage />} />
+            <Route path="/diagnostic" element={<Suspense fallback={<LoadingScreen />}><DiagnosticPage /></Suspense>} />
 
             {/* Protected Client Routes */}
-            <Route path="/cart" element={<ProtectedRoute session={session}><Cart /></ProtectedRoute>} />
-            <Route path="/checkout" element={<ProtectedRoute session={session}><Checkout /></ProtectedRoute>} />
+            <Route path="/cart" element={<ProtectedRoute session={session}><Suspense fallback={<LoadingScreen />}><Cart /></Suspense></ProtectedRoute>} />
+            <Route path="/checkout" element={<ProtectedRoute session={session}><Suspense fallback={<LoadingScreen />}><Checkout /></Suspense></ProtectedRoute>} />
 
-            <Route path="/profile" element={<ProtectedRoute session={session}><UserProfile session={session} profile={profile} /></ProtectedRoute>} />
-            <Route path="/favorites" element={<ProtectedRoute session={session}><Favorites /></ProtectedRoute>} />
-            <Route path="/notifications" element={<ProtectedRoute session={session}><Notifications /></ProtectedRoute>} />
-            <Route path="/meus-pedidos" element={<ProtectedRoute session={session}><UserOrders /></ProtectedRoute>} />
-            <Route path="/order-tracking/:orderId?" element={<ProtectedRoute session={session}><UserOrderTracking /></ProtectedRoute>} />
-            <Route path="/pedido/:orderId?" element={<ProtectedRoute session={session}><UserOrderTracking /></ProtectedRoute>} />
-            <Route path="/prescription-upload" element={<ProtectedRoute session={session}><PrescriptionUpload /></ProtectedRoute>} />
-            <Route path="/chat/:orderId?" element={<ProtectedRoute session={session}><PharmacyChat /></ProtectedRoute>} />
+            <Route path="/profile" element={<ProtectedRoute session={session}><Suspense fallback={<LoadingScreen />}><UserProfile session={session} profile={profile} /></Suspense></ProtectedRoute>} />
+            <Route path="/favorites" element={<ProtectedRoute session={session}><Suspense fallback={<LoadingScreen />}><Favorites /></Suspense></ProtectedRoute>} />
+            <Route path="/notifications" element={<ProtectedRoute session={session}><Suspense fallback={<LoadingScreen />}><Notifications /></Suspense></ProtectedRoute>} />
+            <Route path="/meus-pedidos" element={<ProtectedRoute session={session}><Suspense fallback={<LoadingScreen />}><UserOrders /></Suspense></ProtectedRoute>} />
+            <Route path="/order-tracking/:orderId?" element={<ProtectedRoute session={session}><Suspense fallback={<LoadingScreen />}><UserOrderTracking /></Suspense></ProtectedRoute>} />
+            <Route path="/pedido/:orderId?" element={<ProtectedRoute session={session}><Suspense fallback={<LoadingScreen />}><UserOrderTracking /></Suspense></ProtectedRoute>} />
+            <Route path="/prescription-upload" element={<ProtectedRoute session={session}><Suspense fallback={<LoadingScreen />}><PrescriptionUpload /></Suspense></ProtectedRoute>} />
+            <Route path="/chat/:orderId?" element={<ProtectedRoute session={session}><Suspense fallback={<LoadingScreen />}><PharmacyChat /></Suspense></ProtectedRoute>} />
 
             {/* Protected Admin Routes (with Suspense) */}
             <Route path="/dashboard" element={<AdminRoute session={session} profile={profile}><AdminLayout /></AdminRoute>}>
