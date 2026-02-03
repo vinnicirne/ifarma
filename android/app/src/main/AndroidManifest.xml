@@ -33,6 +33,11 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/file_paths"></meta-data>
         </provider>
+        
+        <!-- Rollbar configuration -->
+        <meta-data 
+            android:name="com.rollbar.android.ACCESS_TOKEN" 
+            android:value="84893746147940e8bb3ee1bbcce4eb14" />
     </application>
 
     <!-- Permissions -->

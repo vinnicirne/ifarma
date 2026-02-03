@@ -1,10 +1,13 @@
 ﻿import React, { useState, useEffect, useMemo } from 'react';
 import { BrowserRouter as Router } from 'react-router-dom';
+import { Provider as RollbarProvider, ErrorBoundary as RollbarErrorBoundary } from '@rollbar/react';
 import { supabase } from './lib/supabase';
 import { useNotifications } from './hooks/useNotifications';
 import { initAppContext } from './lib/appContext';
 import { calculateDistance } from './lib/geoUtils';
 import { AppRoutes } from './routes/AppRoutes';
+import { rollbarConfig } from './lib/rollbar';
+import { RollbarTestPanel } from './components/RollbarTestPanel';
 
 function App() {
   const [session, setSession] = useState<any>(null);
@@ -178,16 +181,23 @@ function App() {
   }
 
   return (
-    <Router>
-      <div className="font-display">
-        <AppRoutes
-          session={session}
-          profile={profile}
-          userLocation={userLocation}
-          sortedPharmacies={sortedPharmacies}
-        />
-      </div>
-    </Router>
+    <RollbarProvider config={rollbarConfig}>
+      <RollbarErrorBoundary>
+        <Router>
+          <div className="font-display">
+            <AppRoutes
+              session={session}
+              profile={profile}
+              userLocation={userLocation}
+              sortedPharmacies={sortedPharmacies}
+            />
+          </div>
+
+          {/* Painel de teste Rollbar - apenas em desenvolvimento */}
+          {import.meta.env.DEV && <RollbarTestPanel />}
+        </Router>
+      </RollbarErrorBoundary>
+    </RollbarProvider>
   );
 }
 
