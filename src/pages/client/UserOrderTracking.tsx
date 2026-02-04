@@ -95,12 +95,27 @@ export const UserOrderTracking = () => {
 
     // Função para calcular distância e ETA
     const fetchGoogleKey = async () => {
+        // 1. Try Env Var first (Faster & Recommended)
+        const envKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+        if (envKey) {
+            console.log("🗺️ Google Maps Key loaded from Env");
+            setGoogleKey(envKey);
+            return;
+        }
+
+        // 2. Fallback to Database
         const { data: settings } = await supabase
             .from('system_settings')
             .select('value')
             .eq('key', 'google_maps_api_key')
             .single();
-        if (settings?.value) setGoogleKey(settings.value);
+
+        if (settings?.value) {
+            console.log("🗺️ Google Maps Key loaded from DB");
+            setGoogleKey(settings.value);
+        } else {
+            console.warn("⚠️ No Google Maps API Key found (Env or DB). Routing will fallback to OSRM.");
+        }
     };
 
     const fetchRoute = async (mbLat: number, mbLng: number) => {

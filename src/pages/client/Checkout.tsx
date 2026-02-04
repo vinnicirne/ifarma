@@ -84,7 +84,7 @@ const Checkout = () => {
 
         if (userAddresses) {
             setAddresses(userAddresses);
-            const main = userAddresses.find(a => a.is_main);
+            const main = userAddresses.find(a => a.is_default);
             if (main) {
                 setAddress(main.address);
                 setSelectedAddressId(main.id);

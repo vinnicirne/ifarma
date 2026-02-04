@@ -534,7 +534,10 @@ const MotoboyDashboard = ({ session, profile }: { session: any, profile: any }) 
         let batteryInterval: any;
 
         const updateBattery = async () => {
-            if (isOnline && 'getBattery' in navigator) {
+            if (!isOnline) return;
+
+            // Safe check for Battery Status API (Chrome/Android only usually)
+            if (typeof navigator !== 'undefined' && 'getBattery' in navigator) {
                 try {
                     const battery: any = await (navigator as any).getBattery();
                     await supabase
@@ -545,7 +548,8 @@ const MotoboyDashboard = ({ session, profile }: { session: any, profile: any }) 
                         })
                         .eq('id', session.user.id);
                 } catch (e) {
-                    console.error("Erro ao atualizar bateria:", e);
+                    // Silently fail for battery API errors to not disrupt main flow
+                    console.warn("Battery status update failed:", e);
                 }
             }
         };
@@ -738,8 +742,8 @@ const MotoboyDashboard = ({ session, profile }: { session: any, profile: any }) 
                         zoomControl={false}
                     >
                         <TileLayer
-                            url="https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}"
-                            attribution='&copy; <a href="https://www.google.com/maps">Google Maps</a>'
+                            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                         />
                         {latitude && longitude && (
                             <>

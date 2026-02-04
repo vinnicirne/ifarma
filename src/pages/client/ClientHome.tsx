@@ -12,30 +12,51 @@ import { calculateDistance } from '../../lib/geoUtils';
 
 // --- Subcomponents for Home ---
 
-const PromoCarousel = () => (
-    <div className="flex overflow-x-auto hide-scrollbar">
-        <div className="flex items-stretch p-4 gap-3">
-            <div className="flex h-full flex-1 flex-col gap-3 rounded-xl min-w-[280px]">
-                <div className="w-full bg-center bg-no-repeat aspect-[21/9] bg-cover rounded-xl flex flex-col relative overflow-hidden"
-                    style={{ background: 'linear-gradient(135deg, #1392ec 0%, #0056b3 100%)' }}>
-                    <div className="p-4 flex flex-col justify-center h-full text-white">
-                        <p className="text-xs font-bold uppercase tracking-widest opacity-80">Ofertas da Semana</p>
-                        <p className="text-xl font-bold leading-tight">Itens selecionados com até 50% OFF</p>
+const PromoCarousel = () => {
+    const [promotions, setPromotions] = useState<any[]>([]);
+
+    useEffect(() => {
+        const fetchPromos = async () => {
+            const { data } = await supabase
+                .from('promotions')
+                .select('*')
+                .eq('is_active', true)
+                .gte('end_date', new Date().toISOString().split('T')[0]); // Only future/present promos
+
+            if (data && data.length > 0) {
+                setPromotions(data);
+            } else {
+                // Fallback Mock se não tiver nada no banco (para não ficar vazio)
+                setPromotions([
+                    { id: 'mk1', title: 'Ofertas da Semana', subtitle: 'Até 50% OFF', color1: '#1392ec', color2: '#0056b3' },
+                    { id: 'mk2', title: 'Saúde em Dia', subtitle: 'Vitaminas & Suplementos', color1: '#f59e0b', color2: '#d97706' }
+                ]);
+            }
+        };
+        fetchPromos();
+    }, []);
+
+    return (
+        <div className="flex overflow-x-auto hide-scrollbar">
+            <div className="flex items-stretch p-4 gap-3">
+                {promotions.map((promo: any) => (
+                    <div key={promo.id} className="flex h-full flex-1 flex-col gap-3 rounded-xl min-w-[280px]">
+                        <div className="w-full bg-center bg-no-repeat aspect-[21/9] bg-cover rounded-xl flex flex-col relative overflow-hidden"
+                            style={{
+                                backgroundImage: promo.image_url ? `url(${promo.image_url})` : undefined,
+                                background: promo.image_url ? undefined : `linear-gradient(135deg, ${promo.color1 || '#1392ec'} 0%, ${promo.color2 || '#0056b3'} 100%)`
+                            }}>
+                            <div className="p-4 flex flex-col justify-center h-full text-white bg-black/20 backdrop-blur-[1px]">
+                                <p className="text-xs font-bold uppercase tracking-widest opacity-90">{promo.name || promo.title}</p>
+                                <p className="text-xl font-bold leading-tight">{promo.subtitle || 'Confira as novidades'}</p>
+                            </div>
+                        </div>
                     </div>
-                </div>
-            </div>
-            <div className="flex h-full flex-1 flex-col gap-3 rounded-xl min-w-[280px]">
-                <div className="w-full bg-center bg-no-repeat aspect-[21/9] bg-cover rounded-xl flex flex-col relative overflow-hidden"
-                    style={{ background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)' }}>
-                    <div className="p-4 flex flex-col justify-center h-full text-white">
-                        <p className="text-xs font-bold uppercase tracking-widest opacity-80">Saúde em Dia</p>
-                        <p className="text-xl font-bold leading-tight">Suplementos 20% OFF. Aproveite agora!</p>
-                    </div>
-                </div>
+                ))}
             </div>
         </div>
-    </div>
-);
+    );
+};
 
 const CategoryGrid = () => (
     <>

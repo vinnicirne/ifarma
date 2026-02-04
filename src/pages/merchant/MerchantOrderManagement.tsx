@@ -28,7 +28,9 @@ const AssignDriverModal = ({ isOpen, onClose, onAssign, pharmacyId }: any) => {
             .from('profiles')
             .select('*')
             .eq('role', 'motoboy')
-            .eq('is_active', true);
+            .eq('is_active', true)
+            .eq('is_online', true) // Only show online drivers!
+            .order('full_name', { ascending: true });
         setDrivers(data || []);
         setLoading(false);
     };

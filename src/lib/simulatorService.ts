@@ -97,12 +97,13 @@ export const simulatorService = {
      * Avança o status de um pedido específico
      */
     advanceOrderStatus: async (orderId: string) => {
-        const statusFlow = ['pendente', 'preparando', 'em_rota', 'entregue'];
+        // Fluxo Completo Real
+        const statusFlow = ['pendente', 'preparando', 'aguardando_motoboy', 'pronto_entrega', 'em_rota', 'entregue'];
 
         try {
             const { data: order, error: fetchError } = await supabase
                 .from('orders')
-                .select('status')
+                .select('status, pharmacy_id, motoboy_id')
                 .eq('id', orderId)
                 .single();
 
@@ -114,9 +115,38 @@ export const simulatorService = {
             }
 
             const nextStatus = statusFlow[currentIndex + 1];
+            const updates: any = { status: nextStatus };
+
+            // Lógica Especial: Atribuição Automática de Motoboy
+            if (nextStatus === 'pronto_entrega' || nextStatus === 'em_rota') {
+                if (!order.motoboy_id) {
+                    // Tentar achar um motoboy disponível para atribuir
+                    const { data: drivers } = await supabase
+                        .from('profiles')
+                        .select('id')
+                        .eq('role', 'motoboy')
+                        .limit(1);
+
+                    if (drivers && drivers.length > 0) {
+                        updates.motoboy_id = drivers[0].id;
+                        // Também atualiza o perfil do motoboy para refletir o pedido atual
+                        await supabase.from('profiles').update({ current_order_id: orderId }).eq('id', drivers[0].id);
+                    }
+                }
+            }
+
+            // Lógica Especial: Telemetria de Chegada e Entrega
+            if (nextStatus === 'entregue') {
+                updates.delivered_at = new Date().toISOString();
+                // Limpar motoboy
+                if (order.motoboy_id) {
+                    await supabase.from('profiles').update({ current_order_id: null }).eq('id', order.motoboy_id);
+                }
+            }
+
             const { error: updateError } = await supabase
                 .from('orders')
-                .update({ status: nextStatus })
+                .update(updates)
                 .eq('id', orderId);
 
             if (updateError) throw updateError;
