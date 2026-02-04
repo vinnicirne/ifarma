@@ -67,8 +67,8 @@ const UserProfile = ({ session, profile }: { session: any, profile: any }) => {
                 .from('user_addresses')
                 .insert({
                     user_id: session.user.id,
-                    label: addressForm.label,
-                    address: fullAddress,
+                    name: addressForm.label, // DB column is 'name'
+                    street: fullAddress,     // DB column is 'street'
                     is_default: addressForm.is_default
                 });
             if (error) throw error;
@@ -214,14 +214,14 @@ const UserProfile = ({ session, profile }: { session: any, profile: any }) => {
                                 <div key={addr.id} className="p-4 bg-white dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800 flex items-center justify-between group">
                                     <div className="flex items-center gap-4">
                                         <div className={`p-3 rounded-xl ${addr.is_default ? 'bg-primary text-background-dark' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'}`}>
-                                            <MaterialIcon name={addr.label === 'Trabalho' ? 'work' : 'home'} />
+                                            <MaterialIcon name={(addr.name || addr.label) === 'Trabalho' ? 'work' : 'home'} />
                                         </div>
                                         <div className="flex flex-col min-w-0">
                                             <div className="flex items-center gap-2">
-                                                <p className="text-slate-900 dark:text-white text-sm font-bold">{addr.label}</p>
+                                                <p className="text-slate-900 dark:text-white text-sm font-bold">{addr.name || addr.label}</p>
                                                 {addr.is_default && <span className="text-[8px] bg-primary/20 text-primary px-1.5 py-0.5 rounded-full font-black uppercase">Padrão</span>}
                                             </div>
-                                            <p className="text-slate-500 dark:text-slate-400 text-xs mt-0.5 truncate max-w-[200px]">{addr.address}</p>
+                                            <p className="text-slate-500 dark:text-slate-400 text-xs mt-0.5 truncate max-w-[200px]">{addr.street || addr.address}</p>
                                         </div>
                                     </div>
                                     <button

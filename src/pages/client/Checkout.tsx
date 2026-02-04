@@ -86,7 +86,7 @@ const Checkout = () => {
             setAddresses(userAddresses);
             const main = userAddresses.find(a => a.is_default);
             if (main) {
-                setAddress(main.address);
+                setAddress(main.street || main.address);
                 setSelectedAddressId(main.id);
             }
         }
@@ -224,7 +224,7 @@ const Checkout = () => {
                             <button
                                 key={addr.id}
                                 onClick={() => {
-                                    setAddress(addr.address);
+                                    setAddress(addr.street || addr.address);
                                     setSelectedAddressId(addr.id);
                                 }}
                                 className={`flex flex-col min-w-[160px] p-3 rounded-xl border-2 transition-all ${selectedAddressId === addr.id
@@ -232,10 +232,10 @@ const Checkout = () => {
                                     : 'border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30'}`}
                             >
                                 <div className="flex items-center gap-2 mb-1">
-                                    <MaterialIcon name={addr.type === 'Trabalho' ? 'work' : 'home'} className={`text-sm ${selectedAddressId === addr.id ? 'text-primary' : 'text-slate-400'}`} />
-                                    <span className="text-xs font-bold uppercase truncate">{addr.type}</span>
+                                    <MaterialIcon name={(addr.name || addr.label) === 'Trabalho' ? 'work' : 'home'} className={`text-sm ${selectedAddressId === addr.id ? 'text-primary' : 'text-slate-400'}`} />
+                                    <span className="text-xs font-bold uppercase truncate">{addr.name || addr.label}</span>
                                 </div>
-                                <p className="text-[10px] text-left line-clamp-2 opacity-70">{addr.address}</p>
+                                <p className="text-[10px] text-left line-clamp-2 opacity-70">{addr.street || addr.address}</p>
                             </button>
                         ))}
                     </div>
