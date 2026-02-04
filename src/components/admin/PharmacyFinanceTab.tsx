@@ -172,7 +172,7 @@ const PharmacyFinanceTab: React.FC<PharmacyFinanceTabProps> = ({ pharmacyId }) =
                             <label className="flex items-center gap-3 mb-4 cursor-pointer">
                                 <input
                                     type="checkbox"
-                                    checked={fees?.charge_per_order}
+                                    checked={fees?.charge_per_order || false}
                                     onChange={e => setFees({ ...fees, charge_per_order: e.target.checked })}
                                     className="accent-primary size-5"
                                 />
@@ -182,7 +182,7 @@ const PharmacyFinanceTab: React.FC<PharmacyFinanceTabProps> = ({ pharmacyId }) =
                                 <label className="text-[10px] font-black uppercase tracking-widest text-[#92c9a9] px-1">Valor Fixo (R$)</label>
                                 <input
                                     type="number"
-                                    value={fees?.fixed_fee}
+                                    value={fees?.fixed_fee ?? ''}
                                     onChange={e => setFees({ ...fees, fixed_fee: parseFloat(e.target.value) || 0 })}
                                     disabled={!fees?.charge_per_order}
                                     className="h-14 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-2xl px-4 text-slate-900 dark:text-white font-bold outline-none focus:border-primary/50 transition-colors disabled:opacity-30"
@@ -196,7 +196,7 @@ const PharmacyFinanceTab: React.FC<PharmacyFinanceTabProps> = ({ pharmacyId }) =
                             <label className="flex items-center gap-3 mb-4 cursor-pointer">
                                 <input
                                     type="checkbox"
-                                    checked={fees?.charge_percentage}
+                                    checked={fees?.charge_percentage || false}
                                     onChange={e => setFees({ ...fees, charge_percentage: e.target.checked })}
                                     className="accent-primary size-5"
                                 />
@@ -206,7 +206,7 @@ const PharmacyFinanceTab: React.FC<PharmacyFinanceTabProps> = ({ pharmacyId }) =
                                 <label className="text-[10px] font-black uppercase tracking-widest text-[#92c9a9] px-1">Percentual (%)</label>
                                 <input
                                     type="number"
-                                    value={fees?.percentage_fee}
+                                    value={fees?.percentage_fee ?? ''}
                                     onChange={e => setFees({ ...fees, percentage_fee: parseFloat(e.target.value) || 0 })}
                                     disabled={!fees?.charge_percentage}
                                     className="h-14 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-2xl px-4 text-slate-900 dark:text-white font-bold outline-none focus:border-primary/50 transition-colors disabled:opacity-30"
@@ -226,7 +226,7 @@ const PharmacyFinanceTab: React.FC<PharmacyFinanceTabProps> = ({ pharmacyId }) =
                                     <label className="text-[10px] font-black uppercase tracking-widest text-[#92c9a9] px-1">Quantidade de Boas-vindas</label>
                                     <input
                                         type="number"
-                                        value={fees?.free_orders_initial}
+                                        value={fees?.free_orders_initial ?? ''}
                                         onChange={e => setFees({ ...fees, free_orders_initial: parseInt(e.target.value) || 0 })}
                                         className="h-14 bg-white dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-2xl px-4 text-slate-900 dark:text-white font-bold outline-none focus:border-primary/50 transition-colors"
                                         placeholder="Ex: 30"

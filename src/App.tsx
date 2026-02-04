@@ -194,7 +194,7 @@ function App() {
           </div>
 
           {/* Painel de teste Rollbar - apenas em desenvolvimento */}
-          {import.meta.env.DEV && <RollbarTestPanel />}
+          {/* {import.meta.env.DEV && <RollbarTestPanel />} */}
         </Router>
       </RollbarErrorBoundary>
     </RollbarProvider>
