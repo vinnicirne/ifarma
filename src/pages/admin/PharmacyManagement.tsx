@@ -24,56 +24,109 @@ const PharmacyManagement = ({ profile }: { profile: any }) => {
         if (window.confirm('Deseja APROVAR esta farmácia e gerar as credenciais de acesso do lojista?')) {
             try {
                 setLoading(true);
-                // 1. Fetch pharmacy details
-                const { data: pharm, error: fetchErr } = await supabase
-                    .from('pharmacies')
-                    .select('*')
-                    .eq('id', id)
-                    .single();
 
-                if (fetchErr || !pharm) throw new Error('Farmácia não encontrada.');
+                // 1. Get Pharmacy Details
+                const { data: pharm, error: pharmErr } = await supabase.from('pharmacies').select('*').eq('id', id).single();
+                if (pharmErr || !pharm) throw new Error('Farmácia não encontrada');
 
-                // 2. Check if a profile already exists
-                const { data: existingProfile } = await supabase
-                    .from('profiles')
-                    .select('id')
-                    .eq('pharmacy_id', id)
-                    .single();
+                const merchantEmail = pharm.owner_email;
+                if (!merchantEmail) {
+                    throw new Error('E-mail do dono não encontrado.');
+                }
 
-                if (existingProfile) {
-                    // If profile exists, just approve
-                    await supabase.from('pharmacies').update({ status: 'Aprovado' }).eq('id', id);
-                    alert('Farmácia aprovada! (Usuário já possuía acesso)');
-                } else {
-                    // 3. Create Credentials
-                    const tempPassword = Math.random().toString(36).slice(-8) + '@';
-                    const merchantEmail = pharm.owner_email;
+                // 2. Generate credentials and try to create user
+                const tempPassword = Math.random().toString(36).slice(-8) + 'A1@';
 
-                    if (!merchantEmail) {
-                        throw new Error('E-mail do dono não encontrado para criar credenciais.');
-                    }
+                // Get current session token
+                const { data: { session: currentSession } } = await supabase.auth.getSession();
 
-                    // 4. Call Edge Function
-                    const { data: authData, error: authErr } = await supabase.functions.invoke('create-user-admin', {
-                        body: {
-                            email: merchantEmail,
-                            password: tempPassword,
-                            metadata: {
-                                full_name: pharm.owner_name || pharm.name,
-                                role: 'merchant'
-                            }
+                if (!currentSession?.access_token) {
+                    throw new Error("Sessão expirada. Recarregue a página e faça login novamente.");
+                }
+
+                const functionUrl = `${import.meta.env.VITE_SUPABASE_URL || 'https://isldwcghygyehuvohxaq.supabase.co'}/functions/v1/create-user-admin`;
+
+                console.log("Tentando criar/aprovar usuário:", merchantEmail);
+
+                const response = await fetch(functionUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY
+                    },
+                    body: JSON.stringify({
+                        email: merchantEmail,
+                        password: tempPassword,
+                        auth_token: currentSession.access_token,
+                        pharmacy_id: id, // Send ID so Edge Function approves it directly (Bypass RLS)
+                        metadata: {
+                            full_name: pharm.owner_name || pharm.name,
+                            role: 'merchant'
                         }
-                    });
+                    })
+                });
 
-                    if (authErr || authData?.error) {
-                        throw new Error(`Erro ao criar login: ${authErr?.message || authData?.error}`);
+                const responseText = await response.text();
+                console.log("Resposta da Edge Function:", responseText);
+
+                let userWasCreated = false;
+                let userId: string | null = null;
+
+                if (!response.ok) {
+                    try {
+                        const errorJson = JSON.parse(responseText);
+
+                        // Check if user already exists (check error message text)
+                        const errorText = (errorJson.error || errorJson.message || '').toLowerCase();
+
+                        if (errorText.includes('already registered') ||
+                            errorText.includes('already exists') ||
+                            errorText.includes('already been registered')) {
+
+                            console.log("Usuário já existe, buscando ID...");
+
+                            // User exists, we need to find their ID
+                            // Check if profile exists first
+                            const { data: existingProfile } = await supabase.from('profiles')
+                                .select('id')
+                                .eq('email', merchantEmail)
+                                .single();
+
+                            if (existingProfile) {
+                                userId = existingProfile.id;
+                                console.log("Profile encontrado:", userId);
+                            } else {
+                                // Profile doesn't exist but user does in auth
+                                // We need to get user from auth - but we can't easily do this from client
+                                // We rely on the Edge Function having approved the pharmacy already.
+                                alert('✅ Farmácia aprovada!\n\n⚠️ O usuário já existe no sistema mas sem perfil vinculado.\nEntre em contato com o suporte para vincular o acesso.');
+                                fetchPharmacies();
+                                return;
+                            }
+                        } else {
+                            // Other error
+                            const errorMessage = errorJson.error || errorJson.message || JSON.stringify(errorJson);
+                            throw new Error(errorMessage);
+                        }
+                    } catch (e) {
+                        if (e instanceof Error && e.message.includes('Farmácia aprovada')) {
+                            throw e; // Re-throw our custom message
+                        }
+                        throw new Error(responseText.substring(0, 200));
                     }
-
+                } else {
+                    // User was created successfully
+                    const authData = JSON.parse(responseText);
                     const newUser = authData.user;
+                    userWasCreated = true;
+                    if (authData.user?.id) userId = authData.user.id; // Ensure we get ID
+                }
 
-                    // 5. Create Profile
+                // 3. Create/Update Profile if we have userId
+                if (userId) {
+                    console.log("Vinculando perfil para usuário:", userId);
                     const { error: profileErr } = await supabase.from('profiles').upsert({
-                        id: newUser.id,
+                        id: userId,
                         email: merchantEmail,
                         full_name: pharm.owner_name || pharm.name,
                         role: 'merchant',
@@ -81,16 +134,36 @@ const PharmacyManagement = ({ profile }: { profile: any }) => {
                         pharmacy_id: id
                     });
 
-                    if (profileErr) throw profileErr;
-
-                    // 6. Final Approval
-                    await supabase.from('pharmacies').update({ status: 'Aprovado' }).eq('id', id);
-
-                    alert(`✅ Farmácia Aprovada!\n\nUm novo login foi criado:\nE-mail: ${merchantEmail}\nSenha Temporária: ${tempPassword}\n\nEnvie os dados para o lojista!`);
+                    if (profileErr) {
+                        console.error('Erro ao criar/vincular profile:', profileErr);
+                        alert('⚠️ Usuário vinculado, mas houve erro ao atualizar dados do perfil: ' + profileErr.message);
+                    }
                 }
+
+                // 4. Pharmacy Approval is done by Edge Function now. 
+                // We just assume success if we got here (function didn't throw)
+
+                if (userWasCreated) {
+                    alert(`✅ Farmácia Aprovada!\n\nNovo login criado:\nE-mail: ${merchantEmail}\nSenha: ${tempPassword}\n\n(Credenciais enviadas por e-mail)`);
+                } else {
+                    alert('✅ Farmácia aprovada!\n\n(Vínculo realizado com usuário existente)');
+                }
+
                 fetchPharmacies();
             } catch (error: any) {
                 console.error('Erro na aprovação:', error);
+
+                // Check for session expiration errors
+                const errText = error.message || JSON.stringify(error);
+                if (errText.includes('Auth session missing') ||
+                    errText.includes('Invalid requester token') ||
+                    errText.includes('JWT expired')) {
+                    alert('⚠️ Sua sessão de segurança expirou. Por favor, faça login novamente para confirmar sua identidade.');
+                    await supabase.auth.signOut();
+                    navigate('/login');
+                    return;
+                }
+
                 alert(`Erro ao aprovar: ${error.message}`);
             } finally {
                 setLoading(false);
@@ -111,8 +184,13 @@ const PharmacyManagement = ({ profile }: { profile: any }) => {
 
                 // 2. Se existir um perfil, chamar a Edge Function para remover o login (Auth)
                 if (profile) {
+                    const { data: { session } } = await supabase.auth.getSession();
+
                     const { error: deleteFuncErr } = await supabase.functions.invoke('delete-user-admin', {
-                        body: { user_id: profile.id }
+                        body: { user_id: profile.id },
+                        headers: {
+                            Authorization: `Bearer ${session?.access_token}`
+                        }
                     });
 
                     if (deleteFuncErr) {

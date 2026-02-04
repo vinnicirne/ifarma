@@ -364,7 +364,7 @@ const InventoryControl = () => {
             {/* Modal de Adição com Busca ANVISA */}
             {isAddModalOpen && (
                 <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                    <div className="bg-white dark:bg-zinc-900 w-full max-w-xl rounded-[32px] shadow-2xl overflow-hidden animate-fade-in-up border border-white/10">
+                    <div className="bg-white dark:bg-zinc-900 w-full max-w-xl rounded-[32px] shadow-2xl overflow-hidden animate-fade-in-up border border-white/10 flex flex-col max-h-[90vh]">
                         <div className="p-8 border-b border-slate-100 dark:border-white/5 flex justify-between items-center">
                             <h2 className="text-xl font-black italic tracking-tighter">{editingProduct ? 'Editar Produto' : 'Novo Produto'}</h2>
                             <button onClick={() => { setIsAddModalOpen(false); setEditingProduct(null); }} className="text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors">
@@ -372,7 +372,7 @@ const InventoryControl = () => {
                             </button>
                         </div>
 
-                        <form onSubmit={handleSave} className="p-8 space-y-6">
+                        <form onSubmit={handleSave} className="p-8 space-y-6 overflow-y-auto">
                             {/* Busca no Portfólio */}
                             <div className="relative">
                                 <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Buscar no Portfólio ANVISA (Atalho)</label>
@@ -496,10 +496,10 @@ const InventoryControl = () => {
                                             <input type="file" className="hidden" accept="image/*" onChange={handleFileUpload} disabled={uploading} />
                                         </label>
 
-                                        {formData.name && (
+                                        {(formData.name || (catalogSearch && catalogSearch.length > 2)) && (
                                             <button
                                                 type="button"
-                                                onClick={() => window.open(`https://www.google.com/search?tbm=isch&q=${encodeURIComponent(formData.name + ' ' + (formData.brand || '') + ' png')}`, '_blank')}
+                                                onClick={() => window.open(`https://www.google.com/search?tbm=isch&q=${encodeURIComponent((formData.name || catalogSearch) + ' ' + (formData.brand || '') + ' png')}`, '_blank')}
                                                 className="mt-4 w-full h-10 rounded-xl bg-blue-500 hover:bg-blue-600 text-white shadow-lg shadow-blue-500/20 text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 hover:scale-[1.02] active:scale-95"
                                             >
                                                 <MaterialIcon name="search" className="text-sm" />

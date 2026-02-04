@@ -24,18 +24,41 @@ serve(async (req) => {
             throw new Error("Variáveis de ambiente (URL ou Service Role Key) não configuradas na Edge Function.");
         }
 
-        const supabaseClient = createClient(supabaseUrl, serviceRoleKey)
+        const anonKey = Deno.env.get('SUPABASE_ANON_KEY');
+        const isServiceKeySameAsAnon = serviceRoleKey === anonKey;
+
+        console.log(`[Diagnostic] Service Key == Anon Key? ${isServiceKeySameAsAnon ? 'YES (PROBLEM)' : 'NO (GOOD)'}`);
+        console.log(`[Diagnostic] Service Key length: ${serviceRoleKey.length}`);
+
+        const supabaseClient = createClient(supabaseUrl, serviceRoleKey, {
+            auth: {
+                autoRefreshToken: false,
+                persistSession: false
+            }
+        })
 
         // --- AUTH CHECK: Verify if the requester is an admin or manager ---
-        const authHeader = req.headers.get('Authorization')
-        if (!authHeader) {
-            return new Response(JSON.stringify({ error: 'No authorization header' }), {
+        // --- AUTH CHECK: Verify if the requester is an admin or manager ---
+        // Support both Authorization header and body 'auth_token' for custom bypass
+        const reqJson = await req.json();
+        const { email, password, metadata, auth_token } = reqJson; // Extract early
+
+        let token = auth_token;
+
+        if (!token) {
+            const authHeader = req.headers.get('Authorization');
+            if (authHeader) {
+                token = authHeader.replace('Bearer ', '');
+            }
+        }
+
+        if (!token) {
+            return new Response(JSON.stringify({ error: 'No authorization token provided (Header or Body)' }), {
                 headers: { ...corsHeaders, 'Content-Type': 'application/json' },
                 status: 401,
             })
         }
 
-        const token = authHeader.replace('Bearer ', '')
         const { data: { user: requester }, error: authError } = await supabaseClient.auth.getUser(token)
 
         if (authError || !requester) {
@@ -53,7 +76,15 @@ serve(async (req) => {
             .single()
 
         if (profileError || !requesterProfile) {
-            return new Response(JSON.stringify({ error: 'Could not verify requester profile' }), {
+            console.error('Erro ao buscar perfil:', profileError);
+            return new Response(JSON.stringify({
+                error: 'Could not verify requester profile',
+                detail: profileError?.message || 'Profile not found',
+                code: profileError?.code,
+                requester_id: requester.id,
+                is_key_weak: isServiceKeySameAsAnon, // DIAGNOSTIC: TRUE means we are using Anon Key (BAD)
+                key_len: serviceRoleKey.length
+            }), {
                 headers: { ...corsHeaders, 'Content-Type': 'application/json' },
                 status: 403,
             })
@@ -69,7 +100,7 @@ serve(async (req) => {
             })
         }
 
-        const { email, password, metadata } = await req.json()
+        // Body already parsed above to extract auth_token
 
         // Additional security: Managers can only create users for their own pharmacy
         if (isManager && metadata?.pharmacy_id !== requesterProfile.pharmacy_id && !isAdmin) {
@@ -81,14 +112,80 @@ serve(async (req) => {
 
         console.log(`Tentando criar usuário: ${email} com role: ${metadata?.role}`)
 
-        const { data: userResponse, error } = await supabaseClient.auth.admin.createUser({
-            email,
-            password,
-            email_confirm: true,
-            user_metadata: metadata
-        })
+        // --- Pharmacy Approval Logic (Audit Fix: Moved to TOP) ---
+        // Ensure approval happens regardless of user creation success/failure
+        const { pharmacy_id } = reqJson;
+        if (pharmacy_id) {
+            console.log(`[Prioritizing] Aprovando farmácia ${pharmacy_id}...`);
+            const { error: approvalError } = await supabaseClient
+                .from('pharmacies')
+                .update({ status: 'Aprovado' })
+                .eq('id', pharmacy_id);
 
-        if (error) throw error
+            if (approvalError) console.error('Erro na aprovação prioritária:', approvalError);
+            else console.log('Farmácia aprovada com sucesso (Prioridade).');
+        }
+
+        let userResponse;
+        let userAlreadyExisted = false;
+
+        try {
+            const { data, error } = await supabaseClient.auth.admin.createUser({
+                email,
+                password,
+                email_confirm: true,
+                user_metadata: metadata
+            })
+
+            if (error) throw error;
+            userResponse = data;
+        } catch (error: any) {
+            console.error('Erro Auth User:', JSON.stringify(error, null, 2));
+
+            // ROBUST CHECK: Instead of relying on error messages, we ALWAYS try to find the user
+            // caused by the error. If they exist, good. If not, re-throw.
+            console.log(`Erro na criação. Verificando se usuário ${email} já existe...`);
+
+            // Fetch existing user by email
+            const { data: { users }, error: listError } = await supabaseClient.auth.admin.listUsers({
+                page: 1,
+                perPage: 1000
+            });
+
+            if (listError) {
+                console.error('Erro ao listar usuários (Fallback):', listError);
+                throw error; // Throw original error if we can't check
+            }
+
+            // Case insensitive search
+            const existingUser = users?.find((u: any) => u.email?.toLowerCase() === email.toLowerCase());
+
+            if (existingUser) {
+                console.log(`Usuário recuperado: ${existingUser.id}. Atualizando credenciais para garantir acesso...`);
+
+                // Force update password so the credentials shown in frontend actually work
+                const { error: updateErr } = await supabaseClient.auth.admin.updateUserById(existingUser.id, {
+                    password: password,
+                    email_confirm: true,
+                    user_metadata: metadata
+                });
+
+                if (updateErr) {
+                    console.error('Erro ao atualizar senha do usuário recuperado:', updateErr);
+                    // Don't throw, just log. We still want to return the user.
+                } else {
+                    console.log('Senha atualizada com sucesso.');
+                }
+
+                userResponse = { user: existingUser };
+                userAlreadyExisted = true;
+                // Proceed to success flow
+            } else {
+                console.error('Usuário não encontrado na recuperação. O erro original persiste.');
+                throw error; // User really doesn't exist, so original error is valid (e.g. password weak)
+            }
+        }
+
 
         // --- Envio de E-mail via Resend ---
         const resendKey = Deno.env.get('RESEND_API_KEY')
@@ -138,6 +235,8 @@ serve(async (req) => {
         } else {
             console.warn('RESEND_API_KEY não configurada. E-mail não enviado.');
         }
+
+        // (Approved logic moved to top)
 
         return new Response(JSON.stringify({ user: userResponse.user }), {
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },

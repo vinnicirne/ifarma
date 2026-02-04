@@ -21,42 +21,12 @@ max_client_conn = 100
 
 [realtime]
 enabled = true
-ip_version = "ipv4"
+# ip_version must be IPv4 or IPv6 (case sensitive often)
+ip_version = "IPv4"
 
-[studio]
-enabled = true
-port = 54323
-api_url = "http://127.0.0.1"
-
-[inbucket]
-enabled = true
-port = 54324
-smtp_port = 54325
-pop3_port = 54326
-
-[storage]
-enabled = true
-file_size_limit = "50MiB"
-
-[auth]
-enabled = true
-site_url = "http://localhost:3000"
-additional_redirect_urls = ["https://localhost:3000"]
-jwt_expiry = 3600
-enable_signup = true
-
-[auth.email]
-enable_signup = true
-double_confirm_changes = true
-enable_confirmations = false
-
-[migrations]
-# Diretório de migrations
-baseline = "20240101000000"
-# Auto-aplica migrations na inicialização
-auto_apply = false
+# [migrations] section removed as it was flagged as invalid key
 
 # Configurações customizadas do Ifarma
-[db.seed]
-enabled = true
-sql_paths = ["./supabase/seeds"]
+# [db.seed]
+# enabled = true
+# sql_paths = ["./supabase/seeds"]

@@ -144,6 +144,8 @@ const PartnerRegistration = () => {
     };
     const prevStep = () => setStep(prev => prev - 1);
 
+    const [success, setSuccess] = useState(false);
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
@@ -178,8 +180,8 @@ const PartnerRegistration = () => {
 
             if (error) throw error;
 
-            alert("Cadastro realizado com sucesso! Nossa equipe entrará em contato.");
-            navigate('/login'); // Or to a success page
+            setSuccess(true);
+            window.scrollTo(0, 0);
 
         } catch (error: any) {
             console.error(error);
@@ -188,6 +190,40 @@ const PartnerRegistration = () => {
             setLoading(false);
         }
     };
+
+    if (success) {
+        return (
+            <div className="min-h-screen bg-slate-50 dark:bg-zinc-900 font-display flex flex-col items-center justify-center p-4">
+                <div className="w-full max-w-lg bg-white dark:bg-zinc-800 rounded-[32px] shadow-2xl p-10 text-center border border-slate-100 dark:border-white/5 animate-fade-in">
+                    <div className="size-20 bg-[#13ec6d]/20 rounded-full flex items-center justify-center mx-auto mb-6">
+                        <MaterialIcon name="check_circle" className="text-5xl text-[#13ec6d]" />
+                    </div>
+                    <h2 className="text-3xl font-black text-slate-900 dark:text-white mb-4">Cadastro Realizado!</h2>
+                    <p className="text-slate-600 dark:text-slate-300 text-lg leading-relaxed mb-8">
+                        Recebemos seus dados com sucesso. Nossa equipe fará uma análise rápida e você receberá suas <strong>credenciais de acesso</strong> no e-mail:
+                        <br />
+                        <span className="font-bold text-primary block mt-2">{formData.owner_email}</span>
+                    </p>
+
+                    <div className="bg-blue-50 dark:bg-blue-500/10 p-4 rounded-xl border border-blue-100 dark:border-blue-500/20 mb-8 text-left">
+                        <p className="text-sm text-blue-800 dark:text-blue-200 flex gap-2">
+                            <MaterialIcon name="info" />
+                            <span>
+                                <strong>Importante:</strong> Verifique também sua caixa de Spam ou Lixo Eletrônico. O processo de aprovação leva em média 24 horas.
+                            </span>
+                        </p>
+                    </div>
+
+                    <button
+                        onClick={() => navigate('/')}
+                        className="w-full bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 text-slate-900 dark:text-white h-14 rounded-2xl font-bold uppercase tracking-widest transition-colors"
+                    >
+                        Voltar ao Início
+                    </button>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="min-h-screen bg-slate-50 dark:bg-zinc-900 font-display flex flex-col items-center py-10 px-4">
@@ -204,6 +240,7 @@ const PartnerRegistration = () => {
                 </div>
 
                 <form onSubmit={handleSubmit} className="p-8 md:p-12">
+
 
                     {/* STEP 1: OWNER INFO */}
                     {step === 1 && (
