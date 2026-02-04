@@ -333,43 +333,49 @@ const MerchantOrderManagement = () => {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) return;
 
-            // Check if Admin Impersonating
-            const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
-            let pId = null;
+            try {
+                // Check if Admin Impersonating
+                const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle();
+                let pId = null;
 
-            if (profile?.role === 'admin') {
-                const impersonatedId = localStorage.getItem('impersonatedPharmacyId');
-                if (impersonatedId) {
+                if (profile?.role === 'admin') {
+                    const impersonatedId = localStorage.getItem('impersonatedPharmacyId');
+                    if (impersonatedId) {
+                        const { data: pharm } = await supabase
+                            .from('pharmacies')
+                            .select('*')
+                            .eq('id', impersonatedId)
+                            .maybeSingle();
+                        if (pharm) {
+                            setPharmacy(pharm);
+                            pId = pharm.id;
+                        }
+                    }
+                }
+
+                // Normal Merchant Flow (if not impersonating or not found)
+                if (!pId) {
                     const { data: pharm } = await supabase
                         .from('pharmacies')
                         .select('*')
-                        .eq('id', impersonatedId)
-                        .single();
+                        .eq('owner_id', user.id)
+                        .maybeSingle(); // <--- USA safely: não quebra se não achar
+
                     if (pharm) {
                         setPharmacy(pharm);
                         pId = pharm.id;
                     }
                 }
-            }
 
-            // Normal Merchant Flow
-            if (!pId) {
-                const { data: pharm } = await supabase
-                    .from('pharmacies')
-                    .select('*')
-                    .eq('owner_id', user.id)
-                    .single();
-
-                if (pharm) {
-                    setPharmacy(pharm);
-                    pId = pharm.id;
+                if (pId) {
+                    fetchOrders(pId);
+                    subscribeToOrders(pId);
+                } else {
+                    console.warn("Nenhuma farmácia encontrada para este usuário.");
+                    setLoading(false);
                 }
-            }
-
-            if (pId) {
-                fetchOrders(pId);
-                subscribeToOrders(pId);
-            } else {
+            } catch (error) {
+                console.error("Erro na inicialização do painel:", error);
                 setLoading(false);
             }
         };
