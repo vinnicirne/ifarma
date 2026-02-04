@@ -51,6 +51,8 @@ interface AdminMapProps {
     polylines?: { path: { lat: number; lng: number }[]; color?: string }[];
     onMarkerClick?: (id: string, type: 'pharmacy' | 'order' | 'user', orderId?: string) => void;
     onMotoboyClick?: (orderId: string) => void;
+    theme?: 'dark' | 'light'; // New prop
+    autoCenter?: boolean;     // New prop
 }
 
 const libraries: ("visualization")[] = ["visualization"];
@@ -62,13 +64,32 @@ const AdminMap = ({
     fleet = [],
     polylines = [],
     onMarkerClick,
-    onMotoboyClick
+    onMotoboyClick,
+    theme = 'dark', // Default to dark mainly for admin dashboard
+    autoCenter = false
 }: AdminMapProps) => {
     const { isLoaded } = useJsApiLoader({
         id: 'google-map-script',
         googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY || "",
         libraries: libraries
     });
+
+    const [mapInstance, setMapInstance] = useState<google.maps.Map | null>(null);
+
+    // Auto-center logic
+    useEffect(() => {
+        if (!mapInstance || !autoCenter) return;
+
+        // Prioritize centering on the first fleet item (motoboy)
+        if (fleet.length > 0) {
+            const mob = fleet[0];
+            mapInstance.panTo({ lat: mob.lat, lng: mob.lng });
+        }
+        // Fallback: Center on first marker if no fleet
+        else if (markers.length > 0) {
+            mapInstance.panTo({ lat: markers[0].lat, lng: markers[0].lng });
+        }
+    }, [mapInstance, autoCenter, fleet, markers]);
 
     const heatmapData = useMemo(() => {
         if (!isLoaded || !data || type !== 'heatmap') return [];
@@ -79,13 +100,13 @@ const AdminMap = ({
     }, [data, type, isLoaded]);
 
     const mapOptions = useMemo(() => ({
-        styles: darkMapStyle,
+        styles: theme === 'dark' ? darkMapStyle : [], // Use empty array for default Google Maps (Light)
         disableDefaultUI: true,
         zoomControl: true,
-    }), []);
+    }), [theme]);
 
     const onLoad = useCallback(function callback(map: google.maps.Map) {
-        // Pode ser usado para ajustar o bounds depois
+        setMapInstance(map);
     }, []);
 
     if (!isLoaded) return (

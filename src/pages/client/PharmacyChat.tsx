@@ -71,6 +71,39 @@ export const PharmacyChat = () => {
         }
     }, [messages]);
 
+    const [showAttachments, setShowAttachments] = useState(false);
+
+    const handleSendLocation = async () => {
+        setShowAttachments(false);
+        try {
+            const position = await supabase.rpc('get_current_position'); // Fallback or Capacitor
+            // Using Capacitor Geolocation
+            const { Geolocation } = await import('@capacitor/geolocation');
+            const pos = await Geolocation.getCurrentPosition();
+
+            const lat = pos.coords.latitude;
+            const lng = pos.coords.longitude;
+            const locationContent = `📍 Localização Enviada`;
+            const locationUrl = `https://www.google.com/maps?q=${lat},${lng}`;
+
+            const { error } = await supabase
+                .from('order_messages')
+                .insert({
+                    order_id: orderId,
+                    sender_id: session.user.id,
+                    content: locationContent,
+                    sender_role: 'customer',
+                    message_type: 'location',
+                    media_url: locationUrl
+                });
+
+            if (error) throw error;
+        } catch (err) {
+            console.error("Error sharing location:", err);
+            alert("Não foi possível obter sua localização. Verifique as permissões.");
+        }
+    };
+
     const handleSendMessage = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!newMessage.trim() || !session || !orderId) return;
@@ -157,7 +190,21 @@ export const PharmacyChat = () => {
                                 )}
                                 <div className={`flex flex-col gap-1 ${alignRight ? 'items-end' : 'items-start'} max-w-[85%]`}>
                                     <div className={`text-sm font-bold leading-relaxed rounded-2xl px-4 py-2 shadow-sm italic ${alignRight ? 'bg-primary text-[#0d1b13] rounded-br-sm' : 'bg-white dark:bg-[#1a2e22] text-[#0d1b13] dark:text-gray-100 rounded-bl-sm'}`}>
-                                        {msg.content}
+                                        {msg.message_type === 'location' ? (
+                                            <a
+                                                href={msg.media_url}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="flex flex-col gap-2 items-center min-w-[150px] py-1 active:opacity-70"
+                                            >
+                                                <div className="bg-white/20 p-3 rounded-full">
+                                                    <MaterialIcon name="location_on" className="text-2xl" />
+                                                </div>
+                                                <span className="underline decoration-2 underline-offset-4">Ver Localização</span>
+                                            </a>
+                                        ) : (
+                                            msg.content
+                                        )}
                                     </div>
                                     <div className="flex items-center gap-1">
                                         <p className="text-[10px] text-gray-400 font-bold uppercase">{new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
@@ -171,10 +218,32 @@ export const PharmacyChat = () => {
             </main>
 
             {/* Input Area */}
-            <footer className="bg-white dark:bg-[#1a2e22] p-4 pb-10 border-t border-gray-100 dark:border-gray-800">
+            <footer className="relative bg-white dark:bg-[#1a2e22] p-4 pb-10 border-t border-gray-100 dark:border-gray-800">
+                {/* Attachment Menu */}
+                {showAttachments && (
+                    <div className="absolute bottom-[80px] left-4 bg-white dark:bg-[#1a2e22] rounded-2xl shadow-[0_10px_40px_rgba(0,0,0,0.2)] border border-gray-100 dark:border-gray-800 p-2 flex flex-col gap-1 min-w-[150px] z-[100] transition-all">
+                        <button
+                            onClick={(e) => {
+                                e.preventDefault();
+                                handleSendLocation();
+                            }}
+                            className="flex items-center gap-3 p-3 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-slate-700 dark:text-gray-200"
+                        >
+                            <div className="size-8 rounded-full bg-primary/10 flex items-center justify-center">
+                                <MaterialIcon name="location_on" className="text-primary text-lg" />
+                            </div>
+                            <span className="text-xs font-black uppercase tracking-widest">Localização</span>
+                        </button>
+                    </div>
+                )}
+
                 <form onSubmit={handleSendMessage} className="flex items-center gap-3">
-                    <button type="button" className="flex items-center justify-center w-12 h-12 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 transition-transform active:scale-90">
-                        <MaterialIcon name="add" />
+                    <button
+                        type="button"
+                        onClick={() => setShowAttachments(!showAttachments)}
+                        className={`flex items-center justify-center w-12 h-12 rounded-full shadow-sm transition-all active:scale-90 ${showAttachments ? 'bg-primary text-[#0d1b13] rotate-45' : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300'}`}
+                    >
+                        <MaterialIcon name="add" className="font-bold" />
                     </button>
                     <div className="flex-1 relative">
                         <input
@@ -183,6 +252,7 @@ export const PharmacyChat = () => {
                             type="text"
                             value={newMessage}
                             onChange={(e) => setNewMessage(e.target.value)}
+                            onFocus={() => setShowAttachments(false)}
                         />
                     </div>
                     <button type="submit" className="flex items-center justify-center w-12 h-12 rounded-full bg-primary text-[#0d1b13] shadow-xl shadow-primary/20 transition-all active:scale-95 hover:rotate-12">

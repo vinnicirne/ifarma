@@ -68,6 +68,37 @@ export const MotoboyChat = () => {
         }
     }, [messages]);
 
+    const [showAttachments, setShowAttachments] = useState(false);
+
+    const handleSendLocation = async () => {
+        setShowAttachments(false);
+        try {
+            const { Geolocation } = await import('@capacitor/geolocation');
+            const pos = await Geolocation.getCurrentPosition();
+
+            const lat = pos.coords.latitude;
+            const lng = pos.coords.longitude;
+            const locationContent = `📍 Localização do Motoboy`;
+            const locationUrl = `https://www.google.com/maps?q=${lat},${lng}`;
+
+            const { error } = await supabase
+                .from('order_messages')
+                .insert({
+                    order_id: orderId,
+                    sender_id: session.user.id,
+                    content: locationContent,
+                    sender_role: 'motoboy',
+                    message_type: 'location',
+                    media_url: locationUrl
+                });
+
+            if (error) throw error;
+        } catch (err) {
+            console.error("Error sharing location:", err);
+            alert("Não foi possível obter sua localização. Verifique as permissões.");
+        }
+    };
+
     const handleSendMessage = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!newMessage.trim() || !session || !orderId) return;
@@ -80,7 +111,8 @@ export const MotoboyChat = () => {
             .insert({
                 order_id: orderId,
                 sender_id: session.user.id,
-                content: content
+                content: content,
+                sender_role: 'motoboy'
             });
 
         if (error) console.error("Error sending message:", error);
@@ -169,7 +201,14 @@ export const MotoboyChat = () => {
                                         ? 'bg-primary text-black rounded-tr-sm'
                                         : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-white rounded-tl-sm border border-gray-100 dark:border-slate-700'}
                                 `}>
-                                    <p>{msg.content}</p>
+                                    {msg.message_type === 'location' ? (
+                                        <a href={msg.media_url} target="_blank" rel="noopener noreferrer" className="flex flex-col gap-2 items-center py-1 underline underline-offset-4 decoration-2">
+                                            <MaterialIcon name="location_on" className="text-xl" />
+                                            <span>Ver Localização</span>
+                                        </a>
+                                    ) : (
+                                        <p>{msg.content}</p>
+                                    )}
                                     <div className={`text-[10px] mt-1 flex justify-end ${alignRight ? 'text-black/60' : 'text-slate-400'}`}>
                                         {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                     </div>
@@ -181,14 +220,40 @@ export const MotoboyChat = () => {
             </main>
 
             {/* Input Area */}
-            <footer className="p-4 bg-white dark:bg-slate-900 border-t border-gray-100 dark:border-slate-800 pb-8 sm:pb-4 safe-area-inset-bottom">
+            <footer className="relative p-4 bg-white dark:bg-slate-900 border-t border-gray-100 dark:border-slate-800 pb-8 sm:pb-4 safe-area-inset-bottom">
+                {/* Attachment Menu */}
+                {showAttachments && (
+                    <div className="absolute bottom-[80px] left-4 bg-white dark:bg-slate-800 rounded-2xl shadow-[0_10px_40px_rgba(0,0,0,0.2)] border border-gray-100 dark:border-slate-700 p-2 flex flex-col gap-1 min-w-[150px] z-[100] transition-all">
+                        <button
+                            onClick={(e) => {
+                                e.preventDefault();
+                                handleSendLocation();
+                            }}
+                            className="flex items-center gap-3 p-3 rounded-xl hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors text-slate-700 dark:text-gray-200"
+                        >
+                            <div className="size-8 rounded-full bg-primary/10 flex items-center justify-center">
+                                <MaterialIcon name="location_on" className="text-primary text-lg" />
+                            </div>
+                            <span className="text-xs font-bold uppercase tracking-widest">Enviar Localização</span>
+                        </button>
+                    </div>
+                )}
+
                 <form onSubmit={handleSendMessage} className="flex items-center gap-2">
+                    <button
+                        type="button"
+                        onClick={() => setShowAttachments(!showAttachments)}
+                        className={`size-11 flex items-center justify-center rounded-full shadow-sm transition-all active:scale-90 ${showAttachments ? 'bg-primary text-black rotate-45' : 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300'}`}
+                    >
+                        <MaterialIcon name="add" className="font-bold" />
+                    </button>
                     <input
                         className="flex-1 bg-slate-100 dark:bg-slate-800 border-none rounded-full py-3 px-5 text-sm focus:ring-2 focus:ring-primary/50 dark:text-white placeholder-slate-400 transition-all font-medium"
                         placeholder="Enviar mensagem..."
                         type="text"
                         value={newMessage}
                         onChange={(e) => setNewMessage(e.target.value)}
+                        onFocus={() => setShowAttachments(false)}
                     />
                     <button
                         type="submit"

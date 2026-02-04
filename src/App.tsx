@@ -142,6 +142,42 @@ function App() {
     };
   }, [session?.user?.id, profile?.role]);
 
+  // Global Chat/Notifications Listener
+  useEffect(() => {
+    if (!session?.user?.id) return;
+
+    const globalChannel = supabase
+      .channel(`global_messages_${session.user.id}`)
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'order_messages'
+      }, (payload) => {
+        const newMsg = payload.new;
+        // Ignore my own messages
+        if (newMsg.sender_id === session.user.id) return;
+
+        // Play Sound
+        console.log("💬 Nova mensagem de chat global!");
+        const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2346/2346-preview.mp3');
+        audio.volume = 0.8;
+        audio.play().catch(e => console.warn("Audio play blocked:", e));
+
+        // System Notification
+        if (window.Notification?.permission === 'granted' && document.hidden) {
+          new Notification('Nova mensagem', {
+            body: newMsg.content || 'Novo anexo recebido.',
+            icon: '/pwa-192x192.png'
+          });
+        }
+      })
+      .subscribe();
+
+    return () => {
+      globalChannel.unsubscribe();
+    }
+  }, [session?.user?.id]);
+
   // Process and sort nearby pharmacies (with fallback)
   const sortedPharmacies = useMemo(() => {
     const referenceLoc = userLocation || { lat: -22.8269, lng: -43.0539 };

@@ -82,11 +82,32 @@ const MotoboyDashboard = ({ session, profile }: { session: any, profile: any }) 
     const [isNavigationMode, setIsNavigationMode] = useState(false); // Controls compact UI vs full details
 
     // Audio & Alerts States
+    const [audioEnabled, setAudioEnabled] = useState(false);
     const [notificationSound, setNotificationSound] = useState<'voice' | 'bell'>(() => {
-        return (localStorage.getItem('ifarma_motoboy_sound') as any) || 'voice';
+        return (localStorage.getItem('ifarma_motoboy_sound') as any) || 'bell';
     });
     const [isSoundBlocked, setIsSoundBlocked] = useState(false);
     const [newOrderAlert, setNewOrderAlert] = useState<string | null>(null);
+    const [unreadChatCount, setUnreadChatCount] = useState(0);
+
+    // Ref para evitar closure bug em listeners de realtime
+    const ordersQueueRef = useRef<any[]>([]);
+    const isProcessingAction = useRef(false);
+    useEffect(() => {
+        ordersQueueRef.current = ordersQueue;
+    }, [ordersQueue]);
+
+    // Função para desbloquear o áudio (user gesture)
+    const enableAudio = () => {
+        const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2855/2855-preview.mp3');
+        audio.volume = 0; // Toca em silêncio só para desbloquear
+        audio.play().then(() => {
+            setAudioEnabled(true);
+            setIsSoundBlocked(false);
+        }).catch(() => {
+            setIsSoundBlocked(true);
+        });
+    };
     // --- LÓGICA UBER STYLE: 3 TOQUES + GEOFENCING ---
     const [distanceToDest, setDistanceToDest] = useState<number | null>(null);
     const [loading, setLoading] = useState(false); // Assuming this state is needed for loading indicators
@@ -173,15 +194,26 @@ const MotoboyDashboard = ({ session, profile }: { session: any, profile: any }) 
     // --- START INTERNAL ROUTE ---
     const startInternalRoute = async () => {
         if (!currentOrder?.id) return;
+        isProcessingAction.current = true;
 
         // Atualizar status para 'em_rota'
-        await supabase
+        const { error } = await supabase
             .from('orders')
             .update({ status: 'em_rota' })
             .eq('id', currentOrder.id);
 
-        setHasStartedRoute(true);
-        // Opcional: Ativar modo de "Seguir Motoboy" no mapa
+        if (!error) {
+            setHasStartedRoute(true);
+            setOrdersQueue(prev => prev.map(o => o.id === currentOrder.id ? { ...o, status: 'em_rota' } : o));
+            ordersQueueRef.current = ordersQueueRef.current.map(o => o.id === currentOrder.id ? { ...o, status: 'em_rota' } : o);
+            stopAudio();
+
+            setTimeout(() => {
+                isProcessingAction.current = false;
+            }, 6000);
+        } else {
+            isProcessingAction.current = false;
+        }
     };
 
     const handleAutoOpenMap = () => {
@@ -218,6 +250,7 @@ const MotoboyDashboard = ({ session, profile }: { session: any, profile: any }) 
     const handleConfirmPickup = async () => {
         if (!currentOrder) return;
         setLoading(true);
+        isProcessingAction.current = true;
 
         // Find ALL orders that are 'pronto_entrega' for this motoboy and batch update them
         // This ensures the motoboy confirms pickup once for the whole batch
@@ -230,20 +263,27 @@ const MotoboyDashboard = ({ session, profile }: { session: any, profile: any }) 
 
         const { error } = await supabase
             .from('orders')
-            .update({ status: 'em_rota', updated_at: new Date().toISOString() })
+            .update({ status: 'retirado', updated_at: new Date().toISOString() })
             .in('id', ordersToUpdate);
 
         if (!error) {
             setNewOrderAlert('RETIRADA CONFIRMADA! AGORA INICIE A ROTA.');
-            setTimeout(() => setNewOrderAlert(null), 4000);
+            stopAudio();
+            setTimeout(() => {
+                setNewOrderAlert(null);
+                isProcessingAction.current = false;
+            }, 6000);
 
             // Update local queue state for ALL affected orders
-            setOrdersQueue(prev => prev.map(o =>
+            const updatedQueue = ordersQueue.map(o =>
                 ordersToUpdate.includes(o.id)
-                    ? { ...o, status: 'em_rota', picked_up_at: new Date().toISOString() }
+                    ? { ...o, status: 'retirado', picked_up_at: new Date().toISOString() }
                     : o
-            ));
+            );
+            setOrdersQueue(updatedQueue);
+            ordersQueueRef.current = updatedQueue;
         } else {
+            isProcessingAction.current = false;
             alert('Erro ao confirmar retirada: ' + error.message);
         }
         setLoading(false);
@@ -262,9 +302,13 @@ const MotoboyDashboard = ({ session, profile }: { session: any, profile: any }) 
         try {
             const { data, error } = await supabase
                 .from('orders')
-                .select('*, profiles:customer_id(full_name, avatar_url, phone), order_items(*, products(*))')
+                .select(`
+                    *,
+                    profiles:customer_id(*),
+                    order_items(*, products(*))
+                `)
                 .eq('motoboy_id', session.user.id)
-                .in('status', ['pronto_entrega', 'em_rota', 'aguardando_retirada'])
+                .in('status', ['pronto_entrega', 'em_rota', 'retirado', 'aguardando_retirada'])
                 .order('delivery_sequence', { ascending: true }) // Prioridade definida pelo motoboy
                 .order('created_at', { ascending: true }); // Fallback para data de criação
 
@@ -274,19 +318,26 @@ const MotoboyDashboard = ({ session, profile }: { session: any, profile: any }) 
             }
 
             if (data) {
-                // Check if we have a NEW order at the top that wasn't there before
-                const previousTopId = ordersQueue.length > 0 ? ordersQueue[0].id : null;
+                // Check if we have a NEW order at the top or list grew
+                // Usamos o REF para evitar o closure bug (realtime pegando estado inicial [])
+                const previousQueue = ordersQueueRef.current;
+                const previousTopId = previousQueue.length > 0 ? previousQueue[0].id : null;
                 const newTopId = data.length > 0 ? data[0].id : null;
 
-                if (newTopId && newTopId !== previousTopId && data.length > (ordersQueue.length || 0)) {
+                const isNewOrder = data.length > previousQueue.length;
+                const isTopChanged = newTopId && newTopId !== previousTopId;
+
+                // Não tocar som se estiver processando uma ação local ou se a lista não cresceu/topo não mudou ID
+                if (!isProcessingAction.current && (isNewOrder || (isTopChanged && isNewOrder))) {
                     // Only play sound if it's genuinely a new assignment or list grew
-                    // Usar o hook useAudio
+                    console.log("🔔 Novo pedido detectado! Tocando alerta...");
                     playAudio(notificationSound === 'voice' ? 'voice' : 'new_order', 3);
-                    setNewOrderAlert(`Você tem ${data.length} entregas na fila!`);
-                    setTimeout(() => setNewOrderAlert(null), 5000);
+                    setNewOrderAlert(`VOCÊ TEM UM NOVO PEDIDO! (${data.length} na fila)`);
+                    setTimeout(() => setNewOrderAlert(null), 6000);
                 }
 
                 setOrdersQueue(data);
+                ordersQueueRef.current = data;
             }
         } catch (err) {
             console.error("Exception fetching queue:", err);
@@ -472,24 +523,34 @@ const MotoboyDashboard = ({ session, profile }: { session: any, profile: any }) 
             .on(
                 'postgres_changes',
                 {
-                    event: 'UPDATE', // ou INSERT se for nova atribuição que cria linha (mas é update)
+                    event: 'UPDATE',
                     schema: 'public',
                     table: 'orders',
                     filter: `motoboy_id=eq.${session.user.id}`
                 },
                 (payload) => {
-                    console.log("📦 Pedido atribuído/atualizado via Realtime:", payload);
+                    console.log("📦 Pedido Realtime:", payload);
 
-                    // Se fui atribuído ou status mudou, atualizo o estado
-                    if (payload.new && payload.new.id) {
+                    // LÓGICA DE ÁUDIO REFINADA:
+                    // Tocar APENAS se:
+                    // 1. O motoboy ID mudou (fui atribuído agora)
+                    // 2. OU o status mudou para 'pronto_entrega' (caso o restaurante volte o status)
+                    // 3. E NÃO tocar se eu mesmo acabei de aceitar (status mudou para 'em_rota' ou similar via minha ação)
+
+                    const isNewAssignment = payload.old?.motoboy_id !== payload.new.motoboy_id;
+                    const isNewStatus = payload.old?.status !== payload.new.status;
+                    const safeStatus = ['aguardando_motoboy', 'pronto_entrega'];
+
+                    // Se fui atribuído AGORA ou status voltou para fila
+                    if (isNewAssignment || (isNewStatus && safeStatus.includes(payload.new.status))) {
                         // Alerta Sonoro e Visual (Via hook)
                         playAudio(notificationSound === 'voice' ? 'voice' : 'new_order', 3);
                         setNewOrderAlert(`VOCÊ TEM UM NOVO PEDIDO!`);
                         setTimeout(() => setNewOrderAlert(null), 6000);
-
-                        console.log("🚀 Atualizando dashboard com pedido:", payload.new.id);
-                        fetchOrdersQueue();
+                        console.log("🚀 Notificação disparada para pedido:", payload.new.id);
                     }
+
+                    fetchOrdersQueue();
                 }
             )
             .subscribe();
@@ -564,6 +625,35 @@ const MotoboyDashboard = ({ session, profile }: { session: any, profile: any }) 
         };
     }, [isOnline, session.user.id]);
 
+    // Listener de Mensagens para o Contador do Chat
+    useEffect(() => {
+        if (!session?.user?.id) return;
+
+        console.log("💬 Monitorando novas mensagens para badge...");
+
+        const chatSub = supabase
+            .channel('chat_badge_motoboy')
+            .on(
+                'postgres_changes',
+                {
+                    event: 'INSERT',
+                    schema: 'public',
+                    table: 'order_messages'
+                },
+                (payload) => {
+                    // Só incrementa se a mensagem não for minha
+                    if (payload.new.sender_id !== session.user.id) {
+                        setUnreadChatCount(prev => prev + 1);
+                    }
+                }
+            )
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(chatSub);
+        };
+    }, [session.user.id]);
+
     const center: [number, number] = [
         latitude || -22.9068,
         longitude || -43.1729
@@ -596,6 +686,24 @@ const MotoboyDashboard = ({ session, profile }: { session: any, profile: any }) 
                         </button>
                     </div>
                 </div>
+
+                {/* Banner de Aviso de Som */}
+                {(!audioEnabled || isSoundBlocked) && (
+                    <div className="bg-red-500 text-white p-3 flex items-center justify-between gap-3 animate-pulse sticky top-[68px] z-10 shadow-lg">
+                        <div className="flex items-center gap-2">
+                            <MaterialIcon name="volume_off" className="text-xl" />
+                            <p className="text-xs font-bold leading-tight uppercase tracking-wider">
+                                ALERTA: SOM DESABILITADO
+                            </p>
+                        </div>
+                        <button
+                            onClick={enableAudio}
+                            className="bg-white text-red-500 text-[10px] font-black uppercase tracking-widest px-4 py-2 rounded-full shadow-sm active:scale-95"
+                        >
+                            Clique para Ativar
+                        </button>
+                    </div>
+                )}
 
                 {/* EmptyState Content */}
                 <div className="flex flex-col px-4 py-8 flex-grow bg-slate-50 dark:bg-[#101a14]">
@@ -775,6 +883,24 @@ const MotoboyDashboard = ({ session, profile }: { session: any, profile: any }) 
                             <p className="text-[10px] uppercase tracking-widest font-bold text-slate-500 dark:text-slate-300">Em andamento</p>
                         </div>
                     </div>
+
+                    {/* Banner de Aviso de Som (Nav Mode) */}
+                    {(!audioEnabled || isSoundBlocked) && (
+                        <div className="absolute top-[80px] left-4 right-4 z-[400] bg-red-500 text-white p-3 rounded-2xl flex items-center justify-between gap-3 animate-pulse shadow-2xl">
+                            <div className="flex items-center gap-2">
+                                <MaterialIcon name="volume_off" className="text-xl" />
+                                <p className="text-[10px] font-black leading-tight uppercase tracking-wider">
+                                    Som travado pelo navegador
+                                </p>
+                            </div>
+                            <button
+                                onClick={enableAudio}
+                                className="bg-white text-red-500 text-[9px] font-black uppercase tracking-widest px-3 py-1.5 rounded-full shadow-sm active:scale-95"
+                            >
+                                ATIVAR
+                            </button>
+                        </div>
+                    )}
                 </div>
             </div>
 
@@ -793,11 +919,19 @@ const MotoboyDashboard = ({ session, profile }: { session: any, profile: any }) 
                         Ligar
                     </a>
                     <button
-                        onClick={() => navigate('/motoboy-chat/' + currentOrder.id)}
-                        className="flex items-center justify-center gap-2 py-3 bg-slate-50 dark:bg-slate-800 rounded-xl font-bold text-sm text-slate-700 dark:text-white border border-slate-200 dark:border-slate-700 active:bg-slate-100"
+                        onClick={() => {
+                            setUnreadChatCount(0);
+                            navigate('/motoboy-chat/' + currentOrder.id);
+                        }}
+                        className="relative flex items-center justify-center gap-2 py-3 bg-slate-50 dark:bg-slate-800 rounded-xl font-bold text-sm text-slate-700 dark:text-white border border-slate-200 dark:border-slate-700 active:bg-slate-100"
                     >
                         <MaterialIcon name="chat" className="text-primary" />
                         Chat
+                        {unreadChatCount > 0 && (
+                            <div className="absolute -top-2 -right-2 bg-red-600 text-white text-[10px] font-black w-6 h-6 rounded-full flex items-center justify-center animate-bounce shadow-lg ring-2 ring-white dark:ring-slate-900 z-10">
+                                {unreadChatCount}
+                            </div>
+                        )}
                     </button>
                 </div>
 
@@ -805,15 +939,45 @@ const MotoboyDashboard = ({ session, profile }: { session: any, profile: any }) 
                 <div className="px-6 mb-6">
                     <div className="flex items-center gap-4">
                         <div className="size-14 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-xl font-black text-slate-400">
-                            {currentOrder.profiles?.full_name?.charAt(0) || 'C'}
+                            {(currentOrder.profiles?.full_name || currentOrder.client_name || 'C').charAt(0)}
                         </div>
                         <div className="flex-1">
-                            <p className="text-lg font-bold leading-none">{currentOrder.profiles?.full_name || 'Cliente'}</p>
+                            <p className="text-lg font-bold leading-none">{currentOrder.profiles?.full_name || currentOrder.client_name || 'Cliente'}</p>
                             <p className="text-[#61896f] dark:text-gray-400 text-sm font-normal mt-1 leading-snug">
                                 {currentOrder.address}
                             </p>
                         </div>
                     </div>
+
+                    {/* Payment Info Card */}
+                    <div className="mt-4 bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl border border-slate-100 dark:border-slate-700/50">
+                        <div className="flex items-center justify-between mb-2">
+                            <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Pagamento</span>
+                            <span className="text-xs font-black text-primary uppercase">
+                                {currentOrder.payment_method === 'pix' ? 'PIX' :
+                                    currentOrder.payment_method === 'cash' ? 'Dinheiro' :
+                                        currentOrder.payment_method === 'credit' ? 'Cartão (Crédito)' :
+                                            currentOrder.payment_method === 'debit' ? 'Cartão (Débito)' : 'A Combinar'}
+                            </span>
+                        </div>
+                        {currentOrder.payment_method === 'cash' && (
+                            <div className="flex items-center justify-between pt-2 border-t border-slate-200 dark:border-slate-700">
+                                <span className="text-xs font-bold text-slate-500">Troco para:</span>
+                                <span className="text-sm font-black text-slate-700 dark:text-white">
+                                    {currentOrder.change_for ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(currentOrder.change_for) : 'Não precisa'}
+                                </span>
+                            </div>
+                        )}
+                        {currentOrder.payment_method === 'cash' && currentOrder.change_for && (
+                            <div className="flex items-center justify-between mt-1">
+                                <span className="text-xs font-bold text-slate-500">Troco a devolver:</span>
+                                <span className="text-sm font-black text-red-500">
+                                    {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(currentOrder.change_for - (currentOrder.total_price || currentOrder.total_amount || 0))}
+                                </span>
+                            </div>
+                        )}
+                    </div>
+
                     {/* Instructions */}
                     <div className="mt-4 bg-blue-50 dark:bg-blue-900/20 p-4 rounded-xl border border-blue-100 dark:border-blue-800/30">
                         <h4 className="text-[10px] font-black uppercase text-blue-400 mb-1 flex items-center gap-1">
@@ -831,7 +995,7 @@ const MotoboyDashboard = ({ session, profile }: { session: any, profile: any }) 
                     <div className="flex items-center justify-between mb-4">
                         <h4 className="text-lg font-bold">Itens do Pedido</h4>
                         <span className="text-sm text-[#61896f] font-bold">
-                            Total: {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(currentOrder.total_amount || 0)}
+                            Total: {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(currentOrder.total_price || currentOrder.total_amount || 0)}
                         </span>
                     </div>
 
@@ -840,24 +1004,26 @@ const MotoboyDashboard = ({ session, profile }: { session: any, profile: any }) 
                             currentOrder.order_items.map((item: any, idx: number) => (
                                 <div key={item.id || idx} className="flex items-center gap-4 p-3 bg-white dark:bg-slate-800/50 border border-gray-100 dark:border-slate-700 rounded-xl">
                                     <div className="bg-gray-100 dark:bg-slate-700 size-12 rounded-lg flex items-center justify-center shrink-0">
-                                        {item.products?.image_url ? (
-                                            <img src={item.products.image_url} alt={item.products.name} className="w-full h-full object-cover rounded-lg" />
+                                        {(item.products?.image_url || item.image_url) ? (
+                                            <img src={item.products?.image_url || item.image_url} alt={item.products?.name || item.name} className="w-full h-full object-cover rounded-lg" />
                                         ) : (
                                             <MaterialIcon name="medication" className="text-gray-400" />
                                         )}
                                     </div>
                                     <div className="flex-1 min-w-0">
-                                        <p className="font-bold text-sm truncate">{item.products?.name || item.product_name || 'Produto'}</p>
-                                        <p className="text-xs text-slate-500">Qtd: {item.quantity}x</p>
+                                        <p className="font-bold text-sm truncate">{item.products?.name || item.product_name || item.name || 'Produto'}</p>
+                                        <p className="text-xs text-slate-500">Qtd: {item.quantity || 1}x</p>
                                     </div>
                                     <p className="text-sm font-bold text-slate-700 dark:text-slate-300">
-                                        {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format((item.unit_price || 0) * (item.quantity || 1))}
+                                        {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format((item.price || item.unit_price || 0) * (item.quantity || 1))}
                                     </p>
                                 </div>
                             ))
                         ) : (
-                            <div className="text-center p-4 text-slate-400 text-sm">
-                                Nenhhum item listado.
+                            <div className="text-center p-4 bg-slate-50 dark:bg-slate-800/20 rounded-xl text-slate-400 text-sm">
+                                <MaterialIcon name="shopping_bag" className="text-3xl mb-2 opacity-20" />
+                                <p>Nenhum item listado.</p>
+                                <p className="text-[10px] mt-1 opacity-60">ID do Pedido: {currentOrder.id.split('-')[0]}...</p>
                             </div>
                         )}
                     </div>
@@ -885,7 +1051,11 @@ const MotoboyDashboard = ({ session, profile }: { session: any, profile: any }) 
                                 <button
                                     onClick={() => {
                                         setHasAccepted(true);
+                                        isProcessingAction.current = true;
                                         stopAudio(); // Parar o som ao aceitar
+                                        setTimeout(() => {
+                                            isProcessingAction.current = false;
+                                        }, 4000);
                                     }}
                                     className="w-full bg-green-600 hover:bg-green-700 text-white font-black py-4 rounded-xl text-lg flex items-center justify-center gap-2 transition-all active:scale-95 shadow-lg shadow-green-600/20"
                                 >
@@ -901,59 +1071,53 @@ const MotoboyDashboard = ({ session, profile }: { session: any, profile: any }) 
                                     CONFIRMAR RETIRADA
                                 </button>
                             )
+                        ) : currentOrder.status === 'retirado' ? (
+                            <button
+                                onClick={() => {
+                                    handleAutoOpenMap();
+                                    setHasStartedRoute(true);
+                                }}
+                                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-4 rounded-xl text-lg flex items-center justify-center gap-2 transition-all active:scale-95 shadow-lg shadow-blue-500/20"
+                            >
+                                <MaterialIcon name="near_me" className="font-bold" />
+                                INICIAR ROTA
+                            </button>
                         ) : (
                             <div className="flex flex-col gap-3">
-                                {/* INICIAR ROTA BUTTON - Só aparece se ainda não iniciou */}
-                                {!hasStartedRoute ? (
-                                    <button
-                                        onClick={() => {
-                                            handleAutoOpenMap();
-                                            // setHasStartedRoute(true) is called inside handleAutoOpenMap or here?
-                                            // Ideally handleAutoOpenMap handles the map opening, we set state here.
-                                            // But handleAutoOpenMap is defined elsewhere. I should update it or do it here.
-                                            // Let's do it here for clarity if handleAutoOpenMap logic allows.
-                                        }}
-                                        className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-4 rounded-xl text-lg flex items-center justify-center gap-2 transition-all active:scale-95 shadow-lg shadow-blue-500/20"
-                                    >
-                                        <MaterialIcon name="near_me" className="font-bold" />
-                                        INICIAR ROTA
-                                    </button>
-                                ) : (
-                                    /* CONFIRMAR ENTREGA - Lógica de Geofencing (100m) */
-                                    (() => {
-                                        const hasCoords = !!currentOrder.delivery_lat;
-                                        const isClose = distanceToDest !== null && distanceToDest <= 100;
-                                        // Permite se: não tem coordenadas (fallback) OU está perto
-                                        const canConfirm = !hasCoords || isClose;
+                                {/* CONFIRMAR ENTREGA - Lógica de Geofencing (100m) */}
+                                {(() => {
+                                    const hasCoords = !!currentOrder.delivery_lat;
+                                    const isClose = distanceToDest !== null && distanceToDest <= 100;
+                                    // Permite se: não tem coordenadas (fallback) OU está perto
+                                    const canConfirm = !hasCoords || isClose;
 
-                                        return (
-                                            <button
-                                                onClick={() => {
-                                                    if (canConfirm) navigate(`/motoboy-confirm/${currentOrder.id}`);
-                                                }}
-                                                disabled={!canConfirm}
-                                                className={`w-full font-black py-4 rounded-xl text-lg flex items-center justify-center gap-2 transition-all shadow-lg
-                                                    ${canConfirm
-                                                        ? 'bg-primary hover:bg-primary/90 text-black shadow-primary/20 active:scale-95'
-                                                        : 'bg-slate-200 dark:bg-slate-800 text-slate-400 cursor-not-allowed shadow-none'
-                                                    }
-                                                `}
-                                            >
-                                                {canConfirm ? (
-                                                    <>
-                                                        <MaterialIcon name="check_circle" className="font-bold" />
-                                                        CONFIRMAR ENTREGA
-                                                    </>
-                                                ) : (
-                                                    <>
-                                                        <MaterialIcon name="location_off" className="font-bold" />
-                                                        {distanceToDest === null ? "AGUARDANDO GPS..." : `APROXIME-SE (${Math.round(distanceToDest)}m)`}
-                                                    </>
-                                                )}
-                                            </button>
-                                        );
-                                    })()
-                                )}
+                                    return (
+                                        <button
+                                            onClick={() => {
+                                                if (canConfirm) navigate(`/motoboy-confirm/${currentOrder.id}`);
+                                            }}
+                                            disabled={!canConfirm}
+                                            className={`w-full font-black py-4 rounded-xl text-lg flex items-center justify-center gap-2 transition-all shadow-lg
+                                                ${canConfirm
+                                                    ? 'bg-primary hover:bg-primary/90 text-black shadow-primary/20 active:scale-95'
+                                                    : 'bg-slate-200 dark:bg-slate-800 text-slate-400 cursor-not-allowed shadow-none'
+                                                }
+                                            `}
+                                        >
+                                            {canConfirm ? (
+                                                <>
+                                                    <MaterialIcon name="check_circle" className="font-bold" />
+                                                    CONFIRMAR ENTREGA
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <MaterialIcon name="location_off" className="font-bold" />
+                                                    {distanceToDest === null ? "AGUARDANDO GPS..." : `APROXIME-SE (${Math.round(distanceToDest)}m)`}
+                                                </>
+                                            )}
+                                        </button>
+                                    );
+                                })()}
                             </div>
                         )}
                     </div>

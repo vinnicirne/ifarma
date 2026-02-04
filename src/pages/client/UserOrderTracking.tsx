@@ -13,6 +13,7 @@ export const UserOrderTracking = () => {
     const [googleKey, setGoogleKey] = useState<string | null>(null);
     const [realTimeRoute, setRealTimeRoute] = useState<{ distance: string, duration: string } | null>(null);
     const [routePath, setRoutePath] = useState<{ lat: number, lng: number }[]>([]);
+    const [unreadCount, setUnreadCount] = useState(0);
 
     // Função para decodificar Polyline do Google
     const decodePolyline = (encoded: string) => {
@@ -119,35 +120,43 @@ export const UserOrderTracking = () => {
     };
 
     const fetchRoute = async (mbLat: number, mbLng: number) => {
-        if (!googleKey || !order) return;
+        // Use window.google if available (Client Side API) needed to avoid CORS
+        if (!order || typeof google === 'undefined') return;
 
         const destLat = order.latitude || order.pharmacies?.latitude;
         const destLng = order.longitude || order.pharmacies?.longitude;
 
         if (!destLat || !destLng) return;
 
-        // Fetch Directions
-        const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${mbLat},${mbLng}&destination=${destLat},${destLng}&mode=driving&key=${googleKey}`;
-
         try {
-            const response = await fetch(url);
-            const data = await response.json();
+            const service = new google.maps.DirectionsService();
+            service.route({
+                origin: { lat: mbLat, lng: mbLng },
+                destination: { lat: destLat, lng: destLng },
+                travelMode: google.maps.TravelMode.DRIVING,
+            }, (result, status) => {
+                if (status === 'OK' && result) {
+                    const path = result.routes[0].overview_path.map(p => ({ lat: p.lat(), lng: p.lng() }));
+                    setRoutePath(path);
 
-            if (data.status === 'OK' && data.routes.length > 0) {
-                const points = decodePolyline(data.routes[0].overview_polyline.points);
-                setRoutePath(points);
+                    const leg = result.routes[0].legs[0];
+                    if (leg) {
+                        setRealTimeRoute({
+                            distance: leg.distance?.text || '',
+                            duration: leg.duration?.text || ''
+                        });
 
-                // Update ETA from directions if available
-                const leg = data.routes[0].legs[0];
-                if (leg) {
-                    setRealTimeRoute({
-                        distance: leg.distance.text,
-                        duration: leg.duration.text // Use normal duration or duration_in_traffic if fetched with traffic model
-                    });
+                        // Check proximity for notification (< 1km)
+                        if (leg.distance && leg.distance.value < 1000) {
+                            notifyProximity();
+                        }
+                    }
+                } else {
+                    console.warn('Directions request failed:', status);
                 }
-            }
-        } catch (error) {
-            console.error('Error fetching route:', error);
+            });
+        } catch (e) {
+            console.error("Error using DirectionsService:", e);
         }
     };
 
@@ -250,7 +259,7 @@ export const UserOrderTracking = () => {
 
             const { data } = await supabase
                 .from('orders')
-                .select('*, pharmacies(*)')
+                .select('*, pharmacies(*), order_items(*, products(*))')
                 .eq('id', orderId)
                 .single();
 
@@ -258,6 +267,17 @@ export const UserOrderTracking = () => {
                 console.log("Order Data:", data);
                 console.log("Pharmacy Data:", data.pharmacies);
                 setOrder(data);
+
+                // Popula os itens formatados para o render
+                if (data.order_items) {
+                    const mappedItems = data.order_items.map((it: any) => ({
+                        name: it.products?.name || it.product_name || 'Produto',
+                        qty: `${it.quantity}x`,
+                        price: new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format((it.price || it.unit_price || 0) * it.quantity),
+                        icon: 'medication' // Fallback icon
+                    }));
+                    setItems(mappedItems);
+                }
 
                 // Fetch Motoboy Initial Location
                 if (data.motoboy_id) {
@@ -341,7 +361,7 @@ export const UserOrderTracking = () => {
                 .subscribe();
         }
 
-        // Subscription para mensagens (Buzina)
+        // Subscription para mensagens (Buzina + Unread Counter)
         const messageSubscription = supabase
             .channel(`order_messages_${orderId}`)
             .on('postgres_changes', {
@@ -349,12 +369,19 @@ export const UserOrderTracking = () => {
                 schema: 'public',
                 table: 'order_messages',
                 filter: `order_id=eq.${orderId}`
-            }, (payload) => {
+            }, async (payload) => {
+                const { data: { session } } = await supabase.auth.getSession();
+
                 if (payload.new.message_type === 'horn') {
                     console.log("🎺 BUZINA RECEBIDA!");
                     const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/1271/1271-preview.mp3');
                     audio.volume = 1.0;
                     audio.play().catch(e => console.warn("Erro ao tocar buzina:", e));
+                }
+
+                // Incrementa contador se a mensagem não for minha
+                if (payload.new.sender_id !== session?.user.id) {
+                    setUnreadCount(prev => prev + 1);
                 }
             })
             .subscribe();
@@ -386,14 +413,24 @@ export const UserOrderTracking = () => {
             icon: order.status === 'pendente' ? 'hourglass_top' : 'check'
         },
         { status: 'preparando', label: 'Preparando seu pedido', sub: 'Em andamento', icon: 'pill' },
-        // Step "Aguardando Entregador" - Only show if NO Motoboy or specifically in 'aguardando_motoboy' status (Pool)
         {
             status: 'aguardando_motoboy',
             label: 'Aguardando entregador',
             sub: order.motoboy_id ? 'Entregador à caminho da farmácia' : 'Procurando entregador...',
             icon: 'person_search'
         },
-        { status: 'em_rota', label: 'Em rota de entrega', sub: 'A caminho', icon: 'local_shipping' },
+        {
+            status: 'retirado',
+            label: 'Pedido retirado',
+            sub: 'O entregador já está com seu pedido',
+            icon: 'inventory'
+        },
+        {
+            status: 'em_rota',
+            label: 'Em rota de entrega',
+            sub: 'O entregador está a caminho do seu endereço',
+            icon: 'local_shipping'
+        },
         { status: 'entregue', label: 'Entregue', sub: 'Pedido finalizado', icon: 'home' }
     ];
 
@@ -413,6 +450,8 @@ export const UserOrderTracking = () => {
         currentStepIndex = steps.findIndex(s => s.status === 'aguardando_motoboy');
     } else if (order.status === 'pronto_entrega') {
         currentStepIndex = steps.findIndex(s => s.status === 'aguardando_motoboy');
+    } else if (order.status === 'retirado') {
+        currentStepIndex = steps.findIndex(s => s.status === 'retirado');
     } else if (order.status === 'em_rota') {
         currentStepIndex = steps.findIndex(s => s.status === 'em_rota');
     } else if (order.status === 'entregue') {
@@ -466,6 +505,8 @@ export const UserOrderTracking = () => {
                                 ] : []),
                                 color: "#13ec6d"
                             }]}
+                            theme="light"
+                            autoCenter={true}
                         />
                     ) : (
                         <div className="flex flex-col items-center justify-center h-full gap-2">
@@ -543,11 +584,20 @@ export const UserOrderTracking = () => {
             {/* Chat Button */}
             <div className="flex flex-col gap-3 px-6 py-4">
                 <button
-                    onClick={() => navigate(`/chat/${orderId}`)}
-                    className="flex min-w-[84px] w-full cursor-pointer items-center justify-center overflow-hidden rounded-[28px] h-14 px-5 bg-primary text-slate-900 gap-3 shadow-xl shadow-primary/20 hover:scale-[1.02] transition-transform active:scale-[0.98] uppercase tracking-tighter ring-1 ring-primary/5"
+                    onClick={() => {
+                        setUnreadCount(0);
+                        navigate(`/chat/${orderId}`);
+                    }}
+                    className="relative flex min-w-[84px] w-full cursor-pointer items-center justify-center overflow-hidden rounded-[28px] h-14 px-5 bg-primary text-slate-900 gap-3 shadow-xl shadow-primary/20 hover:scale-[1.02] transition-transform active:scale-[0.98] uppercase tracking-tighter ring-1 ring-primary/5"
                 >
                     <MaterialIcon name="chat" className="text-2xl font-bold" fill />
                     <span className="truncate text-base font-black leading-normal">Chat com a Farmácia</span>
+
+                    {unreadCount > 0 && (
+                        <div className="absolute right-6 top-3 bg-red-600 text-white text-[10px] font-black w-6 h-6 rounded-full flex items-center justify-center animate-bounce shadow-lg ring-2 ring-white dark:ring-zinc-900">
+                            {unreadCount}
+                        </div>
+                    )}
                 </button>
 
                 {['pendente', 'aguardando_motoboy'].includes(order.status) && (
@@ -596,7 +646,7 @@ export const UserOrderTracking = () => {
                 <div className="mt-8 pt-6 border-t border-dashed border-gray-100 dark:border-gray-800 flex justify-between items-center px-2">
                     <span className="text-gray-400 text-[10px] font-black uppercase tracking-widest">Total com entrega</span>
                     <span className="text-2xl font-black text-primary tracking-tighter">
-                        R$ {order.total_price?.toFixed(2) || items.reduce((acc, it) => acc + (Number(it.price) || 0), 0).toFixed(2)}
+                        R$ {(order.total_price || order.total_amount || 0).toFixed(2)}
                     </span>
                 </div>
             </div>

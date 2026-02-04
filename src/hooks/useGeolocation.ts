@@ -124,6 +124,8 @@ export const useGeolocation = (userId: string | null, shouldTrack: boolean = fal
                                     .update({
                                         last_lat: latitude,
                                         last_lng: longitude,
+                                        latitude: latitude,
+                                        longitude: longitude,
                                         battery_level: batteryLevel,
                                         signal_status: connectionType,
                                         last_online: new Date().toISOString(),
