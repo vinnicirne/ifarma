@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
 import MerchantLayout from './MerchantLayout';
+import AdminMap from '../../components/admin/AdminMap';
 
 const MaterialIcon = ({ name, className = "" }: { name: string, className?: string }) => (
     <span className={`material-symbols-outlined ${className}`}>{name}</span>
@@ -15,10 +16,19 @@ const StoreCustomization = () => {
     const [name, setName] = useState('');
     const [phone, setPhone] = useState('');
     const [cnpj, setCnpj] = useState('');
-    const [address, setAddress] = useState('');
     const [isOpen, setIsOpen] = useState(true);
     const [logoUrl, setLogoUrl] = useState('');
     const [bannerUrl, setBannerUrl] = useState('');
+
+    // Address States
+    const [cep, setCep] = useState('');
+    const [street, setStreet] = useState('');
+    const [number, setNumber] = useState('');
+    const [neighborhood, setNeighborhood] = useState('');
+    const [city, setCity] = useState('');
+    const [state, setState] = useState('');
+    const [latitude, setLatitude] = useState('');
+    const [longitude, setLongitude] = useState('');
 
     const logoInputRef = useRef<HTMLInputElement>(null);
     const bannerInputRef = useRef<HTMLInputElement>(null);
@@ -32,21 +42,39 @@ const StoreCustomization = () => {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) return;
 
-            const { data, error } = await supabase
-                .from('pharmacies')
-                .select('*')
-                .eq('owner_id', user.id)
-                .single();
+            // Check for impersonation
+            const impersonatedId = localStorage.getItem('impersonatedPharmacyId');
+
+            let query = supabase.from('pharmacies').select('*');
+
+            if (impersonatedId && user.email === 'admin@ifarma.com.br') { // Basic check or rely on RLS
+                query = query.eq('id', impersonatedId);
+            } else {
+                query = query.eq('owner_id', user.id);
+            }
+
+            const { data, error } = await query.single();
+
+            if (error) throw error;
 
             if (data) {
                 setPharmacy(data);
                 setName(data.name || '');
-                setPhone(data.phone || '');
+                setPhone(data.establishment_phone || data.phone || '');
                 setCnpj(data.cnpj || '');
-                setAddress(data.address || ''); // Assuming full address stored here or composite
                 setIsOpen(data.is_open ?? true);
                 setLogoUrl(data.logo_url || '');
                 setBannerUrl(data.banner_url || '');
+
+                // Address
+                setCep(data.zip || data.cep || '');
+                setStreet(data.street || '');
+                setNumber(data.number || '');
+                setNeighborhood(data.neighborhood || '');
+                setCity(data.city || '');
+                setState(data.state || '');
+                setLatitude(data.latitude?.toString() || '');
+                setLongitude(data.longitude?.toString() || '');
             }
         } catch (error) {
             console.error("Error fetching pharmacy:", error);
@@ -59,7 +87,6 @@ const StoreCustomization = () => {
         const file = event.target.files?.[0];
         if (!file) return;
 
-        // Convert to Base64 (Local Storage approach as requested)
         const reader = new FileReader();
         reader.onloadend = () => {
             const base64String = reader.result as string;
@@ -69,20 +96,72 @@ const StoreCustomization = () => {
         reader.readAsDataURL(file);
     };
 
+    const handleCEPBlur = async () => {
+        const cleanCep = cep.replace(/\D/g, '');
+        if (cleanCep.length !== 8) return;
+
+        try {
+            setLoading(true);
+            const viaCEPResponse = await fetch(`https://viacep.com.br/ws/${cleanCep}/json/`);
+            const viaCEPData = await viaCEPResponse.json();
+
+            if (viaCEPData.erro) {
+                alert("CEP não encontrado.");
+                return;
+            }
+
+            // Update Fields
+            setStreet(viaCEPData.logradouro);
+            setNeighborhood(viaCEPData.bairro);
+            setCity(viaCEPData.localidade);
+            setState(viaCEPData.uf);
+
+            // Fetch Lat/Lng using Google Maps
+            const fullAddress = `${viaCEPData.logradouro}, ${viaCEPData.number || ''} - ${viaCEPData.bairro}, ${viaCEPData.localidade} - ${viaCEPData.uf}`;
+            const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+
+            if (apiKey) {
+                const mapsResponse = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(fullAddress)}&key=${apiKey}`);
+                const mapsData = await mapsResponse.json();
+                if (mapsData.results?.[0]) {
+                    setLatitude(mapsData.results[0].geometry.location.lat.toString());
+                    setLongitude(mapsData.results[0].geometry.location.lng.toString());
+                }
+            }
+        } catch (error) {
+            console.error("Erro ao buscar CEP:", error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
     const handleSave = async () => {
         if (!pharmacy) return;
         setSaving(true);
+
+        const fullAddress = `${street}, ${number} - ${neighborhood}, ${city} - ${state}`;
 
         try {
             const { error } = await supabase
                 .from('pharmacies')
                 .update({
                     name,
-                    phone,
+                    establishment_phone: phone, // Saving to establishment_phone primarily
+                    phone: phone, // Legacy sync
                     cnpj,
                     is_open: isOpen,
                     logo_url: logoUrl,
                     banner_url: bannerUrl,
+                    // Address
+                    address: fullAddress, // Legacy sync
+                    zip: cep,
+                    street,
+                    number,
+                    neighborhood,
+                    city,
+                    state,
+                    latitude: parseFloat(latitude) || 0,
+                    longitude: parseFloat(longitude) || 0,
                     updated_at: new Date()
                 })
                 .eq('id', pharmacy.id);
@@ -158,42 +237,54 @@ const StoreCustomization = () => {
                         <div className="grid md:grid-cols-2 gap-6">
                             <label className="flex flex-col gap-1">
                                 <span className="text-[10px] font-black uppercase text-slate-500">Nome Fantasia</span>
-                                <input
-                                    value={name}
-                                    onChange={e => setName(e.target.value)}
-                                    className="h-12 px-4 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 rounded-xl outline-none font-bold italic text-slate-900 dark:text-white focus:border-primary transition-colors"
-                                />
+                                <input value={name} onChange={e => setName(e.target.value)} className="h-12 px-4 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 rounded-xl outline-none font-bold italic text-slate-900 dark:text-white focus:border-primary transition-colors" />
                             </label>
 
                             <label className="flex flex-col gap-1">
                                 <span className="text-[10px] font-black uppercase text-slate-500">CNPJ</span>
-                                <input
-                                    value={cnpj}
-                                    onChange={e => setCnpj(e.target.value)}
-                                    className="h-12 px-4 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 rounded-xl outline-none font-bold italic text-slate-900 dark:text-white focus:border-primary transition-colors"
-                                />
+                                <input value={cnpj} onChange={e => setCnpj(e.target.value)} className="h-12 px-4 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 rounded-xl outline-none font-bold italic text-slate-900 dark:text-white focus:border-primary transition-colors" />
                             </label>
 
                             <label className="flex flex-col gap-1">
                                 <span className="text-[10px] font-black uppercase text-slate-500">Telefone</span>
-                                <input
-                                    value={phone}
-                                    onChange={e => setPhone(e.target.value)}
-                                    className="h-12 px-4 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 rounded-xl outline-none font-bold italic text-slate-900 dark:text-white focus:border-primary transition-colors"
-                                />
+                                <input value={phone} onChange={e => setPhone(e.target.value)} className="h-12 px-4 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 rounded-xl outline-none font-bold italic text-slate-900 dark:text-white focus:border-primary transition-colors" />
                             </label>
 
-                            <label className="flex flex-col gap-1">
-                                <span className="text-[10px] font-black uppercase text-slate-500">Endereço Completo</span>
-                                <input
-                                    disabled
-                                    value={address} // Address usually comes from Profile or separate logic
-                                    className="h-12 px-4 bg-slate-100 dark:bg-black/40 border border-slate-200 dark:border-white/5 rounded-xl outline-none font-bold italic text-slate-500 cursor-not-allowed"
-                                />
-                                <span className="text-[10px] text-slate-400">* Endereço gerido pelo cadastro inicial</span>
-                            </label>
+                            <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-3 gap-6 pt-4 border-t border-slate-100 dark:border-white/5">
+                                <div className="md:col-span-3">
+                                    <h3 className="text-sm font-black italic text-slate-900 dark:text-white mb-4">Endereço e Localização</h3>
+                                </div>
+                                <label className="flex flex-col gap-1">
+                                    <span className="text-[10px] font-black uppercase text-slate-500">CEP</span>
+                                    <input value={cep} onChange={e => setCep(e.target.value)} onBlur={handleCEPBlur} placeholder="00000-000" className="h-12 px-4 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 rounded-xl outline-none font-bold italic text-slate-900 dark:text-white focus:border-primary transition-colors" />
+                                </label>
+                                <label className="flex flex-col gap-1 md:col-span-2">
+                                    <span className="text-[10px] font-black uppercase text-slate-500">Rua / Logradouro</span>
+                                    <input value={street} onChange={e => setStreet(e.target.value)} className="h-12 px-4 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 rounded-xl outline-none font-bold italic text-slate-900 dark:text-white focus:border-primary transition-colors" />
+                                </label>
+                                <label className="flex flex-col gap-1">
+                                    <span className="text-[10px] font-black uppercase text-slate-500">Número</span>
+                                    <input value={number} onChange={e => setNumber(e.target.value)} className="h-12 px-4 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 rounded-xl outline-none font-bold italic text-slate-900 dark:text-white focus:border-primary transition-colors" />
+                                </label>
+                                <label className="flex flex-col gap-1">
+                                    <span className="text-[10px] font-black uppercase text-slate-500">Bairro</span>
+                                    <input value={neighborhood} onChange={e => setNeighborhood(e.target.value)} className="h-12 px-4 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 rounded-xl outline-none font-bold italic text-slate-900 dark:text-white focus:border-primary transition-colors" />
+                                </label>
+                                <label className="flex flex-col gap-1">
+                                    <span className="text-[10px] font-black uppercase text-slate-500">Cidade / UF</span>
+                                    <input value={`${city} - ${state}`} readOnly className="h-12 px-4 bg-slate-100 dark:bg-black/40 border border-slate-200 dark:border-white/5 rounded-xl outline-none font-bold italic text-slate-500 cursor-not-allowed" />
+                                </label>
 
-                            <div className="md:col-span-2">
+                                <div className="md:col-span-3 h-48 rounded-2xl overflow-hidden border border-slate-200 dark:border-white/10 mt-2">
+                                    {latitude && longitude && !isNaN(parseFloat(latitude)) ? (
+                                        <AdminMap type="tracking" markers={[{ id: 'pharma-loc', lat: parseFloat(latitude), lng: parseFloat(longitude), type: 'pharmacy' }]} />
+                                    ) : (
+                                        <div className="w-full h-full bg-slate-50 dark:bg-black/20 flex items-center justify-center text-slate-400 text-xs font-black uppercase">Localização não definida</div>
+                                    )}
+                                </div>
+                            </div>
+
+                            <div className="md:col-span-2 pt-4">
                                 <h3 className="text-sm font-black italic text-slate-900 dark:text-white mb-4 mt-2">Status da Loja</h3>
                                 <div className="flex flex-wrap gap-4">
                                     <label className={`flex items-center gap-3 p-4 rounded-2xl cursor-pointer border transition-all w-full md:w-auto ${isOpen ? 'bg-primary/10 border-primary' : 'bg-slate-50 dark:bg-black/20 border-transparent hover:border-slate-300'}`}>
