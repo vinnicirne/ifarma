@@ -202,9 +202,28 @@ export const MotoboyChat = () => {
                                         : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-white rounded-tl-sm border border-gray-100 dark:border-slate-700'}
                                 `}>
                                     {msg.message_type === 'location' ? (
-                                        <a href={msg.media_url} target="_blank" rel="noopener noreferrer" className="flex flex-col gap-2 items-center py-1 underline underline-offset-4 decoration-2">
-                                            <MaterialIcon name="location_on" className="text-xl" />
-                                            <span>Ver Localização</span>
+                                        <a href={msg.media_url} target="_blank" rel="noopener noreferrer" className="flex flex-col w-[180px] group transition-all overflow-hidden rounded-lg">
+                                            <div className="bg-black/5 dark:bg-black/20 p-4 flex flex-col items-center gap-2 group-active:scale-95 transition-transform">
+                                                <div className="size-10 rounded-full bg-white/20 flex items-center justify-center shadow-inner">
+                                                    <MaterialIcon name="location_on" className="text-2xl" />
+                                                </div>
+                                                <span className="text-[10px] font-bold uppercase tracking-widest">Localização</span>
+                                            </div>
+                                            <div className="bg-black/10 dark:bg-black/40 py-2 px-3 text-center border-t border-black/5">
+                                                <span className="text-[10px] font-bold italic">Ver no Mapa</span>
+                                            </div>
+                                        </a>
+                                    ) : msg.message_type === 'prescription' ? (
+                                        <a href={msg.media_url} target="_blank" rel="noopener noreferrer" className="flex flex-col w-[180px] group transition-all overflow-hidden rounded-lg">
+                                            <div className="bg-white/10 dark:bg-white/5 p-4 flex flex-col items-center gap-2 group-active:scale-95 transition-transform">
+                                                <div className="size-10 rounded-full bg-white/20 flex items-center justify-center shadow-inner">
+                                                    <MaterialIcon name="description" className="text-2xl" />
+                                                </div>
+                                                <span className="text-[10px] font-bold uppercase tracking-widest">Receita</span>
+                                            </div>
+                                            <div className="bg-black/10 dark:bg-black/40 py-2 px-3 text-center border-t border-white/5">
+                                                <span className="text-[10px] font-bold italic">Abrir Arquivo</span>
+                                            </div>
                                         </a>
                                     ) : (
                                         <p>{msg.content}</p>

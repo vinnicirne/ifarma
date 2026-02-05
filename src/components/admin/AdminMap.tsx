@@ -51,8 +51,9 @@ interface AdminMapProps {
     polylines?: { path: { lat: number; lng: number }[]; color?: string }[];
     onMarkerClick?: (id: string, type: 'pharmacy' | 'order' | 'user', orderId?: string) => void;
     onMotoboyClick?: (orderId: string) => void;
-    theme?: 'dark' | 'light'; // New prop
-    autoCenter?: boolean;     // New prop
+    theme?: 'dark' | 'light';     // New prop
+    autoCenter?: boolean;         // New prop
+    googleMapsApiKey?: string;    // Dynamic API Key from DB
 }
 
 const libraries: ("visualization")[] = ["visualization"];
@@ -66,11 +67,12 @@ const AdminMap = ({
     onMarkerClick,
     onMotoboyClick,
     theme = 'dark', // Default to dark mainly for admin dashboard
-    autoCenter = false
+    autoCenter = false,
+    googleMapsApiKey
 }: AdminMapProps) => {
     const { isLoaded } = useJsApiLoader({
         id: 'google-map-script',
-        googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY || "",
+        googleMapsApiKey: googleMapsApiKey || import.meta.env.VITE_GOOGLE_MAPS_API_KEY || "",
         libraries: libraries
     });
 

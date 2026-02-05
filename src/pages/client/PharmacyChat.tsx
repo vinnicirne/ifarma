@@ -73,11 +73,43 @@ export const PharmacyChat = () => {
 
     const [showAttachments, setShowAttachments] = useState(false);
 
+    const handleUploadPrescription = async (file: File) => {
+        setShowAttachments(false);
+        try {
+            const fileExt = file.name.split('.').pop();
+            const fileName = `${orderId}/${Math.random()}.${fileExt}`;
+            const filePath = `chat_attachments/${fileName}`;
+
+            const { error: uploadError } = await supabase.storage
+                .from('prescriptions')
+                .upload(filePath, file);
+
+            if (uploadError) throw uploadError;
+
+            const { data: { publicUrl } } = supabase.storage
+                .from('prescriptions')
+                .getPublicUrl(filePath);
+
+            await supabase
+                .from('order_messages')
+                .insert({
+                    order_id: orderId,
+                    sender_id: session.user.id,
+                    content: '📄 Receita Médica enviada',
+                    sender_role: 'customer',
+                    message_type: 'prescription',
+                    media_url: publicUrl
+                });
+
+        } catch (err: any) {
+            console.error("Error uploading prescription:", err);
+            alert("Erro ao enviar receita: " + err.message);
+        }
+    };
+
     const handleSendLocation = async () => {
         setShowAttachments(false);
         try {
-            const position = await supabase.rpc('get_current_position'); // Fallback or Capacitor
-            // Using Capacitor Geolocation
             const { Geolocation } = await import('@capacitor/geolocation');
             const pos = await Geolocation.getCurrentPosition();
 
@@ -160,7 +192,7 @@ export const PharmacyChat = () => {
 
                     let senderLabel = "";
                     if (isMe) {
-                        senderLabel = "Eu (Cliente)"; // Or just "Cliente"
+                        senderLabel = "Eu (Cliente)";
                     } else if (isMotoboy) {
                         senderLabel = `Motoboy - ${motoboyName || 'Entregador'}`;
                     } else {
@@ -168,16 +200,10 @@ export const PharmacyChat = () => {
                     }
 
                     const labelColor = isMotoboy ? 'text-orange-500' : 'text-primary';
-
-                    // Alignment Logic
-                    // Customer (Me) -> Right
-                    // Others -> Left
-                    const isCustomerSender = (order?.customer_id && msg.sender_id === order.customer_id);
-                    const alignRight = isMe || isCustomerSender;
+                    const alignRight = isMe || (order?.customer_id && msg.sender_id === order.customer_id);
 
                     return (
                         <div key={idx} className={`flex flex-col gap-1 ${alignRight ? 'items-end' : 'items-start'}`}>
-                            {/* Label */}
                             <span className={`text-[10px] font-bold uppercase tracking-wider px-2 ${isMe ? 'text-gray-400' : labelColor}`}>
                                 {senderLabel}
                             </span>
@@ -189,21 +215,33 @@ export const PharmacyChat = () => {
                                     </div>
                                 )}
                                 <div className={`flex flex-col gap-1 ${alignRight ? 'items-end' : 'items-start'} max-w-[85%]`}>
-                                    <div className={`text-sm font-bold leading-relaxed rounded-2xl px-4 py-2 shadow-sm italic ${alignRight ? 'bg-primary text-[#0d1b13] rounded-br-sm' : 'bg-white dark:bg-[#1a2e22] text-[#0d1b13] dark:text-gray-100 rounded-bl-sm'}`}>
+                                    <div className={`text-sm font-bold leading-relaxed rounded-2xl shadow-sm italic overflow-hidden ${alignRight ? 'bg-primary text-[#0d1b13] rounded-br-sm' : 'bg-white dark:bg-[#1a2e22] text-[#0d1b13] dark:text-gray-100 rounded-bl-sm'}`}>
                                         {msg.message_type === 'location' ? (
-                                            <a
-                                                href={msg.media_url}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                className="flex flex-col gap-2 items-center min-w-[150px] py-1 active:opacity-70"
-                                            >
-                                                <div className="bg-white/20 p-3 rounded-full">
-                                                    <MaterialIcon name="location_on" className="text-2xl" />
+                                            <a href={msg.media_url} target="_blank" rel="noopener noreferrer" className="flex flex-col w-[200px] group transition-all">
+                                                <div className="bg-black/10 dark:bg-black/20 p-4 flex flex-col items-center gap-2 group-active:scale-95 transition-transform">
+                                                    <div className="size-12 rounded-full bg-white/30 dark:bg-white/10 flex items-center justify-center shadow-inner">
+                                                        <MaterialIcon name="location_on" className="text-3xl" />
+                                                    </div>
+                                                    <span className="text-[10px] font-black uppercase tracking-[0.2em]">Localização</span>
                                                 </div>
-                                                <span className="underline decoration-2 underline-offset-4">Ver Localização</span>
+                                                <div className="bg-black/5 dark:bg-black/40 py-2 px-4 text-center border-t border-black/5">
+                                                    <span className="text-[11px] font-black italic">Abrir no Google Maps</span>
+                                                </div>
+                                            </a>
+                                        ) : msg.message_type === 'prescription' ? (
+                                            <a href={msg.media_url} target="_blank" rel="noopener noreferrer" className="flex flex-col w-[200px] group transition-all">
+                                                <div className="bg-white/10 dark:bg-white/5 p-4 flex flex-col items-center gap-2 group-active:scale-95 transition-transform">
+                                                    <div className="size-12 rounded-full bg-white/30 dark:bg-white/10 flex items-center justify-center shadow-inner">
+                                                        <MaterialIcon name="description" className="text-3xl" />
+                                                    </div>
+                                                    <span className="text-[10px] font-black uppercase tracking-[0.2em]">Receita Médica</span>
+                                                </div>
+                                                <div className="bg-black/10 dark:bg-black/40 py-2 px-4 text-center border-t border-white/10">
+                                                    <span className="text-[11px] font-black italic">Visualizar Receita</span>
+                                                </div>
                                             </a>
                                         ) : (
-                                            msg.content
+                                            <div className="px-4 py-2">{msg.content}</div>
                                         )}
                                     </div>
                                     <div className="flex items-center gap-1">
@@ -219,41 +257,26 @@ export const PharmacyChat = () => {
 
             {/* Input Area */}
             <footer className="relative bg-white dark:bg-[#1a2e22] p-4 pb-10 border-t border-gray-100 dark:border-gray-800">
-                {/* Attachment Menu */}
                 {showAttachments && (
-                    <div className="absolute bottom-[80px] left-4 bg-white dark:bg-[#1a2e22] rounded-2xl shadow-[0_10px_40px_rgba(0,0,0,0.2)] border border-gray-100 dark:border-gray-800 p-2 flex flex-col gap-1 min-w-[150px] z-[100] transition-all">
-                        <button
-                            onClick={(e) => {
-                                e.preventDefault();
-                                handleSendLocation();
-                            }}
-                            className="flex items-center gap-3 p-3 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-slate-700 dark:text-gray-200"
-                        >
-                            <div className="size-8 rounded-full bg-primary/10 flex items-center justify-center">
-                                <MaterialIcon name="location_on" className="text-primary text-lg" />
-                            </div>
+                    <div className="absolute bottom-[80px] left-4 bg-white dark:bg-[#1a2e22] rounded-2xl shadow-[0_10px_40px_rgba(0,0,0,0.2)] border border-gray-100 dark:border-gray-800 p-2 flex flex-col gap-1 min-w-[150px] z-[100]">
+                        <button onClick={handleSendLocation} className="flex items-center gap-3 p-3 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-slate-700 dark:text-gray-200">
+                            <div className="size-8 rounded-full bg-primary/10 flex items-center justify-center"><MaterialIcon name="location_on" className="text-primary text-lg" /></div>
                             <span className="text-xs font-black uppercase tracking-widest">Localização</span>
                         </button>
+                        <label className="flex items-center gap-3 p-3 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-slate-700 dark:text-gray-200 cursor-pointer">
+                            <div className="size-8 rounded-full bg-blue-100 flex items-center justify-center"><MaterialIcon name="description" className="text-blue-600 text-lg" /></div>
+                            <span className="text-xs font-black uppercase tracking-widest">Enviar Receita</span>
+                            <input type="file" accept="image/*,.pdf" className="hidden" onChange={(e) => { const file = e.target.files?.[0]; if (file) handleUploadPrescription(file); }} />
+                        </label>
                     </div>
                 )}
 
                 <form onSubmit={handleSendMessage} className="flex items-center gap-3">
-                    <button
-                        type="button"
-                        onClick={() => setShowAttachments(!showAttachments)}
-                        className={`flex items-center justify-center w-12 h-12 rounded-full shadow-sm transition-all active:scale-90 ${showAttachments ? 'bg-primary text-[#0d1b13] rotate-45' : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300'}`}
-                    >
+                    <button type="button" onClick={() => setShowAttachments(!showAttachments)} className={`flex items-center justify-center w-12 h-12 rounded-full shadow-sm transition-all active:scale-90 ${showAttachments ? 'bg-primary text-[#0d1b13] rotate-45' : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300'}`}>
                         <MaterialIcon name="add" className="font-bold" />
                     </button>
-                    <div className="flex-1 relative">
-                        <input
-                            className="w-full bg-gray-100 dark:bg-gray-800 border-none rounded-full py-3.5 px-6 text-sm focus:ring-2 focus:ring-primary/20 dark:text-white placeholder-gray-500 font-bold italic"
-                            placeholder="Escreva sua mensagem..."
-                            type="text"
-                            value={newMessage}
-                            onChange={(e) => setNewMessage(e.target.value)}
-                            onFocus={() => setShowAttachments(false)}
-                        />
+                    <div className="flex-1">
+                        <input className="w-full bg-gray-100 dark:bg-gray-800 border-none rounded-full py-3.5 px-6 text-sm focus:ring-2 focus:ring-primary/20 dark:text-white placeholder-gray-500 font-bold italic" placeholder="Escreva sua mensagem..." type="text" value={newMessage} onChange={(e) => setNewMessage(e.target.value)} onFocus={() => setShowAttachments(false)} />
                     </div>
                     <button type="submit" className="flex items-center justify-center w-12 h-12 rounded-full bg-primary text-[#0d1b13] shadow-xl shadow-primary/20 transition-all active:scale-95 hover:rotate-12">
                         <MaterialIcon name="send" />

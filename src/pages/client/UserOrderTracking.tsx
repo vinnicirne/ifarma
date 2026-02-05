@@ -322,7 +322,7 @@ export const UserOrderTracking = () => {
                 const oldArrived = order?.motoboy_arrived_at;
                 const newArrived = payload.new.motoboy_arrived_at;
 
-                setOrder(payload.new);
+                setOrder(prev => ({ ...prev, ...payload.new }));
 
                 // Disparar BUZINA se o motoboy acabou de sinalizar chegada
                 if (newArrived && !oldArrived && !hasBuzzered.current) {
@@ -488,6 +488,7 @@ export const UserOrderTracking = () => {
                     {order && (order.latitude || order.pharmacies?.latitude) ? (
                         <AdminMap
                             type="tracking"
+                            googleMapsApiKey={googleKey || ""}
                             fleet={motoboy ? [{
                                 id: motoboy.id,
                                 lat: motoboy.lat,

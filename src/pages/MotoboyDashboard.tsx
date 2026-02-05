@@ -93,6 +93,8 @@ const MotoboyDashboard = ({ session, profile }: { session: any, profile: any }) 
     // Ref para evitar closure bug em listeners de realtime
     const ordersQueueRef = useRef<any[]>([]);
     const isProcessingAction = useRef(false);
+    const hasLoadedQueue = useRef(false);
+
     useEffect(() => {
         ordersQueueRef.current = ordersQueue;
     }, [ordersQueue]);
@@ -321,16 +323,26 @@ const MotoboyDashboard = ({ session, profile }: { session: any, profile: any }) 
                 // Check if we have a NEW order at the top or list grew
                 // Usamos o REF para evitar o closure bug (realtime pegando estado inicial [])
                 const previousQueue = ordersQueueRef.current;
-                const previousTopId = previousQueue.length > 0 ? previousQueue[0].id : null;
-                const newTopId = data.length > 0 ? data[0].id : null;
+                const previousIds = new Set(previousQueue.map(o => o.id));
+                const newIds = new Set(data.map(o => o.id));
 
+                const isGenuinelyNew = data.some(o => !previousIds.has(o.id));
                 const isNewOrder = data.length > previousQueue.length;
-                const isTopChanged = newTopId && newTopId !== previousTopId;
+                const topIdChanged = previousQueue.length > 0 && data.length > 0 && previousQueue[0].id !== data[0].id;
 
-                // Não tocar som se estiver processando uma ação local ou se a lista não cresceu/topo não mudou ID
-                if (!isProcessingAction.current && (isNewOrder || (isTopChanged && isNewOrder))) {
-                    // Only play sound if it's genuinely a new assignment or list grew
-                    console.log("🔔 Novo pedido detectado! Tocando alerta...");
+                // Não tocar som se:
+                // 1. For a carga inicial (hasLoadedQueue === false)
+                // 2. Estiver processando uma ação local (isProcessingAction === true)
+                // 3. Não houver um novo UUID na lista
+                if (hasLoadedQueue.current && !isProcessingAction.current && isGenuinelyNew) {
+                    // Only play sound if it's genuinely a new assignment
+                    console.log("🔔 ALERTA: Novo pedido detectado!", {
+                        totalAnterior: previousQueue.length,
+                        totalNovo: data.length,
+                        isGenuinelyNew,
+                        topIdChanged
+                    });
+
                     playAudio(notificationSound === 'voice' ? 'voice' : 'new_order', 3);
                     setNewOrderAlert(`VOCÊ TEM UM NOVO PEDIDO! (${data.length} na fila)`);
                     setTimeout(() => setNewOrderAlert(null), 6000);
@@ -338,6 +350,7 @@ const MotoboyDashboard = ({ session, profile }: { session: any, profile: any }) 
 
                 setOrdersQueue(data);
                 ordersQueueRef.current = data;
+                hasLoadedQueue.current = true;
             }
         } catch (err) {
             console.error("Exception fetching queue:", err);
@@ -542,7 +555,8 @@ const MotoboyDashboard = ({ session, profile }: { session: any, profile: any }) 
                     const safeStatus = ['aguardando_motoboy', 'pronto_entrega'];
 
                     // Se fui atribuído AGORA ou status voltou para fila
-                    if (isNewAssignment || (isNewStatus && safeStatus.includes(payload.new.status))) {
+                    // NÃO tocar se eu já estiver processando uma ação local
+                    if (!isProcessingAction.current && (isNewAssignment || (isNewStatus && safeStatus.includes(payload.new.status)))) {
                         // Alerta Sonoro e Visual (Via hook)
                         playAudio(notificationSound === 'voice' ? 'voice' : 'new_order', 3);
                         setNewOrderAlert(`VOCÊ TEM UM NOVO PEDIDO!`);
@@ -969,11 +983,19 @@ const MotoboyDashboard = ({ session, profile }: { session: any, profile: any }) 
                             </div>
                         )}
                         {currentOrder.payment_method === 'cash' && currentOrder.change_for && (
-                            <div className="flex items-center justify-between mt-1">
-                                <span className="text-xs font-bold text-slate-500">Troco a devolver:</span>
-                                <span className="text-sm font-black text-red-500">
-                                    {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(currentOrder.change_for - (currentOrder.total_price || currentOrder.total_amount || 0))}
-                                </span>
+                            <div className="flex flex-col gap-1 mt-2 pt-2 border-t border-slate-200 dark:border-slate-700">
+                                <div className="flex items-center justify-between opacity-60">
+                                    <span className="text-[10px] font-bold">Total do Pedido:</span>
+                                    <span className="text-xs font-bold">
+                                        - {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(currentOrder.total_price || currentOrder.total_amount || 0)}
+                                    </span>
+                                </div>
+                                <div className="flex items-center justify-between">
+                                    <span className="text-xs font-bold text-slate-500">Troco a devolver:</span>
+                                    <span className="text-sm font-black text-red-500">
+                                        {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(currentOrder.change_for) - Number(currentOrder.total_price || currentOrder.total_amount || 0))}
+                                    </span>
+                                </div>
                             </div>
                         )}
                     </div>
@@ -1028,6 +1050,8 @@ const MotoboyDashboard = ({ session, profile }: { session: any, profile: any }) 
                         )}
                     </div>
                 </div>
+
+                <div className="h-48"></div> {/* Spacer to prevent overlap with sticky bottom */}
 
                 {/* Queue List / Próximas Entregas */}
                 {renderQueueList()}

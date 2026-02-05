@@ -230,7 +230,33 @@ export const OrderChatModal: React.FC<OrderChatModalProps> = ({ isOpen, onClose,
                                             : 'bg-white dark:bg-zinc-800 text-slate-700 dark:text-slate-200 rounded-tl-sm border border-slate-100 dark:border-white/5'
                                         }`}
                                     >
-                                        <p>{msg.content}</p>
+                                        {msg.message_type === 'location' ? (
+                                            <a href={msg.media_url} target="_blank" rel="noopener noreferrer" className="flex flex-col w-[160px] group transition-all overflow-hidden rounded-xl">
+                                                <div className="bg-black/5 dark:bg-black/20 p-3 flex flex-col items-center gap-1.5 group-active:scale-95 transition-transform">
+                                                    <div className="size-9 rounded-full bg-white/20 flex items-center justify-center shadow-inner">
+                                                        <MaterialIcon name="location_on" className="text-xl" />
+                                                    </div>
+                                                    <span className="text-[9px] font-black uppercase tracking-widest">Localização</span>
+                                                </div>
+                                                <div className="bg-black/10 dark:bg-black/40 py-2 px-3 text-center border-t border-black/5">
+                                                    <span className="text-[10px] font-bold italic">Mapa</span>
+                                                </div>
+                                            </a>
+                                        ) : msg.message_type === 'prescription' ? (
+                                            <a href={msg.media_url} target="_blank" rel="noopener noreferrer" className="flex flex-col w-[160px] group transition-all overflow-hidden rounded-xl">
+                                                <div className="bg-white/10 dark:bg-white/5 p-3 flex flex-col items-center gap-1.5 group-active:scale-95 transition-transform">
+                                                    <div className="size-9 rounded-full bg-white/20 flex items-center justify-center shadow-inner">
+                                                        <MaterialIcon name="description" className="text-xl" />
+                                                    </div>
+                                                    <span className="text-[9px] font-black uppercase tracking-widest">Receita Médica</span>
+                                                </div>
+                                                <div className="bg-black/10 dark:bg-black/40 py-2 px-3 text-center border-t border-white/5">
+                                                    <span className="text-[10px] font-bold italic">Abrir Arquivo</span>
+                                                </div>
+                                            </a>
+                                        ) : (
+                                            <p>{msg.content}</p>
+                                        )}
                                         <span className={`text-[10px] mt-1 block text-right font-bold ${alignRight ? 'text-white/70' : 'text-slate-400'}`}>
                                             {new Date(msg.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                                         </span>
