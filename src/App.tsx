@@ -50,34 +50,69 @@ function App() {
   }, []);
 
   const fetchProfile = async (userId: string) => {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', userId)
-      .single();
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .maybeSingle();
 
-    if (!error) setProfile(data);
-    setLoading(false);
+      if (error) {
+        console.error("Erro ao buscar perfil:", error);
+        setLoading(false);
+        return;
+      }
+
+      if (data) {
+        setProfile(data);
+      } else {
+        // Failsafe: Create profile if trigger didn't catch it
+        console.warn("Perfil não encontrado, tentando criar...");
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const { data: newProfile, error: insertError } = await supabase
+            .from('profiles')
+            .insert({
+              id: user.id,
+              email: user.email,
+              full_name: user.user_metadata?.full_name || user.email?.split('@')[0],
+              role: 'customer'
+            })
+            .select()
+            .single();
+
+          if (!insertError) setProfile(newProfile);
+          else console.error("Erro ao criar perfil fallback:", insertError);
+        }
+      }
+    } catch (err) {
+      console.error("Erro fatal no fetchProfile:", err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Detect Geolocation
   useEffect(() => {
-    if ("geolocation" in navigator) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          setUserLocation({
-            lat: position.coords.latitude,
-            lng: position.coords.longitude
-          });
-        },
-        (error) => {
-          // Ignore permission denied errors to reduce console noise
-          if (error.code !== error.PERMISSION_DENIED) {
-            console.warn("Erro ao obter localização:", error.message);
-          }
-        }
-      );
-    }
+    const initLocation = async () => {
+      try {
+        const { Geolocation } = await import('@capacitor/geolocation');
+        const pos = await Geolocation.getCurrentPosition({
+          enableHighAccuracy: false,
+          timeout: 5000
+        });
+
+        setUserLocation({
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude
+        });
+        console.log("📍 Localização inicial obtida:", pos.coords.latitude, pos.coords.longitude);
+      } catch (error: any) {
+        // Silently fail for initial location to avoid annoying alerts
+        console.warn("⚠️ Não foi possível obter localização inicial:", error.message);
+      }
+    };
+    initLocation();
   }, []);
 
   // Fetch all pharmacies
@@ -97,7 +132,7 @@ function App() {
 
   // Realtime Order Listener for Client
   useEffect(() => {
-    if (!session?.user?.id || profile?.role !== 'cliente') return;
+    if (!session?.user?.id || profile?.role !== 'customer') return;
 
     const playNotificationSound = (status: string) => {
       const sounds: any = {
@@ -226,6 +261,7 @@ function App() {
               profile={profile}
               userLocation={userLocation}
               sortedPharmacies={sortedPharmacies}
+              refreshProfile={() => session && fetchProfile(session.user.id)}
             />
           </div>
 

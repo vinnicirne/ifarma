@@ -3,43 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { MaterialIcon } from '../Shared';
 import { supabase } from '../../lib/supabase';
 
-// Helper hook for cart count (could be moved to a context later)
-export const useCartCount = (userId: string | undefined) => {
-    const [count, setCount] = React.useState(0);
-
-    React.useEffect(() => {
-        if (!userId) return;
-
-        const fetchCount = async () => {
-            const { count } = await supabase
-                .from('cart_items')
-                .select('*', { count: 'exact', head: true })
-                .eq('customer_id', userId);
-            setCount(count || 0);
-        };
-
-        fetchCount();
-
-        // Subscribe to changes
-        const channel = supabase
-            .channel('cart_counter')
-            .on('postgres_changes', {
-                event: '*',
-                schema: 'public',
-                table: 'cart_items',
-                filter: `customer_id=eq.${userId}`
-            }, () => {
-                fetchCount();
-            })
-            .subscribe();
-
-        return () => {
-            supabase.removeChannel(channel);
-        };
-    }, [userId]);
-
-    return count;
-};
+import { useCartCount } from '../../hooks/useCartCount';
 
 export const BottomNav = ({ session }: { session: any }) => {
     const location = useLocation();

@@ -334,10 +334,16 @@ const MerchantOrderManagement = () => {
             if (!user) return;
 
             try {
-                // Check if Admin Impersonating
-                const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle();
+                // Check Profile first
+                const { data: profile } = await supabase
+                    .from('profiles')
+                    .select('role, pharmacy_id')
+                    .eq('id', user.id)
+                    .maybeSingle();
+
                 let pId = null;
 
+                // 1. Admin Impersonation
                 if (profile?.role === 'admin') {
                     const impersonatedId = localStorage.getItem('impersonatedPharmacyId');
                     if (impersonatedId) {
@@ -353,13 +359,26 @@ const MerchantOrderManagement = () => {
                     }
                 }
 
-                // Normal Merchant Flow (if not impersonating or not found)
+                // 2. Profile Direct Link (Team Members / Merchants)
+                if (!pId && profile?.pharmacy_id) {
+                    const { data: pharm } = await supabase
+                        .from('pharmacies')
+                        .select('*')
+                        .eq('id', profile.pharmacy_id)
+                        .maybeSingle();
+                    if (pharm) {
+                        setPharmacy(pharm);
+                        pId = pharm.id;
+                    }
+                }
+
+                // 3. Pharmacy Owner Link (Fallback)
                 if (!pId) {
                     const { data: pharm } = await supabase
                         .from('pharmacies')
                         .select('*')
                         .eq('owner_id', user.id)
-                        .maybeSingle(); // <--- USA safely: não quebra se não achar
+                        .maybeSingle();
 
                     if (pharm) {
                         setPharmacy(pharm);
@@ -367,15 +386,32 @@ const MerchantOrderManagement = () => {
                     }
                 }
 
+                // 4. Admin Final Fallback (Any Pharmacy)
+                if (!pId && profile?.role === 'admin') {
+                    const { data: firstPharm } = await supabase
+                        .from('pharmacies')
+                        .select('*')
+                        .limit(1)
+                        .maybeSingle();
+
+                    if (firstPharm) {
+                        console.log("🛠️ Admin: No pharmacy linked/impersonated, using first one available:", firstPharm.name);
+                        setPharmacy(firstPharm);
+                        pId = firstPharm.id;
+                    }
+                }
+
                 if (pId) {
                     fetchOrders(pId);
                     subscribeToOrders(pId);
                 } else {
-                    console.warn("Nenhuma farmácia encontrada para este usuário.");
+                    console.warn("⚠️ Nenhuma farmácia encontrada para este usuário:", user.id, "Role:", profile?.role);
+                    setRealtimeStatus('error'); // Stop connecting state
                     setLoading(false);
                 }
             } catch (error) {
-                console.error("Erro na inicialização do painel:", error);
+                console.error("💥 Erro fatal na inicialização do painel:", error);
+                setRealtimeStatus('error');
                 setLoading(false);
             }
         };
@@ -712,12 +748,12 @@ const MerchantOrderManagement = () => {
                                 }`}>
                                 <div className={`size-1.5 rounded-full ${realtimeStatus === 'connected' ? 'bg-emerald-500 animate-pulse' : realtimeStatus === 'error' ? 'bg-red-500' : 'bg-yellow-500'
                                     }`} />
-                                {realtimeStatus === 'connected' ? 'Online' : realtimeStatus === 'error' ? 'Erro Conexão' : 'Conectando...'}
+                                {realtimeStatus === 'connected' ? 'Online' : realtimeStatus === 'error' ? (pharmacy ? 'Erro Conexão' : 'Sem Loja') : 'Conectando...'}
                             </div>
                         </div>
 
                         <p className="text-sm font-bold text-slate-500 dark:text-slate-400 mt-1">
-                            {loading ? 'Carregando...' : `Gerenciando ${orders.length} pedidos ativos`}
+                            {loading ? 'Carregando...' : pharmacy ? `Gerenciando ${orders.length} pedidos ativos` : 'Nenhuma farmácia vinculada a este usuário'}
                         </p>
                     </div>
                     <div className="flex items-center gap-2">

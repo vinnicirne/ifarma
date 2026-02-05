@@ -107,15 +107,46 @@ export const PharmacyChat = () => {
         }
     };
 
+    const handleSendOrderAddress = async () => {
+        setShowAttachments(false);
+        if (!order?.address) return;
+
+        try {
+            await supabase
+                .from('order_messages')
+                .insert({
+                    order_id: orderId,
+                    sender_id: session.user.id,
+                    content: `🏠 Endereço de Entrega: ${order.address}`,
+                    sender_role: 'customer'
+                });
+        } catch (err) {
+            console.error("Error sending address:", err);
+        }
+    };
+
     const handleSendLocation = async () => {
         setShowAttachments(false);
         try {
+            console.log("📍 Solicitando localização...");
             const { Geolocation } = await import('@capacitor/geolocation');
-            const pos = await Geolocation.getCurrentPosition();
+
+            // Tentar obter posição com timeout curto
+            const pos = await Geolocation.getCurrentPosition({
+                enableHighAccuracy: true,
+                timeout: 5000,
+                maximumAge: 0
+            }).catch(async (err) => {
+                console.warn("⚠️ Falha no GPS preciso, tentando modo básico...", err);
+                return await Geolocation.getCurrentPosition({
+                    enableHighAccuracy: false,
+                    timeout: 10000
+                });
+            });
 
             const lat = pos.coords.latitude;
             const lng = pos.coords.longitude;
-            const locationContent = `📍 Localização Enviada`;
+            const locationContent = `📍 Localização em Tempo Real`;
             const locationUrl = `https://www.google.com/maps?q=${lat},${lng}`;
 
             const { error } = await supabase
@@ -130,9 +161,27 @@ export const PharmacyChat = () => {
                 });
 
             if (error) throw error;
-        } catch (err) {
-            console.error("Error sharing location:", err);
-            alert("Não foi possível obter sua localização. Verifique as permissões.");
+            console.log("✅ Localização enviada via GPS");
+        } catch (err: any) {
+            console.error("❌ Erro ao compartilhar localização:", err);
+
+            // Fallback: Oferecer enviar o endereço do pedido
+            const confirmFallback = window.confirm(
+                "Não foi possível obter sua localização GPS.\n\nDeseja enviar seu endereço de entrega cadastrado neste pedido?"
+            );
+
+            if (confirmFallback && order?.address) {
+                await supabase
+                    .from('order_messages')
+                    .insert({
+                        order_id: orderId,
+                        sender_id: session.user.id,
+                        content: `🏠 Endereço de Entrega: ${order.address}`,
+                        sender_role: 'customer'
+                    });
+            } else if (!order?.address) {
+                alert("Não foi possível obter sua localização. Verifique se o GPS está ativado e as permissões do navegador estão liberadas.");
+            }
         }
     };
 
@@ -258,10 +307,14 @@ export const PharmacyChat = () => {
             {/* Input Area */}
             <footer className="relative bg-white dark:bg-[#1a2e22] p-4 pb-10 border-t border-gray-100 dark:border-gray-800">
                 {showAttachments && (
-                    <div className="absolute bottom-[80px] left-4 bg-white dark:bg-[#1a2e22] rounded-2xl shadow-[0_10px_40px_rgba(0,0,0,0.2)] border border-gray-100 dark:border-gray-800 p-2 flex flex-col gap-1 min-w-[150px] z-[100]">
+                    <div className="absolute bottom-[80px] left-4 bg-white dark:bg-[#1a2e22] rounded-2xl shadow-[0_10px_40px_rgba(0,0,0,0.2)] border border-gray-100 dark:border-gray-800 p-2 flex flex-col gap-1 min-w-[180px] z-[100]">
                         <button onClick={handleSendLocation} className="flex items-center gap-3 p-3 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-slate-700 dark:text-gray-200">
                             <div className="size-8 rounded-full bg-primary/10 flex items-center justify-center"><MaterialIcon name="location_on" className="text-primary text-lg" /></div>
-                            <span className="text-xs font-black uppercase tracking-widest">Localização</span>
+                            <span className="text-xs font-black uppercase tracking-widest">Localização GPS</span>
+                        </button>
+                        <button onClick={handleSendOrderAddress} className="flex items-center gap-3 p-3 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-slate-700 dark:text-gray-200">
+                            <div className="size-8 rounded-full bg-orange-100 flex items-center justify-center"><MaterialIcon name="home" className="text-orange-600 text-lg" /></div>
+                            <span className="text-xs font-black uppercase tracking-widest">Enviar Endereço</span>
                         </button>
                         <label className="flex items-center gap-3 p-3 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-slate-700 dark:text-gray-200 cursor-pointer">
                             <div className="size-8 rounded-full bg-blue-100 flex items-center justify-center"><MaterialIcon name="description" className="text-blue-600 text-lg" /></div>

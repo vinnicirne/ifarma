@@ -73,12 +73,24 @@ export const MotoboyChat = () => {
     const handleSendLocation = async () => {
         setShowAttachments(false);
         try {
+            console.log("📍 Motoboy solicitando localização...");
             const { Geolocation } = await import('@capacitor/geolocation');
-            const pos = await Geolocation.getCurrentPosition();
+
+            const pos = await Geolocation.getCurrentPosition({
+                enableHighAccuracy: true,
+                timeout: 7000,
+                maximumAge: 0
+            }).catch(async (err) => {
+                console.warn("⚠️ Falha no GPS preciso do motoboy, tentando modo básico...", err);
+                return await Geolocation.getCurrentPosition({
+                    enableHighAccuracy: false,
+                    timeout: 10000
+                });
+            });
 
             const lat = pos.coords.latitude;
             const lng = pos.coords.longitude;
-            const locationContent = `📍 Localização do Motoboy`;
+            const locationContent = `📍 Minha Localização Atual`;
             const locationUrl = `https://www.google.com/maps?q=${lat},${lng}`;
 
             const { error } = await supabase
@@ -93,9 +105,10 @@ export const MotoboyChat = () => {
                 });
 
             if (error) throw error;
+            console.log("✅ Localização do motoboy enviada");
         } catch (err) {
             console.error("Error sharing location:", err);
-            alert("Não foi possível obter sua localização. Verifique as permissões.");
+            alert("Não foi possível obter sua localização GPS. Verifique se o GPS do celular está ativado e as permissões do aplicativo estão liberadas.");
         }
     };
 

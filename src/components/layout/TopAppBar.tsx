@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
-import { MaterialIcon } from '../Shared';
+import { useCartCount } from '../../hooks/useCartCount';
 
-export const TopAppBar = ({ onSearch, userLocation }: { onSearch: (query: string) => void, userLocation: { lat: number, lng: number } | null }) => {
+export const TopAppBar = ({ onSearch, userLocation, session }: { onSearch: (query: string) => void, userLocation: { lat: number, lng: number } | null, session?: any }) => {
     const [query, setQuery] = useState('');
     const [address, setAddress] = useState('Localização Atual');
+    const cartCount = useCartCount(session?.user?.id);
 
     useEffect(() => {
         const fetchAddress = async () => {
@@ -60,9 +61,11 @@ export const TopAppBar = ({ onSearch, userLocation }: { onSearch: (query: string
                 <div className="flex items-center gap-2">
                     <Link to="/cart" className="relative flex items-center justify-center rounded-full w-10 h-10 bg-slate-100 dark:bg-slate-800">
                         <MaterialIcon name="shopping_cart" className="text-[#0d161b] dark:text-white" />
-                        <span className="absolute top-1 right-1 bg-primary text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center border-2 border-white dark:border-background-dark">
-                            {localStorage.getItem('cart_count') || '0'}
-                        </span>
+                        {cartCount > 0 && (
+                            <span className="absolute top-1 right-1 bg-primary text-background-dark text-[8px] font-black rounded-full w-4 h-4 flex items-center justify-center border border-white dark:border-background-dark">
+                                {cartCount}
+                            </span>
+                        )}
                     </Link>
                     <button className="flex items-center justify-center rounded-full w-10 h-10 bg-slate-100 dark:bg-slate-800">
                         <MaterialIcon name="notifications" className="text-[#0d161b] dark:text-white" />

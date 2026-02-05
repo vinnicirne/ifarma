@@ -4,7 +4,7 @@ import { supabase } from '../../lib/supabase';
 import { MaterialIcon } from '../../components/Shared';
 import { TopAppBar } from '../../components/layout/TopAppBar';
 import { BottomNav } from '../../components/layout/BottomNav';
-import { useCartCount } from '../../components/layout/BottomNav';
+import { useCartCount } from '../../hooks/useCartCount';
 
 
 // --- Shared Helper for Distance ---
@@ -175,32 +175,50 @@ export const ClientHome = ({ userLocation, sortedPharmacies, session }: { userLo
         }
 
         try {
-            // Check if item already exists in cart
-            const { data: existing } = await supabase
+            // Find the item in search results to get pharmacy_id
+            const item = searchResults.find(r => r.id === productId);
+            const pharmacyId = item?.pharmacy_id;
+
+            console.log('🛒 Adicionando ao carrinho:', productId, 'Farmácia:', pharmacyId);
+
+            const { data: existing, error: fetchError } = await supabase
                 .from('cart_items')
                 .select('id, quantity')
                 .eq('customer_id', session.user.id)
                 .eq('product_id', productId)
-                .single();
+                .maybeSingle();
+
+            if (fetchError) {
+                console.error("Erro ao verificar carrinho:", fetchError);
+                throw fetchError;
+            }
 
             if (existing) {
-                await supabase
+                const { error: updateError } = await supabase
                     .from('cart_items')
                     .update({ quantity: existing.quantity + quantity })
                     .eq('id', existing.id);
+
+                if (updateError) throw updateError;
             } else {
-                await supabase
+                const { error: insertError } = await supabase
                     .from('cart_items')
                     .insert({
                         customer_id: session.user.id,
                         product_id: productId,
+                        pharmacy_id: pharmacyId,
                         quantity
                     });
+
+                if (insertError) {
+                    console.error("Erro no insert do carrinho:", insertError);
+                    throw insertError;
+                }
             }
             alert('Produto adicionado ao carrinho! 🛒');
-        } catch (error) {
-            console.error("Error adding to cart:", error);
-            alert('Erro ao adicionar ao carrinho.');
+        } catch (error: any) {
+            console.error("💥 Erro fatal ao adicionar ao carrinho:", error);
+            alert(`Erro ao adicionar ao carrinho: ${error.message || 'Verifique sua conexão'}`);
         }
     };
 
@@ -221,6 +239,7 @@ export const ClientHome = ({ userLocation, sortedPharmacies, session }: { userLo
           name,
           category,
           image_url,
+          pharmacy_id,
           pharmacy:pharmacies!inner(name, latitude, longitude)
         `)
                 .ilike('name', `%${searchQuery}%`)
@@ -269,6 +288,7 @@ export const ClientHome = ({ userLocation, sortedPharmacies, session }: { userLo
             <TopAppBar
                 onSearch={setSearchQuery}
                 userLocation={userLocation}
+                session={session}
             />
 
             <main className="flex-1">

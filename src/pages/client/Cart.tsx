@@ -26,14 +26,24 @@ export const Cart = () => {
         const { data: { session: currentSession } } = await supabase.auth.getSession();
         if (!currentSession) return;
 
-        const { data } = await supabase
+        console.log('🛒 Buscando itens do carrinho para:', currentSession.user.id);
+
+        const { data, error } = await supabase
             .from('cart_items')
             .select('*, products(*, pharmacies(*))')
             .eq('customer_id', currentSession.user.id);
 
+        if (error) {
+            console.error("❌ Erro ao buscar carrinho:", error);
+            return;
+        }
+
         if (data) {
-            setCartItems(data);
-            const t = data.reduce((acc, item) => acc + (Number(item.products.price) * item.quantity), 0);
+            console.log('✅ Itens encontrados:', data.length);
+            // Filtrar apenas itens que têm produtos válidos (evita crash se RLS filtrar o produto)
+            const validItems = data.filter(item => item.products);
+            setCartItems(validItems);
+            const t = validItems.reduce((acc, item) => acc + (Number(item.products.price) * item.quantity), 0);
             setTotal(t);
         }
     };

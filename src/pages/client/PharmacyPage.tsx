@@ -28,32 +28,49 @@ export const PharmacyPage = ({ session }: { session: any }) => {
             navigate('/login');
             return;
         }
+
         try {
-            const { data: existing } = await supabase
+            console.log('🛒 Adicionando ao carrinho:', productId, 'Farmácia:', id);
+
+            const { data: existing, error: fetchError } = await supabase
                 .from('cart_items')
                 .select('id, quantity')
                 .eq('customer_id', session.user.id)
                 .eq('product_id', productId)
-                .single();
+                .maybeSingle();
+
+            if (fetchError) {
+                console.error("Erro ao verificar carrinho:", fetchError);
+                throw fetchError;
+            }
 
             if (existing) {
-                await supabase
+                const { error: updateError } = await supabase
                     .from('cart_items')
                     .update({ quantity: existing.quantity + quantity })
                     .eq('id', existing.id);
+
+                if (updateError) throw updateError;
             } else {
-                await supabase
+                const { error: insertError } = await supabase
                     .from('cart_items')
                     .insert({
                         customer_id: session.user.id,
                         product_id: productId,
+                        pharmacy_id: id,
                         quantity
                     });
+
+                if (insertError) {
+                    console.error("Erro no insert do carrinho:", insertError);
+                    throw insertError;
+                }
             }
+
             alert('Produto adicionado ao carrinho! 🛒');
-        } catch (error) {
-            console.error("Error adding to cart:", error);
-            alert('Erro ao adicionar ao carrinho.');
+        } catch (error: any) {
+            console.error("💥 Erro fatal ao adicionar ao carrinho:", error);
+            alert(`Erro ao adicionar ao carrinho: ${error.message || 'Verifique sua conexão'}`);
         }
     };
 

@@ -9,7 +9,7 @@ const MaterialIcon = ({ name, className = "", style = {} }: { name: string, clas
 
 import BottomNavigation from '../components/BottomNavigation';
 
-const UserProfile = ({ session, profile }: { session: any, profile: any }) => {
+const UserProfile = ({ session, profile, onRefresh }: { session: any, profile: any, onRefresh?: () => void }) => {
     const navigate = useNavigate();
     const [addresses, setAddresses] = useState<any[]>([]);
     const [isAddingAddress, setIsAddingAddress] = useState(false);
@@ -97,10 +97,13 @@ const UserProfile = ({ session, profile }: { session: any, profile: any }) => {
     };
 
     const handleSave = async () => {
+        if (loading) return;
         setLoading(true);
+
         try {
+            console.log('💾 Tentando salvar perfil para ID:', session?.user?.id);
+
             let fullAddress = formData.address;
-            // Only append if it doesn't look like it already has it (simple check)
             if (formData.number && !fullAddress.includes(`, ${formData.number}`)) {
                 fullAddress += `, ${formData.number}`;
             }
@@ -108,7 +111,7 @@ const UserProfile = ({ session, profile }: { session: any, profile: any }) => {
                 fullAddress += ` - ${formData.complement}`;
             }
 
-            const { error } = await supabase
+            const { data, error } = await supabase
                 .from('profiles')
                 .update({
                     full_name: formData.full_name,
@@ -117,14 +120,25 @@ const UserProfile = ({ session, profile }: { session: any, profile: any }) => {
                     avatar_url: formData.avatar_url,
                     address: fullAddress
                 })
-                .eq('id', session.user.id);
+                .eq('id', session.user.id)
+                .select();
 
-            if (error) throw error;
+            if (error) {
+                console.error('❌ Erro Supabase ao atualizar perfil:', error);
+                throw error;
+            }
+
+            console.log('✅ Perfil atualizado com sucesso:', data);
+
+            if (onRefresh) {
+                await onRefresh();
+            }
+
             setIsEditing(false);
-            window.location.reload();
-        } catch (error) {
-            console.error('Erro ao atualizar perfil:', error);
-            alert('Erro ao atualizar perfil.');
+            alert('Perfil atualizado com sucesso!');
+        } catch (error: any) {
+            console.error('💥 Erro fatal ao atualizar perfil:', error);
+            alert(`Erro ao atualizar perfil: ${error.message || 'Verifique sua conexão'}`);
         } finally {
             setLoading(false);
         }
@@ -245,7 +259,10 @@ const UserProfile = ({ session, profile }: { session: any, profile: any }) => {
                 <section className="mt-8">
                     <h3 className="text-slate-900 dark:text-white text-lg font-bold tracking-tight px-4 mb-2">Dados Pessoais</h3>
                     <div className="space-y-1">
-                        <div className="flex items-center gap-4 bg-white dark:bg-slate-800/50 px-4 min-h-[64px] py-2 justify-between cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/70 transition-colors">
+                        <div
+                            onClick={() => setIsEditing(true)}
+                            className="flex items-center gap-4 bg-white dark:bg-slate-800/50 px-4 min-h-[64px] py-2 justify-between cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/70 transition-colors"
+                        >
                             <div className="flex items-center gap-4">
                                 <div className="text-primary flex items-center justify-center rounded-lg bg-primary/10 shrink-0 size-10">
                                     <MaterialIcon name="person" className="text-[20px]" />
@@ -269,7 +286,10 @@ const UserProfile = ({ session, profile }: { session: any, profile: any }) => {
                             </div>
                             <MaterialIcon name="lock" className="text-slate-400 text-[20px]" />
                         </div>
-                        <div className="flex items-center gap-4 bg-white dark:bg-slate-800/50 px-4 min-h-[64px] py-2 justify-between cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/70 transition-colors">
+                        <div
+                            onClick={() => setIsEditing(true)}
+                            className="flex items-center gap-4 bg-white dark:bg-slate-800/50 px-4 min-h-[64px] py-2 justify-between cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/70 transition-colors"
+                        >
                             <div className="flex items-center gap-4">
                                 <div className="text-primary flex items-center justify-center rounded-lg bg-primary/10 shrink-0 size-10">
                                     <MaterialIcon name="phone" className="text-[20px]" />
@@ -281,7 +301,10 @@ const UserProfile = ({ session, profile }: { session: any, profile: any }) => {
                             </div>
                             <MaterialIcon name="chevron_right" className="text-slate-400 text-[20px]" />
                         </div>
-                        <div className="flex items-center gap-4 bg-white dark:bg-slate-800/50 px-4 min-h-[64px] py-2 justify-between cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/70 transition-colors">
+                        <div
+                            onClick={() => setIsEditing(true)}
+                            className="flex items-center gap-4 bg-white dark:bg-slate-800/50 px-4 min-h-[64px] py-2 justify-between cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/70 transition-colors"
+                        >
                             <div className="flex items-center gap-4">
                                 <div className="text-primary flex items-center justify-center rounded-lg bg-primary/10 shrink-0 size-10">
                                     <MaterialIcon name="location_on" className="text-[20px]" />

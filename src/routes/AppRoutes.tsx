@@ -76,9 +76,10 @@ interface AppRoutesProps {
     profile: any;
     userLocation: { lat: number; lng: number } | null;
     sortedPharmacies: any[];
+    refreshProfile: () => void;
 }
 
-export const AppRoutes = ({ session, profile, userLocation, sortedPharmacies }: AppRoutesProps) => {
+export const AppRoutes = ({ session, profile, userLocation, sortedPharmacies, refreshProfile }: AppRoutesProps) => {
     return (
         <Routes>
             {/* Public Routes */}
@@ -101,7 +102,7 @@ export const AppRoutes = ({ session, profile, userLocation, sortedPharmacies }: 
             <Route path="/cart" element={<ProtectedRoute session={session}><Suspense fallback={<LoadingScreen />}><Cart /></Suspense></ProtectedRoute>} />
             <Route path="/checkout" element={<ProtectedRoute session={session}><Suspense fallback={<LoadingScreen />}><Checkout /></Suspense></ProtectedRoute>} />
 
-            <Route path="/profile" element={<ProtectedRoute session={session}><Suspense fallback={<LoadingScreen />}><UserProfile session={session} profile={profile} /></Suspense></ProtectedRoute>} />
+            <Route path="/profile" element={<ProtectedRoute session={session}><Suspense fallback={<LoadingScreen />}><UserProfile session={session} profile={profile} onRefresh={refreshProfile} /></Suspense></ProtectedRoute>} />
             <Route path="/favorites" element={<ProtectedRoute session={session}><Suspense fallback={<LoadingScreen />}><Favorites /></Suspense></ProtectedRoute>} />
             <Route path="/notifications" element={<ProtectedRoute session={session}><Suspense fallback={<LoadingScreen />}><Notifications /></Suspense></ProtectedRoute>} />
             <Route path="/meus-pedidos" element={<ProtectedRoute session={session}><Suspense fallback={<LoadingScreen />}><UserOrders /></Suspense></ProtectedRoute>} />
