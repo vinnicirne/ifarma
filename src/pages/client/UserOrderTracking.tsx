@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { MaterialIcon } from '../../components/Shared';
 import AdminMap from '../../components/admin/AdminMap';
+import { OrderCancellationModal } from '../../components/OrderCancellationModal';
 
 export const UserOrderTracking = () => {
     const navigate = useNavigate();
@@ -14,6 +15,8 @@ export const UserOrderTracking = () => {
     const [realTimeRoute, setRealTimeRoute] = useState<{ distance: string, duration: string } | null>(null);
     const [routePath, setRoutePath] = useState<{ lat: number, lng: number }[]>([]);
     const [unreadCount, setUnreadCount] = useState(0);
+    const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
     // Função para decodificar Polyline do Google
     const decodePolyline = (encoded: string) => {
@@ -96,15 +99,11 @@ export const UserOrderTracking = () => {
 
     // Função para calcular distância e ETA
     const fetchGoogleKey = async () => {
-        // 1. Try Env Var first (Faster & Recommended)
         const envKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
         if (envKey) {
-            console.log("🗺️ Google Maps Key loaded from Env");
             setGoogleKey(envKey);
             return;
         }
-
-        // 2. Fallback to Database
         const { data: settings } = await supabase
             .from('system_settings')
             .select('value')
@@ -112,20 +111,14 @@ export const UserOrderTracking = () => {
             .single();
 
         if (settings?.value) {
-            console.log("🗺️ Google Maps Key loaded from DB");
             setGoogleKey(settings.value);
-        } else {
-            console.warn("⚠️ No Google Maps API Key found (Env or DB). Routing will fallback to OSRM.");
         }
     };
 
     const fetchRoute = async (mbLat: number, mbLng: number) => {
-        // Use window.google if available (Client Side API) needed to avoid CORS
         if (!order || typeof google === 'undefined') return;
-
         const destLat = order.latitude || order.pharmacies?.latitude;
         const destLng = order.longitude || order.pharmacies?.longitude;
-
         if (!destLat || !destLng) return;
 
         try {
@@ -138,21 +131,16 @@ export const UserOrderTracking = () => {
                 if (status === 'OK' && result) {
                     const path = result.routes[0].overview_path.map(p => ({ lat: p.lat(), lng: p.lng() }));
                     setRoutePath(path);
-
                     const leg = result.routes[0].legs[0];
                     if (leg) {
                         setRealTimeRoute({
                             distance: leg.distance?.text || '',
                             duration: leg.duration?.text || ''
                         });
-
-                        // Check proximity for notification (< 1km)
                         if (leg.distance && leg.distance.value < 1000) {
                             notifyProximity();
                         }
                     }
-                } else {
-                    console.warn('Directions request failed:', status);
                 }
             });
         } catch (e) {
@@ -165,11 +153,9 @@ export const UserOrderTracking = () => {
             const url = `https://router.project-osrm.org/route/v1/driving/${startLng},${startLat};${destLng},${destLat}?overview=false`;
             const res = await fetch(url);
             const data = await res.json();
-
             if (data.code === 'Ok' && data.routes && data.routes.length > 0) {
                 const durationSeconds = data.routes[0].duration;
                 const minutes = Math.ceil(durationSeconds / 60);
-                // Mocking structure to match realTimeRoute state
                 setRealTimeRoute({
                     distance: `${(data.routes[0].distance / 1000).toFixed(1)} km`,
                     duration: `${minutes} min`
@@ -194,54 +180,36 @@ export const UserOrderTracking = () => {
     };
 
     const calculateETA = () => {
+        if (order?.status === 'entregue') return 'Entregue';
+        if (order?.status === 'cancelado') return 'Cancelado';
         if (realTimeRoute) return realTimeRoute.duration;
-
-        // Se ainda não tem motoboy, mostra aguardando
         if (!motoboy && !order?.motoboy_id) return 'Aguardando entregador...';
-
-        // Se tem motoboy mas ainda não temos a localização (está carregando), ou googleKey falhou
         if (!motoboy || !order?.pharmacies) return 'Calculando...';
 
         const destLat = order.latitude || order.pharmacies.latitude;
         const destLng = order.longitude || order.pharmacies.longitude;
-
         if (!destLat || !destLng) return 'Calculando...';
 
-        const R = 6371; // Raio da Terra em km
+        const R = 6371;
         const dLat = (destLat - motoboy.lat) * Math.PI / 180;
         const dLon = (destLng - motoboy.lng) * Math.PI / 180;
-        const a =
-            Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-            Math.cos(motoboy.lat * Math.PI / 180) * Math.cos(destLat * Math.PI / 180) *
-            Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(motoboy.lat * Math.PI / 180) * Math.cos(destLat * Math.PI / 180) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
         const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
         const distance = R * c;
-
-        const baseSpeed = 22; // km/h (Média urbana para moto)
+        const baseSpeed = 22;
         let trafficFactor = 1.0;
-
-        // Simulação de tráfego baseada na hora (Pico: 17h-19h)
         const hour = new Date().getHours();
-        if ((hour >= 17 && hour <= 19) || (hour >= 11 && hour <= 13)) {
-            trafficFactor = 0.7; // Tráfego pesado reduz velocidade em 30%
-        }
-
+        if ((hour >= 17 && hour <= 19) || (hour >= 11 && hour <= 13)) trafficFactor = 0.7;
         const effectiveSpeed = baseSpeed * trafficFactor;
         const travelTime = (distance / effectiveSpeed) * 60;
-
-        // Tempo adicional baseado no status
-        let additionalTime = 2; // Margem de segurança
+        let additionalTime = 2;
         if (order.status === 'aguardando_motoboy') additionalTime += 5;
         if (order.status === 'preparando') additionalTime += 10;
         if (order.status === 'pendente') additionalTime += 15;
-
         const totalMinutes = Math.round(travelTime + additionalTime);
-
-        if (order.status === 'entregue') return 'Entregue';
         return `${totalMinutes} min (est.)`;
     };
 
-    // Efeito para atualizar ETA automaticamente quando motoboy ou chave Google mudarem
     useEffect(() => {
         if (motoboy && googleKey && order) {
             updateRealTimeETA(motoboy.lat, motoboy.lng);
@@ -252,34 +220,33 @@ export const UserOrderTracking = () => {
         if (!orderId) return;
         fetchGoogleKey();
 
-        // Ref para evitar disparos duplicados em uma mesma sessão de visualização
         const hasBuzzered = { current: false };
 
         const fetchOrder = async () => {
+            try {
+                const { data, error: supabaseError } = await supabase
+                    .from('orders')
+                    .select('*, pharmacies(*), order_items(*, products(*))')
+                    .eq('id', orderId)
+                    .maybeSingle();
 
-            const { data } = await supabase
-                .from('orders')
-                .select('*, pharmacies(*), order_items(*, products(*))')
-                .eq('id', orderId)
-                .single();
+                if (supabaseError) throw supabaseError;
+                if (!data) {
+                    setError("Pedido não encontrado ou ID inválido.");
+                    return;
+                }
 
-            if (data) {
-                console.log("Order Data:", data);
-                console.log("Pharmacy Data:", data.pharmacies);
                 setOrder(data);
-
-                // Popula os itens formatados para o render
                 if (data.order_items) {
                     const mappedItems = data.order_items.map((it: any) => ({
                         name: it.products?.name || it.product_name || 'Produto',
                         qty: `${it.quantity}x`,
                         price: new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format((it.price || it.unit_price || 0) * it.quantity),
-                        icon: 'medication' // Fallback icon
+                        icon: 'medication'
                     }));
                     setItems(mappedItems);
                 }
 
-                // Fetch Motoboy Initial Location
                 if (data.motoboy_id) {
                     const { data: mbData } = await supabase
                         .from('profiles')
@@ -288,193 +255,116 @@ export const UserOrderTracking = () => {
                         .single();
 
                     if (mbData && mbData.last_lat && mbData.last_lng) {
-                        const mbLoc = { id: mbData.id, lat: mbData.last_lat, lng: mbData.last_lng };
-                        setMotoboy(mbLoc);
-
-                        // Force ETA update with initial data
-                        // We use the function if available, otherwise just setting state prompts the map to render
-                        if (googleKey) {
-                            updateRealTimeETA(mbLoc.lat, mbLoc.lng);
-                        } else {
-                            // Calculates fallback ETA if no Google Key or just to show something
-                            // We can trigger a re-calc or just let the effect handle it when 'googleKey' changes?
-                            // But usually fetchGoogleKey is async.
-                            // Let's at least ensure the Map shows the marker.
-                        }
+                        setMotoboy({ id: mbData.id, lat: mbData.last_lat, lng: mbData.last_lng });
                     }
                 }
+            } catch (err: any) {
+                console.error("Error fetching order:", err);
+                setError("Erro ao carregar pedido. Verifique sua conexão.");
             }
         };
 
         fetchOrder();
 
-        // Realtime subscription for order status and arrival
         const orderSubscription = supabase
             .channel(`order_tracking_${orderId}`)
-            .on('postgres_changes', {
-                event: 'UPDATE',
-                schema: 'public',
-                table: 'orders',
-                filter: `id=eq.${orderId}`
-            }, (payload) => {
-                const oldStatus = order?.status;
-                const newStatus = payload.new.status;
-                const oldArrived = order?.motoboy_arrived_at;
+            .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders', filter: `id=eq.${orderId}` }, (payload) => {
                 const newArrived = payload.new.motoboy_arrived_at;
-
+                const oldArrived = order?.motoboy_arrived_at;
                 setOrder(prev => ({ ...prev, ...payload.new }));
 
-                // Disparar BUZINA se o motoboy acabou de sinalizar chegada
                 if (newArrived && !oldArrived && !hasBuzzered.current) {
                     hasBuzzered.current = true;
                     console.log("📢 Motoboy chegou! Disparando buzina...");
                     const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2855/2855-preview.mp3');
                     audio.volume = 1.0;
-                    audio.play().catch(e => console.warn("Erro ao tocar buzina:", e));
+                    audio.play().catch(e => {
+                        console.warn("Erro ao tocar buzina de chegada:", e);
+                        window.addEventListener('click', () => audio.play(), { once: true });
+                    });
                 }
-            })
-            .subscribe();
+            }).subscribe();
 
-        // Realtime subscription for motoboy location if we have an order with motoboy_id
+        const messageSubscription = supabase
+            .channel(`order_messages_${orderId}`)
+            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'order_messages', filter: `order_id=eq.${orderId}` }, async (payload) => {
+                const { data: { session } } = await supabase.auth.getSession();
+                if (payload.new.message_type === 'horn') {
+                    const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2855/2855-preview.mp3');
+                    audio.volume = 1.0;
+                    audio.play().catch(e => {
+                        console.warn("Erro ao tocar buzina (bloqueado):", e);
+                        window.addEventListener('click', () => audio.play(), { once: true });
+                    });
+                }
+                if (payload.new.sender_id !== session?.user.id) {
+                    setUnreadCount(prev => prev + 1);
+                }
+            }).subscribe();
+
         let motoboySubscription: any = null;
         if (order?.motoboy_id) {
             motoboySubscription = supabase
                 .channel(`motoboy_loc_${orderId}`)
-                .on('postgres_changes', {
-                    event: 'UPDATE',
-                    schema: 'public',
-                    table: 'profiles',
-                    filter: `id=eq.${order.motoboy_id}`
-                }, (payload) => {
+                .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'profiles', filter: `id=eq.${order.motoboy_id}` }, (payload) => {
                     const newLoc = { id: payload.new.id, lat: payload.new.last_lat, lng: payload.new.last_lng };
                     setMotoboy(newLoc);
                     if (googleKey) updateRealTimeETA(newLoc.lat, newLoc.lng);
-
-                    // Geofencing Realtime
-                    if (order && (order.latitude || order.pharmacies?.latitude)) {
-                        const destLat = order.latitude || order.pharmacies?.latitude;
-                        const destLng = order.longitude || order.pharmacies?.longitude;
-                        const dist = calculateDistance(payload.new.last_lat, payload.new.last_lng, destLat, destLng);
-                        if (dist < 1.0) notifyProximity();
-                    }
-                })
-                .subscribe();
+                }).subscribe();
         }
-
-        // Subscription para mensagens (Buzina + Unread Counter)
-        const messageSubscription = supabase
-            .channel(`order_messages_${orderId}`)
-            .on('postgres_changes', {
-                event: 'INSERT',
-                schema: 'public',
-                table: 'order_messages',
-                filter: `order_id=eq.${orderId}`
-            }, async (payload) => {
-                const { data: { session } } = await supabase.auth.getSession();
-
-                if (payload.new.message_type === 'horn') {
-                    console.log("🎺 BUZINA RECEBIDA!");
-                    const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/1271/1271-preview.mp3');
-                    audio.volume = 1.0;
-                    audio.play().catch(e => console.warn("Erro ao tocar buzina:", e));
-                }
-
-                // Incrementa contador se a mensagem não for minha
-                if (payload.new.sender_id !== session?.user.id) {
-                    setUnreadCount(prev => prev + 1);
-                }
-            })
-            .subscribe();
 
         return () => {
             orderSubscription.unsubscribe();
             messageSubscription.unsubscribe();
             if (motoboySubscription) motoboySubscription.unsubscribe();
         };
-    }, [orderId, order?.motoboy_id]);
+    }, [orderId, order?.motoboy_id, googleKey]);
 
-    // Auto-redirect to Home
     useEffect(() => {
-        if (order?.status === 'entregue' || order?.status === 'cancelado') {
-            const timer = setTimeout(() => {
-                navigate('/');
-            }, 4000);
+        if (order?.status === 'entregue') {
+            const timer = setTimeout(() => navigate('/'), 4000);
             return () => clearTimeout(timer);
         }
     }, [order?.status, navigate]);
 
-    if (!order) return <div className="p-8 text-center text-white">Carregando pedido...</div>;
+    if (error) return (
+        <div className="flex h-screen flex-col items-center justify-center p-6 bg-background-dark text-white text-center">
+            <MaterialIcon name="error_outline" className="text-6xl text-red-500 mb-4" />
+            <h2 className="text-xl font-black mb-2">{error}</h2>
+            <button onClick={() => navigate('/')} className="mt-4 bg-primary text-black px-6 py-2 rounded-full font-bold">Voltar ao Início</button>
+        </div>
+    );
 
-    const allSteps = [
+    if (!order) return (
+        <div className="flex h-screen flex-col items-center justify-center bg-background-dark text-white">
+            <div className="relative">
+                <div className="size-16 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+                <MaterialIcon name="local_shipping" className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-primary" />
+            </div>
+            <p className="mt-4 font-black tracking-widest uppercase text-xs animate-pulse">Buscando seu pedido...</p>
+        </div>
+    );
+
+    const steps = [
         {
             status: 'pendente',
-            label: order.status === 'pendente' ? 'Aguardando Confirmação' : 'Pedido Aceito',
-            sub: order.status === 'pendente' ? 'Aguardando a loja aceitar...' : `Confirmado às ${new Date(order.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`,
-            icon: order.status === 'pendente' ? 'hourglass_top' : 'check'
+            label: order.status === 'cancelado' ? 'Pedido Cancelado' : (order.status === 'pendente' ? 'Aguardando Confirmação' : 'Pedido Aceito'),
+            sub: order.status === 'cancelado' ? 'Este pedido foi cancelado pela loja' : (order.status === 'pendente' ? 'Aguardando a loja aceitar...' : `Confirmado às ${new Date(order.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`),
+            icon: order.status === 'cancelado' ? 'cancel' : (order.status === 'pendente' ? 'hourglass_top' : 'check')
         },
         { status: 'preparando', label: 'Preparando seu pedido', sub: 'Em andamento', icon: 'pill' },
-        {
-            status: 'aguardando_motoboy',
-            label: 'Aguardando entregador',
-            sub: order.motoboy_id ? 'Entregador à caminho da farmácia' : 'Procurando entregador...',
-            icon: 'person_search'
-        },
-        {
-            status: 'retirado',
-            label: 'Pedido retirado',
-            sub: 'O entregador já está com seu pedido',
-            icon: 'inventory'
-        },
-        {
-            status: 'em_rota',
-            label: 'Em rota de entrega',
-            sub: 'O entregador está a caminho do seu endereço',
-            icon: 'local_shipping'
-        },
+        { status: 'aguardando_motoboy', label: 'Aguardando entregador', sub: order.motoboy_id ? 'Entregador à caminho da farmácia' : 'Procurando entregador...', icon: 'person_search' },
+        { status: 'retirado', label: 'Pedido retirado', sub: 'O entregador já está com seu pedido', icon: 'inventory' },
+        { status: 'em_rota', label: 'Em rota de entrega', sub: 'O entregador está a caminho do seu endereço', icon: 'local_shipping' },
         { status: 'entregue', label: 'Entregue', sub: 'Pedido finalizado', icon: 'home' }
     ];
 
-    // Use all steps (no hidden steps in this tracker)
-    const steps = allSteps;
-
-    // Calc index based on filtered steps
-    // Mapping DB status to Step Index needs care if we remove steps.
-    // We should find the index based on the current status matching the step status OR previous ones.
-
     let currentStepIndex = 0;
-    if (order.status === 'pendente') {
-        currentStepIndex = steps.findIndex(s => s.status === 'pendente');
-    } else if (order.status === 'preparando') {
-        currentStepIndex = steps.findIndex(s => s.status === 'preparando');
-    } else if (order.status === 'aguardando_motoboy') {
-        currentStepIndex = steps.findIndex(s => s.status === 'aguardando_motoboy');
-    } else if (order.status === 'pronto_entrega') {
-        currentStepIndex = steps.findIndex(s => s.status === 'aguardando_motoboy');
-    } else if (order.status === 'retirado') {
-        currentStepIndex = steps.findIndex(s => s.status === 'retirado');
-    } else if (order.status === 'em_rota') {
-        currentStepIndex = steps.findIndex(s => s.status === 'em_rota');
-    } else if (order.status === 'entregue') {
-        currentStepIndex = steps.findIndex(s => s.status === 'entregue');
-    }
-    // Ensure currentStepIndex is not -1 if a status doesn't directly map or is hidden
-    if (currentStepIndex === -1) {
-        // Fallback: find the closest preceding step or default to 0
-        const statusOrder = ['pendente', 'preparando', 'aguardando_motoboy', 'pronto_entrega', 'em_rota', 'entregue'];
-        const currentStatusIndexInOrder = statusOrder.indexOf(order.status);
-        for (let i = currentStatusIndexInOrder; i >= 0; i--) {
-            const mappedStepIndex = steps.findIndex(s => s.status === statusOrder[i]);
-            if (mappedStepIndex !== -1) {
-                currentStepIndex = mappedStepIndex;
-                break;
-            }
-        }
-    }
-
+    const statusIdxMap: any = { 'pendente': 0, 'preparando': 1, 'aguardando_motoboy': 2, 'pronto_entrega': 2, 'retirado': 3, 'em_rota': 4, 'entregue': 5, 'cancelado': 0 };
+    currentStepIndex = statusIdxMap[order.status] || 0;
 
     return (
         <div className="relative mx-auto flex h-auto min-h-screen max-w-[480px] flex-col overflow-x-hidden shadow-2xl bg-white dark:bg-background-dark pb-10">
-            {/* TopAppBar */}
             <header className="sticky top-0 z-20 flex items-center bg-white/80 dark:bg-background-dark/80 backdrop-blur-md p-4 pb-2 justify-between">
                 <button onClick={() => navigate(-1)} className="text-[#0d1b13] dark:text-white flex size-12 shrink-0 items-center justify-start cursor-pointer hover:bg-black/5 dark:hover:bg-white/5 rounded-full transition-colors">
                     <MaterialIcon name="arrow_back_ios" className="ml-2" />
@@ -482,30 +372,18 @@ export const UserOrderTracking = () => {
                 <h2 className="text-[#0d1b13] dark:text-white text-lg font-bold leading-tight tracking-[-0.015em] flex-1 text-center pr-12 font-sans">Acompanhamento</h2>
             </header>
 
-            {/* Map Section */}
             <div className="px-4 py-3">
                 <div className="relative w-full aspect-[16/10] bg-slate-100 dark:bg-zinc-800 rounded-[32px] border border-gray-100 dark:border-gray-800 shadow-sm overflow-hidden">
                     {order && (order.latitude || order.pharmacies?.latitude) ? (
                         <AdminMap
                             type="tracking"
                             googleMapsApiKey={googleKey || ""}
-                            fleet={motoboy ? [{
-                                id: motoboy.id,
-                                lat: motoboy.lat,
-                                lng: motoboy.lng,
-                                bearing: calculateBearing(motoboy, { lat: order.latitude || order.pharmacies?.latitude || 0, lng: order.longitude || order.pharmacies?.longitude || 0 })
-                            }] : []}
+                            fleet={motoboy ? [{ id: motoboy.id, lat: motoboy.lat, lng: motoboy.lng, bearing: calculateBearing(motoboy, { lat: order.latitude || order.pharmacies?.latitude || 0, lng: order.longitude || order.pharmacies?.longitude || 0 }) }] : []}
                             markers={[
                                 { id: order.pharmacies?.id || 'pharmacy', lat: order.pharmacies?.latitude || 0, lng: order.pharmacies?.longitude || 0, type: 'pharmacy' },
                                 { id: 'destination', lat: order.latitude || order.pharmacies?.latitude || 0, lng: order.longitude || order.pharmacies?.longitude || 0, type: 'user' }
                             ]}
-                            polylines={[{
-                                path: routePath.length > 0 ? routePath : (motoboy ? [
-                                    { lat: motoboy.lat, lng: motoboy.lng },
-                                    { lat: order.latitude || order.pharmacies.latitude, lng: order.longitude || order.pharmacies.longitude }
-                                ] : []),
-                                color: "#13ec6d"
-                            }]}
+                            polylines={[{ path: routePath.length > 0 ? routePath : (motoboy ? [{ lat: motoboy.lat, lng: motoboy.lng }, { lat: order.latitude || order.pharmacies.latitude, lng: order.longitude || order.pharmacies.longitude }] : []), color: "#13ec6d" }]}
                             theme="light"
                             autoCenter={true}
                         />
@@ -515,31 +393,44 @@ export const UserOrderTracking = () => {
                             <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Aguardando Motoboy</p>
                         </div>
                     )}
-                    {/* Overlay badge for ETA */}
-                    <div className="absolute bottom-4 left-4 right-4 bg-white/95 dark:bg-zinc-900/95 backdrop-blur-md rounded-2xl p-4 shadow-lg flex items-center justify-between border-l-4 border-primary border border-white/20 z-10">
-                        <div className="flex items-center gap-3">
-                            <div className="bg-primary/20 p-2.5 rounded-2xl shadow-inner">
-                                <MaterialIcon name="moped" className="text-primary" />
+                    {order.status !== 'cancelado' && (
+                        <div className="absolute bottom-4 left-4 right-4 bg-white/95 dark:bg-zinc-900/95 backdrop-blur-md rounded-2xl p-4 shadow-lg flex items-center justify-between border-l-4 border-primary border border-white/20 z-10">
+                            <div className="flex items-center gap-3">
+                                <div className="bg-primary/20 p-2.5 rounded-2xl shadow-inner"><MaterialIcon name="moped" className="text-primary" /></div>
+                                <div>
+                                    <p className="text-[10px] text-gray-400 uppercase font-black tracking-widest">Chegada estimada</p>
+                                    <p className="text-lg font-black leading-tight">{calculateETA()}</p>
+                                </div>
                             </div>
-                            <div>
-                                <p className="text-[10px] text-gray-400 uppercase font-black tracking-widest">Chegada estimada</p>
-                                <p className="text-lg font-black leading-tight">
-                                    {calculateETA()}
-                                </p>
-                            </div>
+                            <MaterialIcon name="info" className="text-gray-300" />
                         </div>
-                        <MaterialIcon name="info" className="text-gray-300" />
-                    </div>
+                    )}
                 </div>
             </div>
 
-            {/* Alerta de Chegada - NOVO */}
-            {order.motoboy_arrived_at && (
+            {order.status === 'cancelado' && (
+                <div className="px-6 py-2">
+                    <div className="bg-red-500 text-white p-5 rounded-3xl flex items-start gap-4 shadow-xl shadow-red-500/20 border border-red-400">
+                        <div className="size-12 bg-white/20 rounded-2xl flex items-center justify-center shrink-0 mt-1">
+                            <MaterialIcon name="block" className="text-2xl" />
+                        </div>
+                        <div>
+                            <p className="font-black italic text-xl leading-tight uppercase tracking-tighter">Pedido Cancelado</p>
+                            <p className="text-sm font-bold opacity-90 mt-1">
+                                Motivo: {order.cancellation_reason || 'Não informado'}
+                            </p>
+                            <p className="text-[10px] font-medium opacity-70 uppercase tracking-widest mt-2">
+                                Entre em contato com a loja via chat para mais detalhes.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {order.motoboy_arrived_at && order.status !== 'cancelado' && (
                 <div className="px-6 py-2">
                     <div className="bg-green-500 text-white p-4 rounded-3xl flex items-center gap-4 animate-bounce shadow-lg shadow-green-500/20">
-                        <div className="size-12 bg-white/20 rounded-2xl flex items-center justify-center">
-                            <MaterialIcon name="notifications_active" className="text-2xl" />
-                        </div>
+                        <div className="size-12 bg-white/20 rounded-2xl flex items-center justify-center"><MaterialIcon name="notifications_active" className="text-2xl" /></div>
                         <div>
                             <p className="font-black italic text-lg leading-tight uppercase">O entregador chegou!</p>
                             <p className="text-[10px] font-bold opacity-80 uppercase tracking-widest">Ele está na sua porta agora</p>
@@ -548,30 +439,23 @@ export const UserOrderTracking = () => {
                 </div>
             )}
 
-            {/* SectionHeader */}
             <div className="flex items-center justify-between px-6 pt-4 pb-2">
                 <h3 className="text-[#0d1b13] dark:text-white text-xl font-black leading-tight tracking-[-0.015em]">Status do Pedido</h3>
-                <span className="text-[10px] font-black text-primary bg-primary/10 px-3 py-1.5 rounded-full uppercase tracking-widest shadow-sm ring-1 ring-primary/5">
-                    Pedido #{orderId?.substring(0, 8)}
-                </span>
+                <span className="text-[10px] font-black text-primary bg-primary/10 px-3 py-1.5 rounded-full uppercase tracking-widest shadow-sm ring-1 ring-primary/5">Pedido #{orderId?.substring(0, 8)}</span>
             </div>
 
-            {/* Timeline */}
             <div className="grid grid-cols-[48px_1fr] gap-x-2 px-8 py-4">
                 {steps.map((step, index) => {
                     const isActive = index === currentStepIndex;
                     const isCompleted = index < currentStepIndex;
                     const isPending = index > currentStepIndex;
-
                     return (
                         <React.Fragment key={index}>
                             <div className="flex flex-col items-center gap-1">
                                 <div className={`rounded-full p-2 shadow-sm z-10 ${isActive ? 'bg-primary ring-8 ring-primary/10 scale-110 text-slate-900' : isCompleted ? 'bg-primary text-slate-900' : 'bg-gray-100 dark:bg-zinc-800 text-gray-300 grayscale opacity-50'}`}>
                                     <MaterialIcon name={step.icon} className="text-[18px]" fill={isActive} />
                                 </div>
-                                {index < steps.length - 1 && (
-                                    <div className={`w-[3px] h-12 ${isCompleted ? 'bg-primary opacity-50' : 'bg-gray-100 dark:bg-zinc-800'}`}></div>
-                                )}
+                                {index < steps.length - 1 && <div className={`w-[3px] h-12 ${isCompleted ? 'bg-primary opacity-50' : 'bg-gray-100 dark:bg-zinc-800'}`}></div>}
                             </div>
                             <div className="flex flex-1 flex-col pb-8">
                                 <p className={`text-base font-black leading-normal italic ${isPending ? 'text-gray-400 dark:text-gray-600 opacity-60' : 'text-[#0d1b13] dark:text-white'}`}>{step.label}</p>
@@ -582,58 +466,56 @@ export const UserOrderTracking = () => {
                 })}
             </div>
 
-            {/* Chat Button */}
             <div className="flex flex-col gap-3 px-6 py-4">
                 <button
-                    onClick={() => {
-                        setUnreadCount(0);
-                        navigate(`/chat/${orderId}`);
-                    }}
+                    onClick={() => { setUnreadCount(0); navigate(`/chat/${orderId}`); }}
                     className="relative flex min-w-[84px] w-full cursor-pointer items-center justify-center overflow-hidden rounded-[28px] h-14 px-5 bg-primary text-slate-900 gap-3 shadow-xl shadow-primary/20 hover:scale-[1.02] transition-transform active:scale-[0.98] uppercase tracking-tighter ring-1 ring-primary/5"
                 >
                     <MaterialIcon name="chat" className="text-2xl font-bold" fill />
                     <span className="truncate text-base font-black leading-normal">Chat com a Farmácia</span>
-
-                    {unreadCount > 0 && (
-                        <div className="absolute right-6 top-3 bg-red-600 text-white text-[10px] font-black w-6 h-6 rounded-full flex items-center justify-center animate-bounce shadow-lg ring-2 ring-white dark:ring-zinc-900">
-                            {unreadCount}
-                        </div>
-                    )}
+                    {unreadCount > 0 && <div className="absolute right-6 top-3 bg-red-600 text-white text-[10px] font-black w-6 h-6 rounded-full flex items-center justify-center animate-bounce shadow-lg ring-2 ring-white dark:ring-zinc-900">{unreadCount}</div>}
                 </button>
 
-                {['pendente', 'aguardando_motoboy'].includes(order.status) && (
+                {/* Botão Cancelar Pedido (Apenas se não saiu para entrega) */}
+                {['pendente', 'preparando', 'aguardando_motoboy', 'pronto_entrega'].includes(order.status) && (
                     <button
-                        onClick={async () => {
-                            if (window.confirm('Deseja realmente cancelar este pedido?')) {
-                                const { error } = await supabase
-                                    .from('orders')
-                                    .update({ status: 'cancelado' })
-                                    .eq('id', orderId);
-
-                                if (error) {
-                                    alert('Erro ao cancelar pedido. Tente novamente.');
-                                } else {
-                                    alert('Pedido cancelado com sucesso.');
-                                    navigate('/meus-pedidos');
-                                }
-                            }
-                        }}
-                        className="w-full h-12 rounded-2xl bg-red-50 text-red-600 font-bold uppercase tracking-widest text-xs hover:bg-red-100 transition-colors"
+                        onClick={() => setIsCancelModalOpen(true)}
+                        className="w-full py-4 text-xs font-black text-red-500 hover:bg-red-500/5 rounded-[28px] transition-colors uppercase tracking-[0.2em]"
                     >
                         Cancelar Pedido
                     </button>
                 )}
+
+                <OrderCancellationModal
+                    isOpen={isCancelModalOpen}
+                    onClose={() => setIsCancelModalOpen(false)}
+                    userRole="customer"
+                    onConfirm={async (reason) => {
+                        try {
+                            const { error: updateError } = await supabase
+                                .from('orders')
+                                .update({ status: 'cancelado', cancellation_reason: reason })
+                                .eq('id', orderId);
+
+                            if (updateError) throw updateError;
+
+                            // Notificar Farmácia (Opcional, mas bom)
+                            setIsCancelModalOpen(false);
+                            navigate('/');
+                        } catch (err) {
+                            console.error("Erro ao cancelar:", err);
+                            alert("Não foi possível cancelar o pedido. Tente novamente.");
+                        }
+                    }}
+                />
             </div>
 
-            {/* Resumo do Pedido */}
             <div className="px-6 pb-12 mt-4">
                 <h3 className="text-[#0d1b13] dark:text-white text-lg font-black leading-tight tracking-[-0.015em] pb-6 font-sans">Itens do Pedido</h3>
                 <div className="space-y-4">
                     {items.map((item, i) => (
                         <div key={i} className="flex items-center gap-4 bg-gray-50 dark:bg-zinc-900/50 p-4 rounded-3xl border border-gray-100 dark:border-gray-800 group shadow-sm">
-                            <div className="w-14 h-14 bg-white dark:bg-zinc-800 rounded-2xl flex items-center justify-center p-2 border border-gray-100 dark:border-white/5 transition-transform group-hover:scale-110">
-                                <MaterialIcon name={item.icon} className="text-primary/30 text-2xl" />
-                            </div>
+                            <div className="w-14 h-14 bg-white dark:bg-zinc-800 rounded-2xl flex items-center justify-center p-2 border border-gray-100 dark:border-white/5 transition-transform group-hover:scale-110"><MaterialIcon name={item.icon} className="text-primary/30 text-2xl" /></div>
                             <div className="flex-1">
                                 <p className="text-sm font-black line-clamp-1">{item.name}</p>
                                 <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mt-0.5">{item.qty}</p>
@@ -642,20 +524,11 @@ export const UserOrderTracking = () => {
                         </div>
                     ))}
                 </div>
-
-                {/* Summary Footer */}
                 <div className="mt-8 pt-6 border-t border-dashed border-gray-100 dark:border-gray-800 flex justify-between items-center px-2">
                     <span className="text-gray-400 text-[10px] font-black uppercase tracking-widest">Total com entrega</span>
-                    <span className="text-2xl font-black text-primary tracking-tighter">
-                        R$ {(order.total_price || order.total_amount || 0).toFixed(2)}
-                    </span>
+                    <span className="text-2xl font-black text-primary tracking-tighter">R$ {(order?.total_price || order?.total_amount || 0).toFixed(2)}</span>
                 </div>
             </div>
-
-            {/* Bottom Indicator Area (iOS Style) */}
-            <div className="h-10 flex justify-center items-center">
-                <div className="w-32 h-1.5 bg-slate-100 dark:bg-zinc-800 rounded-full opacity-50"></div>
-            </div>
-        </div >
+        </div>
     );
 };

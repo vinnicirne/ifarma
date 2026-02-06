@@ -35,6 +35,7 @@ const ResetPassword = lazy(() => import('../pages/ResetPassword'));
 const DiagnosticPage = lazy(() => import('../pages/DiagnosticPage'));
 const HelpSupport = lazy(() => import('../pages/HelpSupport'));
 const PrivacyData = lazy(() => import('../pages/PrivacyData'));
+const LandingPage = lazy(() => import('../pages/client/LandingPage').then(m => ({ default: m.LandingPage })));
 
 // Pages - Admin (lazy load - large and admin-only)
 import AdminLayout from '../layouts/AdminLayout';
@@ -97,15 +98,16 @@ export const AppRoutes = ({ session, profile, userLocation, sortedPharmacies, re
 
             {/* Diagnostic Route - Public */}
             <Route path="/diagnostic" element={<Suspense fallback={<LoadingScreen />}><DiagnosticPage /></Suspense>} />
+            <Route path="/welcome" element={<Suspense fallback={<LoadingScreen />}><LandingPage /></Suspense>} />
 
             {/* Protected Client Routes */}
-            <Route path="/cart" element={<ProtectedRoute session={session}><Suspense fallback={<LoadingScreen />}><Cart /></Suspense></ProtectedRoute>} />
+            <Route path="/cart" element={<ProtectedRoute session={session}><Suspense fallback={<LoadingScreen />}><Cart session={session} /></Suspense></ProtectedRoute>} />
             <Route path="/checkout" element={<ProtectedRoute session={session}><Suspense fallback={<LoadingScreen />}><Checkout /></Suspense></ProtectedRoute>} />
 
             <Route path="/profile" element={<ProtectedRoute session={session}><Suspense fallback={<LoadingScreen />}><UserProfile session={session} profile={profile} onRefresh={refreshProfile} /></Suspense></ProtectedRoute>} />
-            <Route path="/favorites" element={<ProtectedRoute session={session}><Suspense fallback={<LoadingScreen />}><Favorites /></Suspense></ProtectedRoute>} />
+            <Route path="/favorites" element={<ProtectedRoute session={session}><Suspense fallback={<LoadingScreen />}><Favorites session={session} /></Suspense></ProtectedRoute>} />
             <Route path="/notifications" element={<ProtectedRoute session={session}><Suspense fallback={<LoadingScreen />}><Notifications /></Suspense></ProtectedRoute>} />
-            <Route path="/meus-pedidos" element={<ProtectedRoute session={session}><Suspense fallback={<LoadingScreen />}><UserOrders /></Suspense></ProtectedRoute>} />
+            <Route path="/meus-pedidos" element={<ProtectedRoute session={session}><Suspense fallback={<LoadingScreen />}><UserOrders session={session} /></Suspense></ProtectedRoute>} />
             <Route path="/order-tracking/:orderId?" element={<ProtectedRoute session={session}><Suspense fallback={<LoadingScreen />}><UserOrderTracking /></Suspense></ProtectedRoute>} />
             <Route path="/pedido/:orderId?" element={<ProtectedRoute session={session}><Suspense fallback={<LoadingScreen />}><UserOrderTracking /></Suspense></ProtectedRoute>} />
             <Route path="/prescription-upload" element={<ProtectedRoute session={session}><Suspense fallback={<LoadingScreen />}><PrescriptionUpload /></Suspense></ProtectedRoute>} />

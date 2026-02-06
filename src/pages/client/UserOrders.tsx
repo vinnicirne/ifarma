@@ -2,10 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { MaterialIcon } from '../../components/Shared';
-import BottomNavigation from '../../components/BottomNavigation';
+import { BottomNav } from '../../components/layout/BottomNav';
 import { useNotifications } from '../../hooks/useNotifications';
 
-const UserOrders = () => {
+const UserOrders = ({ session }: { session: any }) => {
     const navigate = useNavigate();
     const [userId, setUserId] = useState<string | null>(null);
     const [activeOrders, setActiveOrders] = useState<any[]>([]);
@@ -157,7 +157,7 @@ const UserOrders = () => {
                 )}
             </main>
 
-            <BottomNavigation />
+            <BottomNav session={session} />
         </div>
     );
 };

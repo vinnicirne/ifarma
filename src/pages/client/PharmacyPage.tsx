@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { MaterialIcon } from '../../components/Shared';
+import { BottomNav } from '../../components/layout/BottomNav';
+import { useCart } from '../../hooks/useCart';
 
 export const PharmacyPage = ({ session }: { session: any }) => {
     const { id } = useParams();
@@ -11,66 +13,16 @@ export const PharmacyPage = ({ session }: { session: any }) => {
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
     const [activeCategory, setActiveCategory] = useState('Todos');
-    const [cartCount, setCartCount] = useState(0);
 
-    // Initial cart count fetch (simplified, usually centralized in context/hook)
-    useEffect(() => {
-        if (session?.user?.id) {
-            // logic to fetch cart count
-            // For now, ignoring live update in this component unless we use the useCartCount hook
-            // But we need to import it or recreate it.
-        }
-    }, [session]);
+    const { addToCart } = useCart();
 
-
-    const addToCart = async (productId: string, quantity: number = 1) => {
-        if (!session) {
-            navigate('/login');
-            return;
-        }
-
+    const handleAddToCart = async (productId: string) => {
         try {
-            console.log('🛒 Adicionando ao carrinho:', productId, 'Farmácia:', id);
-
-            const { data: existing, error: fetchError } = await supabase
-                .from('cart_items')
-                .select('id, quantity')
-                .eq('customer_id', session.user.id)
-                .eq('product_id', productId)
-                .maybeSingle();
-
-            if (fetchError) {
-                console.error("Erro ao verificar carrinho:", fetchError);
-                throw fetchError;
-            }
-
-            if (existing) {
-                const { error: updateError } = await supabase
-                    .from('cart_items')
-                    .update({ quantity: existing.quantity + quantity })
-                    .eq('id', existing.id);
-
-                if (updateError) throw updateError;
-            } else {
-                const { error: insertError } = await supabase
-                    .from('cart_items')
-                    .insert({
-                        customer_id: session.user.id,
-                        product_id: productId,
-                        pharmacy_id: id,
-                        quantity
-                    });
-
-                if (insertError) {
-                    console.error("Erro no insert do carrinho:", insertError);
-                    throw insertError;
-                }
-            }
-
+            await addToCart(productId, id || '');
             alert('Produto adicionado ao carrinho! 🛒');
         } catch (error: any) {
-            console.error("💥 Erro fatal ao adicionar ao carrinho:", error);
-            alert(`Erro ao adicionar ao carrinho: ${error.message || 'Verifique sua conexão'}`);
+            console.error("Erro ao adicionar ao carrinho:", error);
+            alert(`Erro: ${error.message}`);
         }
     };
 
@@ -242,7 +194,7 @@ export const PharmacyPage = ({ session }: { session: any }) => {
                                     <button
                                         onClick={(e) => {
                                             e.preventDefault();
-                                            addToCart(prod.id);
+                                            handleAddToCart(prod.id);
                                         }}
                                         className="absolute bottom-2 right-2 size-8 bg-primary rounded-xl flex items-center justify-center shadow-lg transition-transform active:scale-95 hover:scale-110"
                                     >
@@ -267,30 +219,7 @@ export const PharmacyPage = ({ session }: { session: any }) => {
             </div>
 
             {/* Floating Bottom Nav */}
-            <div className="fixed bottom-6 left-4 right-4 z-50 max-w-lg mx-auto">
-                <div className="bg-zinc-900/95 dark:bg-zinc-800/95 backdrop-blur-xl rounded-full px-6 py-4 flex items-center justify-between shadow-2xl border border-white/10 ring-1 ring-white/5">
-                    <Link to="/" className="flex flex-col items-center text-zinc-400 hover:text-primary transition-colors">
-                        <MaterialIcon name="storefront" />
-                        <span className="text-[10px] font-bold uppercase tracking-widest mt-0.5">Shop</span>
-                    </Link>
-                    <Link to="/cart" className="flex flex-col items-center relative text-primary hover:scale-110 transition-transform">
-                        <div className="bg-primary size-5 rounded-full absolute -top-2 -right-2 flex items-center justify-center border-2 border-zinc-900">
-                            {/* Note: In real app, re-use useCartCount here */}
-                            <span className="text-[10px] text-black font-black font-sans">{localStorage.getItem('cart_count') || '0'}</span>
-                        </div>
-                        <MaterialIcon name="shopping_cart" fill />
-                        <span className="text-[10px] font-bold uppercase tracking-widest mt-0.5">Cart</span>
-                    </Link>
-                    <Link to="/order-tracking" className="flex flex-col items-center text-zinc-400 hover:text-primary transition-colors">
-                        <MaterialIcon name="receipt_long" />
-                        <span className="text-[10px] font-bold uppercase tracking-widest mt-0.5">Orders</span>
-                    </Link>
-                    <Link to="/profile" className="flex flex-col items-center text-zinc-400 hover:text-primary transition-colors">
-                        <MaterialIcon name="person" />
-                        <span className="text-[10px] font-bold uppercase tracking-widest mt-0.5">Profile</span>
-                    </Link>
-                </div>
-            </div>
+            <BottomNav session={session} />
         </div>
     );
 };

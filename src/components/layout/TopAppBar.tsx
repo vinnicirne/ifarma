@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { useCartCount } from '../../hooks/useCartCount';
+import { MaterialIcon } from '../Shared';
 
 export const TopAppBar = ({ onSearch, userLocation, session }: { onSearch: (query: string) => void, userLocation: { lat: number, lng: number } | null, session?: any }) => {
     const [query, setQuery] = useState('');

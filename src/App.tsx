@@ -193,14 +193,25 @@ function App() {
         if (newMsg.sender_id === session.user.id) return;
 
         // Play Sound
-        console.log("💬 Nova mensagem de chat global!");
-        const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2346/2346-preview.mp3');
+        console.log("💬 Nova mensagem recebida:", newMsg.message_type);
+
+        // Specialized Horn Sound for "BI-BI"
+        const hornSound = 'https://assets.mixkit.co/active_storage/sfx/2855/2855-preview.mp3';
+        const defaultChatSound = 'https://assets.mixkit.co/active_storage/sfx/2346/2346-preview.mp3';
+
+        const soundToPlay = newMsg.message_type === 'horn' ? hornSound : defaultChatSound;
+
+        const audio = new Audio(soundToPlay);
         audio.volume = 0.8;
-        audio.play().catch(e => console.warn("Audio play blocked:", e));
+        audio.play().catch(e => {
+          console.warn("Audio play blocked by browser. User must interact first.", e);
+          // Fallback: try to play again on next click
+          window.addEventListener('click', () => audio.play(), { once: true });
+        });
 
         // System Notification
         if (window.Notification?.permission === 'granted' && document.hidden) {
-          new Notification('Nova mensagem', {
+          new Notification(newMsg.message_type === 'horn' ? '📢 MOTOBOY CHEGOU!' : 'Ifarma: Nova mensagem', {
             body: newMsg.content || 'Novo anexo recebido.',
             icon: '/pwa-192x192.png'
           });

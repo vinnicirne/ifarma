@@ -4,16 +4,18 @@ import { MaterialIcon } from './MaterialIcon';
 interface AddressAutocompleteProps {
     value: string;
     onChange: (address: string) => void;
+    onSelect?: (address: string, lat: number, lng: number) => void;
     placeholder?: string;
     disabled?: boolean;
 }
 
-export const AddressAutocomplete = ({ value, onChange, placeholder = "Digite o endereço...", disabled = false }: AddressAutocompleteProps) => {
+export const AddressAutocomplete = ({ value, onChange, onSelect, placeholder = "Digite o endereço...", disabled = false }: AddressAutocompleteProps) => {
     const [inputValue, setInputValue] = useState(value);
     const [predictions, setPredictions] = useState<google.maps.places.AutocompletePrediction[]>([]);
     const [showPredictions, setShowPredictions] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const autocompleteService = useRef<google.maps.places.AutocompleteService | null>(null);
+    const placesService = useRef<google.maps.places.PlacesService | null>(null);
 
     useEffect(() => {
         setInputValue(value);
@@ -22,6 +24,9 @@ export const AddressAutocomplete = ({ value, onChange, placeholder = "Digite o e
     useEffect(() => {
         if (!autocompleteService.current && (window as any).google) {
             autocompleteService.current = new (window as any).google.maps.places.AutocompleteService();
+            // Create a dummy div for PlacesService as it requires an HTML element or a map
+            const dummyDiv = document.createElement('div');
+            placesService.current = new (window as any).google.maps.places.PlacesService(dummyDiv);
         }
     }, []);
 
@@ -65,6 +70,19 @@ export const AddressAutocomplete = ({ value, onChange, placeholder = "Digite o e
         setInputValue(fullAddress);
         onChange(fullAddress);
         setShowPredictions(false);
+
+        if (onSelect && placesService.current) {
+            placesService.current.getDetails(
+                { placeId: prediction.place_id, fields: ['geometry'] },
+                (place, status) => {
+                    if (status === google.maps.places.PlacesServiceStatus.OK && place?.geometry?.location) {
+                        const lat = place.geometry.location.lat();
+                        const lng = place.geometry.location.lng();
+                        onSelect(fullAddress, lat, lng);
+                    }
+                }
+            );
+        }
     };
 
     return (

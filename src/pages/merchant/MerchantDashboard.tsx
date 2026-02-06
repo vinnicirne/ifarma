@@ -3,6 +3,8 @@ import MerchantLayout from './MerchantLayout';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import RealtimeMetrics from '../../components/dashboard/RealtimeMetrics';
+import { OrderCancellationModal } from '../../components/OrderCancellationModal';
+import { notifyOrderStatusChange } from '../../utils/notifications';
 
 const MaterialIcon = ({ name, className = "" }: { name: string, className?: string }) => (
     <span className={`material-symbols-outlined ${className}`}>{name}</span>
@@ -13,6 +15,9 @@ const MerchantDashboard = () => {
     const [loading, setLoading] = useState(true);
     const [profile, setProfile] = useState<any>(null);
     const [orders, setOrders] = useState<any[]>([]);
+    const [pharmacy, setPharmacy] = useState<any>(null);
+    const [selectedOrder, setSelectedOrder] = useState<any>(null);
+    const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
 
     useEffect(() => {
         const fetchInitialData = async () => {
@@ -40,8 +45,14 @@ const MerchantDashboard = () => {
 
                 setProfile(currentProfile);
 
-                // 2. Fetch Orders
                 if (currentProfile.pharmacy_id) {
+                    const { data: pharmData } = await supabase
+                        .from('pharmacies')
+                        .select('*')
+                        .eq('id', currentProfile.pharmacy_id)
+                        .single();
+                    if (pharmData) setPharmacy(pharmData);
+
                     const { data: ordersData } = await supabase
                         .from('orders')
                         .select('*')
@@ -86,6 +97,50 @@ const MerchantDashboard = () => {
         };
     }, [profile?.pharmacy_id]);
 
+    const handleCancelOrder = async (reason: string) => {
+        if (!selectedOrder) return;
+
+        try {
+            const { error } = await supabase
+                .from('orders')
+                .update({ status: 'cancelado', cancellation_reason: reason })
+                .eq('id', selectedOrder.id);
+
+            if (error) throw error;
+
+            // Send Auto Message
+            if (pharmacy?.auto_message_cancel_enabled && pharmacy?.auto_message_cancel_text) {
+                const { data: { user } } = await supabase.auth.getUser();
+                if (user) {
+                    await supabase.from('order_messages').insert({
+                        order_id: selectedOrder.id,
+                        sender_id: user.id,
+                        content: `${pharmacy.auto_message_cancel_text}\n\nMotivo: ${reason}`,
+                        message_type: 'text',
+                        sender_role: 'pharmacy'
+                    });
+                }
+            }
+
+            // Notify Customer
+            if (selectedOrder.customer_id) {
+                notifyOrderStatusChange(
+                    selectedOrder.id,
+                    selectedOrder.customer_id,
+                    'cancelado',
+                    `Seu pedido foi cancelado pela loja. Motivo: ${reason}`
+                ).catch(console.error);
+            }
+
+            setIsCancelModalOpen(false);
+            setSelectedOrder(null);
+            alert('Pedido cancelado com sucesso!');
+        } catch (err: any) {
+            console.error('Erro ao cancelar pedido:', err);
+            alert('Erro ao cancelar: ' + err.message);
+        }
+    };
+
     return (
         <MerchantLayout activeTab="dashboard" title="Visão Geral">
             {/* Welcome Section */}
@@ -113,59 +168,87 @@ const MerchantDashboard = () => {
             {loading ? (
                 <div className="py-20 flex justify-center"><div className="animate-spin size-8 border-4 border-primary border-t-transparent rounded-full"></div></div>
             ) : (
-                <div className="space-y-8 animate-fade-in">
+                <>
+                    <div className="space-y-8 animate-fade-in">
 
-                    {/* Realtime Metrics Widget (Replaces Static KPI Grid) */}
-                    <RealtimeMetrics orders={orders} />
+                        {/* Realtime Metrics Widget (Replaces Static KPI Grid) */}
+                        <RealtimeMetrics orders={orders} />
 
-                    <div className="grid lg:grid-cols-3 gap-8">
-                        {/* Recent Orders List */}
-                        <div className="lg:col-span-2 bg-white dark:bg-zinc-800 p-6 rounded-[32px] border border-slate-100 dark:border-white/5 shadow-sm flex flex-col">
-                            <h3 className="text-lg font-black italic text-slate-900 dark:text-white mb-6">Pedidos Recentes</h3>
+                        <div className="grid lg:grid-cols-3 gap-8">
+                            {/* Recent Orders List */}
+                            <div className="lg:col-span-2 bg-white dark:bg-zinc-800 p-6 rounded-[32px] border border-slate-100 dark:border-white/5 shadow-sm flex flex-col">
+                                <h3 className="text-lg font-black italic text-slate-900 dark:text-white mb-6">Pedidos Recentes</h3>
 
-                            <div className="flex-1 space-y-4">
-                                {orders.slice(0, 5).map((order) => (
-                                    <div
-                                        key={order.id}
-                                        onClick={() => navigate('/gestor/orders')}
-                                        className="flex gap-4 p-3 hover:bg-slate-50 dark:hover:bg-zinc-900/50 rounded-2xl transition-colors cursor-pointer group border border-transparent hover:border-slate-100 dark:hover:border-white/5"
-                                    >
-                                        <div className={`size-12 rounded-2xl bg-slate-100 dark:bg-white/5 flex items-center justify-center shrink-0 font-black text-xs shadow-sm border border-slate-200 dark:border-white/10 group-hover:scale-110 transition-transform ${order.status === 'entregue' ? 'text-green-500 bg-green-500/10 border-green-500/20' :
-                                            order.status === 'pendente' ? 'text-blue-500 bg-blue-500/10 border-blue-500/20' : ''
-                                            }`}>
-                                            <MaterialIcon name="receipt_long" />
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                            <div className="flex justify-between">
-                                                <h4 className="font-black italic text-slate-900 dark:text-white">#{order.id.substring(0, 6)}</h4>
-                                                <span className={`text-[9px] font-black uppercase tracking-widest ${order.status === 'entregue' ? 'text-green-500' : 'text-slate-500'
-                                                    }`}>{order.status}</span>
+                                <div className="flex-1 space-y-4">
+                                    {orders.slice(0, 5).map((order) => (
+                                        <div
+                                            key={order.id}
+                                            onClick={() => navigate('/gestor/orders')}
+                                            className="flex gap-4 p-3 hover:bg-slate-50 dark:hover:bg-zinc-900/50 rounded-2xl transition-colors cursor-pointer group border border-transparent hover:border-slate-100 dark:hover:border-white/5"
+                                        >
+                                            <div className={`size-12 rounded-2xl bg-slate-100 dark:bg-white/5 flex items-center justify-center shrink-0 font-black text-xs shadow-sm border border-slate-200 dark:border-white/10 group-hover:scale-110 transition-transform ${order.status === 'entregue' ? 'text-green-500 bg-green-500/10 border-green-500/20' :
+                                                order.status === 'pendente' ? 'text-blue-500 bg-blue-500/10 border-blue-500/20' : ''
+                                                }`}>
+                                                <MaterialIcon name="receipt_long" />
                                             </div>
-                                            <p className="text-xs text-slate-500 dark:text-slate-400 truncate mt-1 font-medium">
-                                                {new Date(order.created_at).toLocaleTimeString()} • R$ {order.total_price}
-                                            </p>
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex justify-between">
+                                                    <h4 className="font-black italic text-slate-900 dark:text-white">#{order.id.substring(0, 6)}</h4>
+                                                    <div className="flex items-center gap-2">
+                                                        <span className={`text-[9px] font-black uppercase tracking-widest ${order.status === 'entregue' ? 'text-green-500' :
+                                                            order.status === 'cancelado' ? 'text-red-500' : 'text-slate-500'
+                                                            }`}>{order.status}</span>
+
+                                                        {!['entregue', 'cancelado'].includes(order.status) && (
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    setSelectedOrder(order);
+                                                                    setIsCancelModalOpen(true);
+                                                                }}
+                                                                className="p-1 px-2 text-[8px] bg-red-500/10 text-red-500 rounded-lg font-black uppercase tracking-tighter hover:bg-red-500 hover:text-white transition-all shadow-sm"
+                                                            >
+                                                                Cancelar
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                                <p className="text-xs text-slate-500 dark:text-slate-400 truncate mt-1 font-medium">
+                                                    {new Date(order.created_at).toLocaleTimeString()} • R$ {order.total_price}
+                                                </p>
+                                            </div>
                                         </div>
-                                    </div>
-                                ))}
-                                {orders.length === 0 && <p className="text-slate-500 italic p-4">Nenhum pedido hoje.</p>}
+                                    ))}
+                                    {orders.length === 0 && <p className="text-slate-500 italic p-4">Nenhum pedido hoje.</p>}
+                                </div>
+
+                                <Link to="/gestor/orders" className="mt-6 w-full py-4 rounded-xl bg-slate-50 dark:bg-zinc-900 text-slate-600 dark:text-slate-300 text-[10px] font-black uppercase tracking-widest hover:bg-slate-100 dark:hover:bg-zinc-700 transition-colors text-center block">
+                                    Ver Todos os Pedidos
+                                </Link>
                             </div>
 
-                            <Link to="/gestor/orders" className="mt-6 w-full py-4 rounded-xl bg-slate-50 dark:bg-zinc-900 text-slate-600 dark:text-slate-300 text-[10px] font-black uppercase tracking-widest hover:bg-slate-100 dark:hover:bg-zinc-700 transition-colors text-center block">
-                                Ver Todos os Pedidos
-                            </Link>
-                        </div>
-
-                        {/* Quick Actions / Tips */}
-                        <div className="space-y-6">
-                            <div className="bg-primary/10 p-6 rounded-[32px] border border-primary/20">
-                                <h3 className="text-primary font-black italic mb-2">Dica do Dia</h3>
-                                <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
-                                    Mantenha seu painel aberto para ouvir as notificações de novos pedidos em tempo real.
-                                </p>
+                            {/* Quick Actions / Tips */}
+                            <div className="space-y-6">
+                                <div className="bg-primary/10 p-6 rounded-[32px] border border-primary/20">
+                                    <h3 className="text-primary font-black italic mb-2">Dica do Dia</h3>
+                                    <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                                        Mantenha seu painel aberto para ouvir as notificações de novos pedidos em tempo real.
+                                    </p>
+                                </div>
                             </div>
                         </div>
                     </div>
-                </div>
+
+                    <OrderCancellationModal
+                        isOpen={isCancelModalOpen}
+                        onClose={() => {
+                            setIsCancelModalOpen(false);
+                            setSelectedOrder(null);
+                        }}
+                        userRole="pharmacy"
+                        onConfirm={handleCancelOrder}
+                    />
+                </>
             )}
         </MerchantLayout>
     );

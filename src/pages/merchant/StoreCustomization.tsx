@@ -20,6 +20,12 @@ const StoreCustomization = () => {
     const [logoUrl, setLogoUrl] = useState('');
     const [bannerUrl, setBannerUrl] = useState('');
 
+    // Auto-message States
+    const [autoMessageAcceptEnabled, setAutoMessageAcceptEnabled] = useState(false);
+    const [autoMessageAcceptText, setAutoMessageAcceptText] = useState('');
+    const [autoMessageCancelEnabled, setAutoMessageCancelEnabled] = useState(false);
+    const [autoMessageCancelText, setAutoMessageCancelText] = useState('');
+
     // Address States
     const [cep, setCep] = useState('');
     const [street, setStreet] = useState('');
@@ -75,6 +81,12 @@ const StoreCustomization = () => {
                 setState(data.state || '');
                 setLatitude(data.latitude?.toString() || '');
                 setLongitude(data.longitude?.toString() || '');
+
+                // Auto-messages
+                setAutoMessageAcceptEnabled(data.auto_message_accept_enabled ?? false);
+                setAutoMessageAcceptText(data.auto_message_accept_text || 'Olá! Recebemos seu pedido e já estamos preparando.');
+                setAutoMessageCancelEnabled(data.auto_message_cancel_enabled ?? false);
+                setAutoMessageCancelText(data.auto_message_cancel_text || 'Infelizmente tivemos que cancelar seu pedido por um motivo de força maior. Entre em contato para mais detalhes.');
             }
         } catch (error) {
             console.error("Error fetching pharmacy:", error);
@@ -162,6 +174,10 @@ const StoreCustomization = () => {
                     state,
                     latitude: parseFloat(latitude) || 0,
                     longitude: parseFloat(longitude) || 0,
+                    auto_message_accept_enabled: autoMessageAcceptEnabled,
+                    auto_message_accept_text: autoMessageAcceptText,
+                    auto_message_cancel_enabled: autoMessageCancelEnabled,
+                    auto_message_cancel_text: autoMessageCancelText,
                     updated_at: new Date()
                 })
                 .eq('id', pharmacy.id);
@@ -315,6 +331,79 @@ const StoreCustomization = () => {
                             </button>
                         </div>
                     </div>
+                </div>
+
+                {/* CHAT AUTOMATION SECTION */}
+                <div className="bg-white dark:bg-zinc-800 rounded-[32px] border border-slate-100 dark:border-white/5 overflow-hidden shadow-sm mb-8 p-8">
+                    <div className="flex items-center gap-3 mb-6">
+                        <div className="p-2 bg-blue-500/10 rounded-lg">
+                            <MaterialIcon name="chat" className="text-blue-500" />
+                        </div>
+                        <div>
+                            <h3 className="text-lg font-black italic text-slate-900 dark:text-white uppercase leading-none">Automação de Chat</h3>
+                            <p className="text-slate-500 font-bold text-[9px] uppercase tracking-widest mt-1">Mensagens automáticas para melhorar a experiência do cliente</p>
+                        </div>
+                    </div>
+
+                    <div className="space-y-8">
+                        {/* Auto-Accept Message */}
+                        <div className="bg-slate-50 dark:bg-black/20 p-6 rounded-[24px] border border-slate-100 dark:border-white/5">
+                            <div className="flex items-center justify-between mb-4">
+                                <div>
+                                    <span className="block font-black text-sm text-slate-900 dark:text-white italic">Mensagem ao Aceitar Pedido</span>
+                                    <span className="text-[10px] text-slate-500 uppercase font-black">Enviada assim que o botão "Aceitar" é clicado</span>
+                                </div>
+                                <button
+                                    onClick={() => setAutoMessageAcceptEnabled(!autoMessageAcceptEnabled)}
+                                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${autoMessageAcceptEnabled ? 'bg-primary' : 'bg-slate-300 dark:bg-zinc-700'}`}
+                                >
+                                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${autoMessageAcceptEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
+                                </button>
+                            </div>
+                            {autoMessageAcceptEnabled && (
+                                <textarea
+                                    value={autoMessageAcceptText}
+                                    onChange={e => setAutoMessageAcceptText(e.target.value)}
+                                    className="w-full h-24 p-4 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-white/10 rounded-xl outline-none font-bold italic text-slate-900 dark:text-white focus:border-primary transition-colors text-sm"
+                                    placeholder="Escreva sua mensagem personalizada..."
+                                />
+                            )}
+                        </div>
+
+                        {/* Auto-Cancel Message */}
+                        <div className="bg-slate-50 dark:bg-black/20 p-6 rounded-[24px] border border-slate-100 dark:border-white/5">
+                            <div className="flex items-center justify-between mb-4">
+                                <div>
+                                    <span className="block font-black text-sm text-slate-900 dark:text-white italic">Mensagem ao Cancelar Pedido</span>
+                                    <span className="text-[10px] text-slate-500 uppercase font-black">Enviada quando um pedido é cancelado</span>
+                                </div>
+                                <button
+                                    onClick={() => setAutoMessageCancelEnabled(!autoMessageCancelEnabled)}
+                                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${autoMessageCancelEnabled ? 'bg-red-500' : 'bg-slate-300 dark:bg-zinc-700'}`}
+                                >
+                                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${autoMessageCancelEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
+                                </button>
+                            </div>
+                            {autoMessageCancelEnabled && (
+                                <textarea
+                                    value={autoMessageCancelText}
+                                    onChange={e => setAutoMessageCancelText(e.target.value)}
+                                    className="w-full h-24 p-4 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-white/10 rounded-xl outline-none font-bold italic text-slate-900 dark:text-white focus:border-red-500 transition-colors text-sm"
+                                    placeholder="Escreva sua mensagem personalizada..."
+                                />
+                            )}
+                        </div>
+                    </div>
+                </div>
+
+                <div className="flex justify-end p-4">
+                    <button
+                        onClick={handleSave}
+                        disabled={saving}
+                        className="bg-primary text-background-dark font-black h-14 px-12 rounded-2xl uppercase tracking-widest shadow-xl shadow-primary/30 hover:scale-105 active:scale-95 transition-all disabled:opacity-50 flex items-center gap-2"
+                    >
+                        {saving ? 'Gravando...' : 'Salvar Todas as Configurações'}
+                    </button>
                 </div>
             </div>
         </MerchantLayout>

@@ -7,22 +7,15 @@ const MaterialIcon = ({ name, className = "", style = {} }: { name: string, clas
     <span className={`material-symbols-outlined ${className}`} style={style}>{name}</span>
 );
 
-import BottomNavigation from '../components/BottomNavigation';
+import { BottomNav } from '../components/layout/BottomNav';
 
-const Favorites = () => {
+const Favorites = ({ session }: { session: any }) => {
     const navigate = useNavigate();
     const [activeTab, setActiveTab] = useState<'Medicamentos' | 'Farmácias'>('Medicamentos');
-    const [session, setSession] = useState<any>(null);
     const [favProductsData, setFavProductsData] = useState<any[]>([]);
     const [favPharmaciesData, setFavPharmaciesData] = useState<any[]>([]);
 
     const { favoriteProducts, favoritePharmacies, toggleProductFavorite, togglePharmacyFavorite, loading } = useFavorites(session?.user?.id);
-
-    useEffect(() => {
-        supabase.auth.getSession().then(({ data: { session } }) => {
-            setSession(session);
-        });
-    }, []);
 
     useEffect(() => {
         if (session?.user?.id) {
@@ -220,7 +213,7 @@ const Favorites = () => {
             </div>
 
             {/* Bottom Navigation Bar */}
-            <BottomNavigation />
+            <BottomNav session={session} />
         </div>
     );
 };

@@ -1,39 +1,50 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { MaterialIcon } from '../Shared';
-import { supabase } from '../../lib/supabase';
-
 import { useCartCount } from '../../hooks/useCartCount';
+import { useNotifications } from '../../hooks/useNotifications';
 
 export const BottomNav = ({ session }: { session: any }) => {
     const location = useLocation();
-    const cartCount = useCartCount(session?.user?.id);
+    const currentPath = location.pathname;
+    const userId = session?.user?.id;
+
+    const cartCount = useCartCount(userId);
+    const { unreadCount } = useNotifications(userId);
+
+    const navItems = [
+        { path: '/', label: 'Início', icon: 'home' },
+        { path: '/pharmacies', label: 'Explorar', icon: 'explore' },
+        { path: '/cart', label: 'Carrinho', icon: 'shopping_cart', count: cartCount },
+        { path: '/meus-pedidos', label: 'Pedidos', icon: 'receipt_long' },
+        { path: '/profile', label: 'Perfil', icon: 'person', count: unreadCount, badgeColor: 'bg-primary' },
+    ];
 
     return (
-        <nav className="fixed bottom-0 w-full max-w-[480px] bg-white/90 dark:bg-background-dark/90 backdrop-blur-lg border-t border-slate-200 dark:border-slate-800 pb-6 pt-2 z-50">
-            <div className="flex justify-around items-center">
-                <Link to="/" className={`flex flex-col items-center gap-1 ${location.pathname === '/' ? 'text-primary' : 'text-slate-400'}`}>
-                    <MaterialIcon name="home" fill={location.pathname === '/'} />
-                    <span className="text-[10px] font-bold">Início</span>
-                </Link>
-                <Link to="/pharmacies" className={`flex flex-col items-center gap-1 ${location.pathname === '/pharmacies' ? 'text-primary' : 'text-slate-400'}`}>
-                    <MaterialIcon name="search" fill={location.pathname === '/pharmacies'} />
-                    <span className="text-[10px] font-bold">Busca</span>
-                </Link>
-                <Link to="/cart" className={`flex flex-col items-center gap-1 relative ${location.pathname === '/cart' ? 'text-primary' : 'text-slate-400'}`}>
-                    <MaterialIcon name="shopping_cart" fill={location.pathname === '/cart'} />
-                    {cartCount > 0 && (
-                        <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[8px] font-black size-4 rounded-full flex items-center justify-center border border-white">
-                            {cartCount}
-                        </span>
-                    )}
-                    <span className="text-[10px] font-bold">Carrinho</span>
-                </Link>
-                <Link to="/profile" className={`flex flex-col items-center gap-1 ${location.pathname === '/profile' ? 'text-primary' : 'text-slate-400'}`}>
-                    <MaterialIcon name="person" fill={location.pathname === '/profile'} />
-                    <span className="text-[10px] font-bold">Perfil</span>
-                </Link>
-            </div>
-        </nav>
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[92%] max-w-[440px] z-50">
+            <nav className="bg-zinc-900/95 dark:bg-zinc-800/95 backdrop-blur-xl rounded-[32px] px-6 py-3 flex items-center justify-between shadow-2xl border border-white/10 ring-1 ring-white/5">
+                {navItems.map((item) => {
+                    const isActive = currentPath === item.path || (item.path !== '/' && currentPath.startsWith(item.path));
+
+                    return (
+                        <Link
+                            key={item.path}
+                            to={item.path}
+                            className={`flex flex-col items-center relative transition-all duration-300 ${isActive ? 'text-primary scale-110' : 'text-zinc-500 hover:text-zinc-300'}`}
+                        >
+                            {item.count !== undefined && item.count > 0 && (
+                                <div className={`absolute -top-1.5 -right-1.5 ${item.badgeColor || 'bg-primary'} size-4 rounded-full flex items-center justify-center border-2 border-zinc-900 animate-in zoom-in duration-300`}>
+                                    <span className="text-[8px] text-black font-black">{item.count}</span>
+                                </div>
+                            )}
+                            <MaterialIcon name={item.icon} fill={isActive} />
+                            <span className="text-[10px] font-bold uppercase tracking-widest mt-1 scale-75 origin-top">
+                                {item.label}
+                            </span>
+                        </Link>
+                    );
+                })}
+            </nav>
+        </div>
     );
 };

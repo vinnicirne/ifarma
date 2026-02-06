@@ -25,6 +25,7 @@ import AdminMap from '../../components/admin/AdminMap';
 import SupportAlerts from '../../components/admin/SupportAlerts';
 import SystemSimulator from '../../components/admin/SystemSimulator';
 import OrderAuditModal from '../../components/admin/OrderAuditModal';
+import { AdminPushNotification } from '../../components/admin/AdminPushNotification';
 import { supabase } from '../../lib/supabase';
 
 const AdminDashboard = ({ profile }: { profile: any }) => {
@@ -52,6 +53,28 @@ const AdminDashboard = ({ profile }: { profile: any }) => {
     const [topCategories, setTopCategories] = useState<{ name: string, total: number }[]>([]);
     const [mapMode, setMapMode] = useState<'activity' | 'profitability'>('activity');
     const [profitabilityData, setProfitabilityData] = useState<any[]>([]);
+    const [googleKey, setGoogleKey] = useState<string | null>(null);
+
+    // 0. Fetch Google Maps Key
+    useEffect(() => {
+        const fetchGoogleKey = async () => {
+            const envKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+            if (envKey) {
+                setGoogleKey(envKey);
+                return;
+            }
+            const { data: settings } = await supabase
+                .from('system_settings')
+                .select('value')
+                .eq('key', 'google_maps_api_key')
+                .single();
+
+            if (settings?.value) {
+                setGoogleKey(settings.value);
+            }
+        };
+        fetchGoogleKey();
+    }, []);
 
     // 1. Lógica Real-time e Fetch de dados iniciais
     useEffect(() => {
@@ -596,6 +619,7 @@ const AdminDashboard = ({ profile }: { profile: any }) => {
                             fleet={simulationFleet}
                             onMotoboyClick={handleMotoboyClick}
                             markers={mapMarkers}
+                            googleMapsApiKey={googleKey || ""}
                         />
                     </div>
                 </div>
@@ -650,7 +674,7 @@ const AdminDashboard = ({ profile }: { profile: any }) => {
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 {/* Ranking de Farmácias com WhatsApp (Premium) */}
                 <div className="bg-[#111a16] border border-white/5 p-8 rounded-[40px] shadow-xl flex flex-col h-[450px]">
                     <div className="flex justify-between items-center mb-8">
@@ -695,6 +719,9 @@ const AdminDashboard = ({ profile }: { profile: any }) => {
 
                 {/* Simulador Operacional */}
                 <SystemSimulator onFleetUpdate={setSimulationFleet} />
+
+                {/* Push Notifications Panel */}
+                <AdminPushNotification />
             </div>
 
             {selectedOrderId && (

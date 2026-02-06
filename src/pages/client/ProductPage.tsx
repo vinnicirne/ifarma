@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { MaterialIcon } from '../../components/Shared';
+import { useCart } from '../../hooks/useCart';
 
 export const ProductPage = ({ session }: { session: any }) => {
     const { id } = useParams();
@@ -10,53 +11,21 @@ export const ProductPage = ({ session }: { session: any }) => {
     const [loading, setLoading] = useState(true);
     const [qty, setQty] = useState(1);
 
-    const addToCart = async (productId: string, quantity: number = 1) => {
+    const { addToCart: addToCartHook } = useCart();
+
+    const handleAddToCart = async () => {
         if (!session) {
             navigate('/login');
             return;
         }
 
         try {
-            console.log('🛒 Adicionando ao carrinho:', productId, 'Farmácia:', product?.pharmacy_id);
-
-            const { data: existing, error: fetchError } = await supabase
-                .from('cart_items')
-                .select('id, quantity')
-                .eq('customer_id', session.user.id)
-                .eq('product_id', productId)
-                .maybeSingle();
-
-            if (fetchError) {
-                console.error("Erro ao verificar carrinho:", fetchError);
-                throw fetchError;
-            }
-
-            if (existing) {
-                const { error: updateError } = await supabase
-                    .from('cart_items')
-                    .update({ quantity: existing.quantity + quantity })
-                    .eq('id', existing.id);
-
-                if (updateError) throw updateError;
-            } else {
-                const { error: insertError } = await supabase
-                    .from('cart_items')
-                    .insert({
-                        customer_id: session.user.id,
-                        product_id: productId,
-                        pharmacy_id: product?.pharmacy_id,
-                        quantity
-                    });
-
-                if (insertError) {
-                    console.error("Erro no insert do carrinho:", insertError);
-                    throw insertError;
-                }
-            }
+            await addToCartHook(product.id, product.pharmacy_id, qty);
             alert('Produto adicionado ao carrinho! 🛒');
+            navigate('/cart');
         } catch (error: any) {
-            console.error("💥 Erro fatal ao adicionar ao carrinho:", error);
-            alert(`Erro ao adicionar ao carrinho: ${error.message || 'Verifique sua conexão'}`);
+            console.error("Erro ao adicionar ao carrinho:", error);
+            alert(`Erro: ${error.message}`);
         }
     };
 
@@ -163,10 +132,7 @@ export const ProductPage = ({ session }: { session: any }) => {
                         </button>
                     )}
                     <button
-                        onClick={() => {
-                            addToCart(product.id, qty);
-                            navigate('/cart');
-                        }}
+                        onClick={handleAddToCart}
                         className="flex w-full items-center justify-center gap-2 h-14 rounded-3xl bg-primary text-background-dark font-black text-lg shadow-xl shadow-primary/20 transition-all active:scale-95 hover:scale-[1.02]"
                     >
                         <MaterialIcon name="shopping_cart" /> Adicionar ao Carrinho

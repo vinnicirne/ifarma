@@ -7,7 +7,7 @@ const MaterialIcon = ({ name, className = "", style = {} }: { name: string, clas
     <span className={`material-symbols-outlined ${className}`} style={style}>{name}</span>
 );
 
-import BottomNavigation from '../components/BottomNavigation';
+import { BottomNav } from '../components/layout/BottomNav';
 
 const UserProfile = ({ session, profile, onRefresh }: { session: any, profile: any, onRefresh?: () => void }) => {
     const navigate = useNavigate();
@@ -18,7 +18,9 @@ const UserProfile = ({ session, profile, onRefresh }: { session: any, profile: a
         address: '',
         number: '',
         complement: '',
-        is_default: false
+        is_default: false,
+        latitude: null as number | null,
+        longitude: null as number | null
     });
     const [loading, setLoading] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
@@ -29,7 +31,9 @@ const UserProfile = ({ session, profile, onRefresh }: { session: any, profile: a
         avatar_url: '',
         address: '',
         number: '',
-        complement: ''
+        complement: '',
+        latitude: null as number | null,
+        longitude: null as number | null
     });
 
     useEffect(() => {
@@ -41,7 +45,9 @@ const UserProfile = ({ session, profile, onRefresh }: { session: any, profile: a
                 avatar_url: profile.avatar_url || '',
                 address: profile.address || '',
                 number: '',
-                complement: ''
+                complement: '',
+                latitude: profile.latitude || null,
+                longitude: profile.longitude || null
             });
             fetchAddresses();
         }
@@ -69,11 +75,13 @@ const UserProfile = ({ session, profile, onRefresh }: { session: any, profile: a
                     user_id: session.user.id,
                     name: addressForm.label, // DB column is 'name'
                     street: fullAddress,     // DB column is 'street'
+                    latitude: addressForm.latitude,
+                    longitude: addressForm.longitude,
                     is_default: addressForm.is_default
                 });
             if (error) throw error;
             setIsAddingAddress(false);
-            setAddressForm({ label: '', address: '', number: '', complement: '', is_default: false });
+            setAddressForm({ label: '', address: '', number: '', complement: '', is_default: false, latitude: null, longitude: null });
             fetchAddresses();
         } catch (error) {
             console.error('Erro ao adicionar endereço:', error);
@@ -118,7 +126,9 @@ const UserProfile = ({ session, profile, onRefresh }: { session: any, profile: a
                     cpf: formData.cpf,
                     phone: formData.phone,
                     avatar_url: formData.avatar_url,
-                    address: fullAddress
+                    address: fullAddress,
+                    latitude: formData.latitude,
+                    longitude: formData.longitude
                 })
                 .eq('id', session.user.id)
                 .select();
@@ -356,6 +366,7 @@ const UserProfile = ({ session, profile, onRefresh }: { session: any, profile: a
                                 <AddressAutocomplete
                                     value={addressForm.address}
                                     onChange={(val) => setAddressForm({ ...addressForm, address: val })}
+                                    onSelect={(addr, lat, lng) => setAddressForm({ ...addressForm, address: addr, latitude: lat, longitude: lng })}
                                     placeholder="Digite o endereço para buscar..."
                                 />
                             </div>
@@ -461,6 +472,7 @@ const UserProfile = ({ session, profile, onRefresh }: { session: any, profile: a
                                 <AddressAutocomplete
                                     value={formData.address}
                                     onChange={(val) => setFormData({ ...formData, address: val })}
+                                    onSelect={(addr, lat, lng) => setFormData({ ...formData, address: addr, latitude: lat, longitude: lng })}
                                     placeholder="Digite o endereço para buscar..."
                                 />
                             </div>
@@ -500,7 +512,7 @@ const UserProfile = ({ session, profile, onRefresh }: { session: any, profile: a
             )}
 
             {/* Bottom Navigation Bar */}
-            <BottomNavigation />
+            <BottomNav session={session} />
         </div>
     );
 };

@@ -5,6 +5,7 @@ import { MaterialIcon } from '../../components/Shared';
 import { TopAppBar } from '../../components/layout/TopAppBar';
 import { BottomNav } from '../../components/layout/BottomNav';
 import { useCartCount } from '../../hooks/useCartCount';
+import { useCart } from '../../hooks/useCart';
 
 
 // --- Shared Helper for Distance ---
@@ -168,7 +169,9 @@ export const ClientHome = ({ userLocation, sortedPharmacies, session }: { userLo
     const cartCount = useCartCount(session?.user?.id); // Using the hook for logic, although TopAppBar also displays it.
 
     // --- Cart Shared Logic ---
-    const addToCart = async (productId: string, quantity: number = 1) => {
+    const { addToCart } = useCart();
+    // --- Cart Shared Logic ---
+    const handleAddToCart = async (productId: string) => {
         if (!session) {
             navigate('/login');
             return;
@@ -179,46 +182,11 @@ export const ClientHome = ({ userLocation, sortedPharmacies, session }: { userLo
             const item = searchResults.find(r => r.id === productId);
             const pharmacyId = item?.pharmacy_id;
 
-            console.log('🛒 Adicionando ao carrinho:', productId, 'Farmácia:', pharmacyId);
-
-            const { data: existing, error: fetchError } = await supabase
-                .from('cart_items')
-                .select('id, quantity')
-                .eq('customer_id', session.user.id)
-                .eq('product_id', productId)
-                .maybeSingle();
-
-            if (fetchError) {
-                console.error("Erro ao verificar carrinho:", fetchError);
-                throw fetchError;
-            }
-
-            if (existing) {
-                const { error: updateError } = await supabase
-                    .from('cart_items')
-                    .update({ quantity: existing.quantity + quantity })
-                    .eq('id', existing.id);
-
-                if (updateError) throw updateError;
-            } else {
-                const { error: insertError } = await supabase
-                    .from('cart_items')
-                    .insert({
-                        customer_id: session.user.id,
-                        product_id: productId,
-                        pharmacy_id: pharmacyId,
-                        quantity
-                    });
-
-                if (insertError) {
-                    console.error("Erro no insert do carrinho:", insertError);
-                    throw insertError;
-                }
-            }
+            await addToCart(productId, pharmacyId || '');
             alert('Produto adicionado ao carrinho! 🛒');
         } catch (error: any) {
-            console.error("💥 Erro fatal ao adicionar ao carrinho:", error);
-            alert(`Erro ao adicionar ao carrinho: ${error.message || 'Verifique sua conexão'}`);
+            console.error("💥 Erro ao adicionar ao carrinho:", error);
+            alert(`Erro: ${error.message}`);
         }
     };
 
@@ -344,7 +312,7 @@ export const ClientHome = ({ userLocation, sortedPharmacies, session }: { userLo
                                                     </div>
                                                 </div>
                                                 <button
-                                                    onClick={() => addToCart(item.id)}
+                                                    onClick={() => handleAddToCart(item.id)}
                                                     className="bg-primary text-background-dark size-8 rounded-xl flex items-center justify-center hover:scale-110 active:scale-90 transition-all shadow-lg shadow-primary/20"
                                                 >
                                                     <MaterialIcon name="add" className="font-black" />

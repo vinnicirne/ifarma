@@ -134,6 +134,8 @@ const Checkout = () => {
             if (!session) throw new Error('Sessão expirada');
 
             // Criar pedido
+            const selectedAddrObj = addresses.find(a => (a.street || a.address) === address);
+
             const payload: any = {
                 customer_id: session.user.id,
                 pharmacy_id: pharmacyId,
@@ -141,6 +143,8 @@ const Checkout = () => {
                 payment_method: selectedPayment,
                 installments: selectedPayment === 'credit' ? installments : 1,
                 address: address,
+                latitude: selectedAddrObj?.latitude || null,
+                longitude: selectedAddrObj?.longitude || null,
                 status: 'pendente'
             };
 

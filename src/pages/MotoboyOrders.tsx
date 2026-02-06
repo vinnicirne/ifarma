@@ -60,7 +60,7 @@ const MotoboyOrders = () => {
                 .from('orders')
                 .select('*, pharmacies(name, address)')
                 .eq('motoboy_id', userId)
-                .in('status', ['pendente', 'preparando', 'pronto_entrega', 'em_rota'])
+                .in('status', ['pendente', 'preparando', 'pronto_entrega', 'retirado', 'em_rota'])
                 .order('created_at', { ascending: false });
 
             if (error) throw error;
@@ -77,6 +77,7 @@ const MotoboyOrders = () => {
             'pendente': 'Pendente',
             'preparando': 'Preparando',
             'pronto_entrega': 'Aguardando Retirada',
+            'retirado': 'Retirado (Iniciar Rota)',
             'em_rota': 'Em Rota',
             'entregue': 'Entregue',
             'cancelado': 'Cancelado'
@@ -87,6 +88,7 @@ const MotoboyOrders = () => {
     const getStatusColor = (status: string) => {
         const map: Record<string, string> = {
             'pronto_entrega': 'text-orange-500 bg-orange-500/10',
+            'retirado': 'text-blue-400 bg-blue-400/10',
             'em_rota': 'text-blue-500 bg-blue-500/10',
             'entregue': 'text-green-500 bg-green-500/10',
             'cancelado': 'text-red-500 bg-red-500/10'

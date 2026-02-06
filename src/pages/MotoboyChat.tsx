@@ -55,6 +55,14 @@ export const MotoboyChat = () => {
                 table: 'order_messages',
                 filter: `order_id=eq.${orderId}`
             }, (payload) => {
+                const hornSound = 'https://assets.mixkit.co/active_storage/sfx/2855/2855-preview.mp3';
+                if (payload.new.message_type === 'horn' && payload.new.sender_id !== session?.user?.id) {
+                    const audio = new Audio(hornSound);
+                    audio.play().catch(e => {
+                        console.warn("Chat audio blocked:", e);
+                        window.addEventListener('click', () => audio.play(), { once: true });
+                    });
+                }
                 setMessages(prev => [...prev, payload.new]);
             })
             .subscribe();
@@ -238,6 +246,12 @@ export const MotoboyChat = () => {
                                                 <span className="text-[10px] font-bold italic">Abrir Arquivo</span>
                                             </div>
                                         </a>
+                                    ) : msg.message_type === 'horn' ? (
+                                        <div className="flex flex-col items-center gap-2 p-4 bg-orange-500 text-black rounded-xl shadow-lg border-2 border-white/20">
+                                            <MaterialIcon name="volume_up" className="text-3xl" />
+                                            <span className="text-[10px] font-black uppercase tracking-widest">Aviso Sonoro Enviado</span>
+                                            <p className="font-bold italic text-center">{msg.content}</p>
+                                        </div>
                                     ) : (
                                         <p>{msg.content}</p>
                                     )}

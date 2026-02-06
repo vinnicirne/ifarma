@@ -58,6 +58,14 @@ export const PharmacyChat = () => {
                 table: 'order_messages',
                 filter: `order_id=eq.${orderId}`
             }, (payload) => {
+                const hornSound = 'https://assets.mixkit.co/active_storage/sfx/2855/2855-preview.mp3';
+                if (payload.new.message_type === 'horn' && payload.new.sender_id !== session?.user?.id) {
+                    const audio = new Audio(hornSound);
+                    audio.play().catch(e => {
+                        console.warn("Chat audio blocked:", e);
+                        window.addEventListener('click', () => audio.play(), { once: true });
+                    });
+                }
                 setMessages(prev => [...prev, payload.new]);
             })
             .subscribe();
@@ -289,6 +297,22 @@ export const PharmacyChat = () => {
                                                     <span className="text-[11px] font-black italic">Visualizar Receita</span>
                                                 </div>
                                             </a>
+                                        ) : msg.message_type === 'horn' ? (
+                                            <div className="flex flex-col items-center gap-3 p-6 bg-orange-500 text-black w-[240px] animate-pulse rounded-2xl shadow-xl border-4 border-white dark:border-slate-800">
+                                                <div className="size-16 rounded-full bg-black/10 flex items-center justify-center">
+                                                    <MaterialIcon name="volume_up" className="text-4xl" />
+                                                </div>
+                                                <div className="text-center">
+                                                    <p className="text-[10px] font-black uppercase tracking-[0.2em] mb-1">Aviso Sonoro</p>
+                                                    <p className="text-lg font-black italic tracking-tighter leading-tight">{msg.content}</p>
+                                                </div>
+                                                <button
+                                                    onClick={() => new Audio('https://assets.mixkit.co/active_storage/sfx/2855/2855-preview.mp3').play()}
+                                                    className="w-full bg-black text-white py-2 rounded-xl text-[10px] font-black uppercase tracking-widest active:scale-95"
+                                                >
+                                                    Tocar Novamente 🔊
+                                                </button>
+                                            </div>
                                         ) : (
                                             <div className="px-4 py-2">{msg.content}</div>
                                         )}

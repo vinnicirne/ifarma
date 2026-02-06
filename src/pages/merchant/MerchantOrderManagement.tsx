@@ -3,6 +3,8 @@ import MerchantLayout from './MerchantLayout';
 import { supabase } from '../../lib/supabase';
 import { OrderReceipt } from '../../components/merchant/OrderReceipt';
 import { OrderChatModal } from '../../components/merchant/OrderChatModal';
+import { OrderCancellationModal } from '../../components/OrderCancellationModal';
+import { notifyOrderStatusChange } from '../../utils/notifications';
 
 // Local MaterialIcon definition to avoid dependency issues if Shared is missing
 const MaterialIcon = ({ name, className = "" }: { name: string, className?: string }) => (
@@ -194,10 +196,9 @@ const OrderDetailsModal = ({ isOpen, onClose, order, updateStatus }: any) => {
                 <div className="mt-6 flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-white/5">
                     <button
                         onClick={() => {
-                            if (window.confirm('Tem certeza que deseja cancelar este pedido? A ação não pode ser desfeita.')) {
-                                updateStatus(order.id, 'cancelado');
-                                onClose();
-                            }
+                            onClose();
+                            // This will be handled by the parent
+                            if ((window as any).__triggerCancel) (window as any).__triggerCancel(order.id);
                         }}
                         className="px-6 py-2 rounded-xl bg-red-50 text-red-600 font-bold hover:bg-red-100 transition-colors border border-red-100 mr-auto"
                     >
@@ -231,6 +232,9 @@ const MerchantOrderManagement = () => {
     const [isChatModalOpen, setIsChatModalOpen] = useState(false);
     const [selectedChatOrder, setSelectedChatOrder] = useState<any>(null);
 
+    const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
+    const [orderToCancel, setOrderToCancel] = useState<string | null>(null);
+
     const [newOrderAlert, setNewOrderAlert] = useState<string | null>(null);
 
     // New State for Vertical Tabs (default to 'pendente')
@@ -249,6 +253,10 @@ const MerchantOrderManagement = () => {
 
     useEffect(() => {
         notificationSoundRef.current = notificationSound;
+        (window as any).__triggerCancel = (id: string) => {
+            setOrderToCancel(id);
+            setIsCancelModalOpen(true);
+        };
     }, [notificationSound]);
 
     // Helper for TTS/Sound Notification
@@ -568,18 +576,68 @@ const MerchantOrderManagement = () => {
         }
     };
 
-    const updateStatus = async (orderId: string, newStatus: string) => {
+    const sendAutoChatMessage = async (orderId: string, type: 'accept' | 'cancel', reason?: string) => {
+        if (!pharmacy || !orderId) return;
+
+        const enabled = type === 'accept' ? pharmacy.auto_message_accept_enabled : pharmacy.auto_message_cancel_enabled;
+        let content = type === 'accept' ? pharmacy.auto_message_accept_text : pharmacy.auto_message_cancel_text;
+
+        if (!enabled || !content) {
+            console.log(`Mensagem automática desativada ou vazia para ${type}`);
+            return;
+        }
+
+        // Se for cancelamento e tiver motivo, anexar ao final se for curto ou apenas enviar
+        if (type === 'cancel' && reason) {
+            content += `\n\nMotivo: ${reason}`;
+        }
+
         try {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) return;
+
+            await supabase.from('order_messages').insert({
+                order_id: orderId,
+                sender_id: user.id,
+                content: content,
+                message_type: 'text',
+                sender_role: 'pharmacy'
+            });
+        } catch (err) {
+            console.error("Erro ao enviar mensagem automática:", err);
+        }
+    };
+
+    const updateStatus = async (orderId: string, newStatus: string, reason?: string) => {
+        try {
+            const updateData: any = { status: newStatus };
+            if (reason) updateData.cancellation_reason = reason;
+
             const { error } = await supabase
                 .from('orders')
-                .update({ status: newStatus })
+                .update(updateData)
                 .eq('id', orderId);
 
             if (error) throw error;
 
+            // Enviar Mensagem Automática se necessário
+            if (newStatus === 'preparando') {
+                sendAutoChatMessage(orderId, 'accept');
+            } else if (newStatus === 'cancelado') {
+                sendAutoChatMessage(orderId, 'cancel', reason);
+            }
+
             const order = orders.find(o => o.id === orderId);
             if (order) {
                 sendWhatsAppNotification(order, newStatus);
+                // Enviar Notificação Push
+                if (order.customer_id) {
+                    let notificationBody = undefined;
+                    if (newStatus === 'cancelado' && reason) {
+                        notificationBody = `Seu pedido foi cancelado. Motivo: ${reason}`;
+                    }
+                    notifyOrderStatusChange(order.id, order.customer_id, newStatus as any, notificationBody).catch(console.error);
+                }
             }
 
             setOrders(prev => {
@@ -733,6 +791,19 @@ const MerchantOrderManagement = () => {
                     updateStatus={updateStatus}
                 />
 
+                <OrderCancellationModal
+                    isOpen={isCancelModalOpen}
+                    onClose={() => setIsCancelModalOpen(false)}
+                    userRole="pharmacy"
+                    onConfirm={(reason) => {
+                        if (orderToCancel) {
+                            updateStatus(orderToCancel, 'cancelado', reason);
+                            setIsCancelModalOpen(false);
+                            setOrderToCancel(null);
+                        }
+                    }}
+                />
+
                 {/* Header */}
                 <div className="flex justify-between items-center mb-6 print:hidden">
                     <div>
@@ -802,6 +873,9 @@ const MerchantOrderManagement = () => {
                             const count = orders.filter(o => {
                                 if (col.id === 'preparando') {
                                     return ['preparando', 'aguardando_motoboy', 'pronto_entrega'].includes(o.status);
+                                }
+                                if (col.id === 'em_rota') {
+                                    return ['em_rota', 'retirado'].includes(o.status);
                                 }
                                 return o.status?.toLowerCase() === col.id;
                             }).length;
@@ -891,6 +965,9 @@ const MerchantOrderManagement = () => {
                             {orders.filter(o => {
                                 if (activeTabId === 'preparando') {
                                     return ['preparando', 'aguardando_motoboy', 'pronto_entrega'].includes(o.status);
+                                }
+                                if (activeTabId === 'em_rota') {
+                                    return ['em_rota', 'retirado'].includes(o.status);
                                 }
                                 return o.status?.toLowerCase() === activeTabId;
                             }).map((order) => {
@@ -1013,6 +1090,17 @@ const MerchantOrderManagement = () => {
                                                 >
                                                     <MaterialIcon name="print" className="text-xl" />
                                                 </button>
+
+                                                {/* Cancel Button (Quick Action) */}
+                                                {['pendente', 'preparando', 'aguardando_motoboy'].includes(order.status?.toLowerCase()) && (
+                                                    <button
+                                                        onClick={(e) => { e.stopPropagation(); setOrderToCancel(order.id); setIsCancelModalOpen(true); }}
+                                                        className="size-10 rounded-xl hover:bg-red-50 text-red-400 hover:text-red-600 flex items-center justify-center transition-colors"
+                                                        title="Cancelar Pedido"
+                                                    >
+                                                        <MaterialIcon name="close" className="text-xl" />
+                                                    </button>
+                                                )}
 
                                                 {['pendente', 'preparando'].includes(order.status?.toLowerCase()) && (
                                                     <button

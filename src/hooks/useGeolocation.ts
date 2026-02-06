@@ -60,9 +60,19 @@ export const useGeolocation = (userId: string | null, shouldTrack: boolean = fal
                     },
                     async (position, err) => {
                         if (err) {
-                            console.error('Erro no rastreamento:', err);
-                            setState(prev => ({ ...prev, error: err.message, isTracking: false }));
-                            return;
+                            console.warn('GPS Warning:', err.message, 'Code:', (err as any).code);
+
+                            // Only stop tracking on Permission Denied (code 1)
+                            const isCritical = (err as any).code === 1;
+
+                            setState(prev => ({
+                                ...prev,
+                                error: err.message,
+                                isTracking: !isCritical
+                            }));
+
+                            if (isCritical) return;
+                            // For timeouts or position unavailable, we don't return so the watch continues
                         }
 
                         if (position) {
@@ -80,8 +90,8 @@ export const useGeolocation = (userId: string | null, shouldTrack: boolean = fal
 
                             // 2. Throttling Inteligente para Backend (Economia de Bateria/Dados)
                             const now = Date.now();
-                            const THROTTLE_TIME_MS = 30000; // 30 segundos
-                            const THROTTLE_DIST_M = 20;     // 20 metros
+                            const THROTTLE_TIME_MS = 5000; // 5 segundos (Mais frequente para entrega local)
+                            const THROTTLE_DIST_M = 5;    // 5 metros
 
                             let shouldUpdateDB = false;
 

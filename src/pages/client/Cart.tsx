@@ -2,25 +2,39 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { MaterialIcon } from '../../components/Shared';
+import { BottomNav } from '../../components/layout/BottomNav';
 
-export const Cart = () => {
+export const Cart = ({ session }: { session: any }) => {
     const navigate = useNavigate();
     const [loading, setLoading] = useState(false);
     const [cartItems, setCartItems] = useState<any[]>([]);
     const [total, setTotal] = useState(0);
-    const [session, setSession] = useState<any>(null);
 
     useEffect(() => {
-        checkSession();
-    }, []);
-
-    const checkSession = async () => {
-        const { data: { session: currentSession } } = await supabase.auth.getSession();
-        setSession(currentSession);
-        if (currentSession) {
+        if (session) {
             fetchCartItems();
         }
-    };
+    }, [session]);
+
+    useEffect(() => {
+        if (!session?.user?.id) return;
+
+        const channel = supabase
+            .channel(`cart_realtime_${session.user.id}`)
+            .on('postgres_changes', {
+                event: '*',
+                schema: 'public',
+                table: 'cart_items',
+                filter: `customer_id=eq.${session.user.id}`
+            }, () => {
+                fetchCartItems();
+            })
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    }, [session?.user?.id]);
 
     const fetchCartItems = async () => {
         const { data: { session: currentSession } } = await supabase.auth.getSession();
@@ -203,17 +217,21 @@ export const Cart = () => {
 
             {/* Sticky Bottom CTA */}
             {cartItems.length > 0 && (
-                <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[480px] p-4 bg-background-light/95 dark:bg-background-dark/95 backdrop-blur-md border-t border-gray-100 dark:border-gray-800 pb-8 z-50 shadow-sm">
+                <div className="fixed bottom-24 left-1/2 -translate-x-1/2 w-full max-w-[480px] p-4 z-40">
                     <button
                         onClick={handleCheckout}
                         disabled={loading}
-                        className="flex w-full cursor-pointer items-center justify-center overflow-hidden rounded-full h-14 px-4 bg-primary text-white gap-3 text-base font-bold leading-normal tracking-wide shadow-lg shadow-primary/20 active:scale-[0.98] transition-all disabled:opacity-50"
+                        className="flex w-full cursor-pointer items-center justify-center overflow-hidden rounded-full h-14 px-4 bg-primary text-black gap-3 text-base font-bold leading-normal tracking-wide shadow-2xl shadow-primary/40 active:scale-[0.98] transition-all disabled:opacity-50"
                     >
-                        <span className="truncate">{loading ? 'Processando...' : 'Ir para Pagamento'}</span>
-                        {!loading && <MaterialIcon name="arrow_forward" />}
+                        <span className="truncate">{loading ? 'Processando...' : 'Fechar Pedido'}</span>
+                        <div className="flex items-center gap-2 border-l border-black/10 pl-3">
+                            <span className="text-sm font-black">R$ {total.toFixed(2)}</span>
+                            {!loading && <MaterialIcon name="arrow_forward" />}
+                        </div>
                     </button>
                 </div>
             )}
+            <BottomNav session={session} />
         </div>
     );
 };

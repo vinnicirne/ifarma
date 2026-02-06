@@ -81,6 +81,37 @@ export const useCart = () => {
 
     useEffect(() => {
         fetchCartItems();
+
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+            if (session) fetchCartItems();
+            else setCartItems([]);
+        });
+
+        // Subscribe to changes
+        let channel: any;
+
+        const setupSubscription = async () => {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) return;
+
+            channel = supabase
+                .channel(`cart_changes_${session.user.id}`)
+                .on('postgres_changes', {
+                    event: '*',
+                    schema: 'public',
+                    table: 'cart_items',
+                    filter: `customer_id=eq.${session.user.id}`
+                }, () => {
+                    fetchCartItems();
+                })
+                .subscribe();
+        };
+
+        setupSubscription();
+
+        return () => {
+            if (channel) supabase.removeChannel(channel);
+        };
     }, []);
 
     return {

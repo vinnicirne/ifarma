@@ -53,6 +53,63 @@ export const sendOrderNotification = async (
 };
 
 /**
+ * Envia notificação em massa por papel (role)
+ */
+export const sendBroadcastNotification = async (
+    role: 'customer' | 'motoboy' | 'pharmacy',
+    title: string,
+    body: string,
+    data: any = {}
+) => {
+    try {
+        // Buscar tokens de todos os usuários com o papel especificado
+        const { data: profileTokens, error: tokensError } = await supabase
+            .from('profiles')
+            .select('id, device_tokens(token)')
+            .eq('role', role);
+
+        if (tokensError) throw tokensError;
+
+        const tokens = profileTokens
+            ?.flatMap(p => (p as any).device_tokens)
+            .map(t => t.token)
+            .filter(Boolean);
+
+        if (!tokens || tokens.length === 0) {
+            console.log(`Nenhum token encontrado para o papel: ${role}`);
+            return null;
+        }
+
+        // Chamar Edge Function para enviar notificação em massa
+        const { data: res, error } = await supabase.functions.invoke('send-push-notification', {
+            body: {
+                tokens,
+                title,
+                body,
+                data
+            }
+        });
+
+        if (error) throw error;
+
+        // Registrar na tabela de notificações do sistema
+        for (const profile of profileTokens) {
+            await supabase.from('notifications').insert({
+                user_id: profile.id,
+                title,
+                message: body,
+                type: 'promotion'
+            });
+        }
+
+        return res;
+    } catch (error) {
+        console.error('Erro ao enviar transmissão:', error);
+        return null;
+    }
+};
+
+/**
  * Mensagens de notificação por status do pedido
  */
 export const ORDER_STATUS_MESSAGES = {
@@ -80,7 +137,8 @@ export const ORDER_STATUS_MESSAGES = {
 export const notifyOrderStatusChange = async (
     orderId: string,
     customerId: string,
-    newStatus: keyof typeof ORDER_STATUS_MESSAGES
+    newStatus: keyof typeof ORDER_STATUS_MESSAGES,
+    bodyOverride?: string
 ) => {
     const message = ORDER_STATUS_MESSAGES[newStatus];
 
@@ -89,7 +147,7 @@ export const notifyOrderStatusChange = async (
             orderId,
             customerId,
             message.title,
-            message.body
+            bodyOverride || message.body
         );
     }
 

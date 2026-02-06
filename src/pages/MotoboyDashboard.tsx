@@ -12,34 +12,66 @@ import { Capacitor } from '@capacitor/core';
 import { MaterialIcon } from '../components/MaterialIcon';
 import { useAudio } from '../hooks/useAudio';
 
-// Componente para centralizar o mapa na localização
-function MapUpdater({ center }: { center: [number, number] }) {
+// Componente para centralizar o mapa na localização e ajustar limites
+function MapUpdater({ center, routeCoords, followUser }: { center: [number, number], routeCoords?: [number, number][], followUser?: boolean }) {
     const map = useMap();
+    const hasFittedRef = useRef(false);
+
     useEffect(() => {
-        map.setView(center, 16);
-    }, [center, map]);
+        if (routeCoords && routeCoords.length > 0 && !hasFittedRef.current) {
+            const bounds = L.latLngBounds(routeCoords);
+            map.fitBounds(bounds, { padding: [80, 80] });
+            hasFittedRef.current = true;
+        } else if (!routeCoords || routeCoords.length === 0) {
+            map.setView(center, map.getZoom() || 16);
+            hasFittedRef.current = false;
+        }
+
+        if (followUser) {
+            map.panTo(center);
+        }
+    }, [center[0], center[1], routeCoords, map, followUser]);
+
     return null;
 }
 
-// Ícone customizado para o motoboy
+// Ícone customizado para o motoboy (Sleek Moto)
 const motoboyIcon = new L.Icon({
     iconUrl: 'data:image/svg+xml;base64,' + btoa(`
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#00ff00" stroke="#ffffff" stroke-width="2">
-            <circle cx="12" cy="12" r="10"/>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+            <!-- Scooter Body (Uber/Ifarma Green) -->
+            <path d="M48 40 L52 40 C54 40 56 42 56 44 L56 48 C56 50 54 52 52 52 L12 52 C10 52 8 50 8 48 L8 44 C8 42 10 40 12 40 L16 40" fill="none" stroke="#13ec6d" stroke-width="4" stroke-linecap="round"/>
+            <path d="M16 40 L24 20 L40 20 L48 40" fill="#13ec6d" />
+            
+            <!-- Delivery Box (White with Green Detail) -->
+            <rect x="10" y="22" width="16" height="18" rx="2" fill="white" stroke="#13ec6d" stroke-width="2"/>
+            <rect x="10" y="22" width="16" height="4" rx="1" fill="#13ec6d"/>
+            
+            <!-- Rider (Minimalist) -->
+            <circle cx="36" cy="14" r="5" fill="#333" /> <!-- Helmet -->
+            <path d="M32 20 L40 20 L44 35 L30 35 Z" fill="#222" /> <!-- Body -->
+            
+            <!-- Wheels -->
+            <circle cx="18" cy="50" r="6" fill="#333" stroke="white" stroke-width="2" />
+            <circle cx="48" cy="50" r="6" fill="#333" stroke="white" stroke-width="2" />
+            
+            <!-- Speed Lines (Motion) -->
+            <line x1="2" y1="44" x2="6" y2="44" stroke="#13ec6d" stroke-width="2" stroke-linecap="round" opacity="0.6" />
+            <line x1="0" y1="48" x2="5" y2="48" stroke="#13ec6d" stroke-width="2" stroke-linecap="round" opacity="0.4" />
         </svg>
     `),
-    iconSize: [30, 30],
-    iconAnchor: [15, 15]
+    iconSize: [45, 45],
+    iconAnchor: [22, 22]
 });
 
 const destinationIcon = new L.Icon({
     iconUrl: 'data:image/svg+xml;base64,' + btoa(`
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#ef4444" stroke="#ffffff" stroke-width="2">
-            <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#000000">
+            <rect x="8" y="8" width="8" height="8" rx="1" stroke="white" stroke-width="2"/>
         </svg>
     `),
-    iconSize: [40, 40],
-    iconAnchor: [20, 40]
+    iconSize: [24, 24],
+    iconAnchor: [12, 12]
 });
 
 const originIcon = new L.Icon({
@@ -115,6 +147,7 @@ const MotoboyDashboard = ({ session, profile }: { session: any, profile: any }) 
     const [loading, setLoading] = useState(false); // Assuming this state is needed for loading indicators
     const [hasStartedRoute, setHasStartedRoute] = useState(false); // Controls sequential flow: Start Route -> Confirm Delivery
     const [hasAccepted, setHasAccepted] = useState(false); // Controls step: Accept -> Confirm Pickup
+    const [isSheetExpanded, setIsSheetExpanded] = useState(true); // Controla se o card de informações está aberto
 
     // --- 1. GEOLOCATION FIRST (To avoid ReferenceError) ---
     // Assuming latitude and longitude are available from geoState or another source
@@ -122,6 +155,9 @@ const MotoboyDashboard = ({ session, profile }: { session: any, profile: any }) 
 
     // --- 2. STATE FOR ROUTE ---
     const [routePath, setRoutePath] = useState<[number, number][]>([]);
+
+    // Coordenadas centrais (Motoboy) - Memoized to prevent re-renders
+    const center: [number, number] = [latitude || -22.8509, longitude || -43.0280];
 
     // --- 3. DECODE POLYLINE (Adapted for Leaflet [lat, lng]) ---
     // OSRM returns precision 1e5 (same as Google standard)
@@ -206,6 +242,8 @@ const MotoboyDashboard = ({ session, profile }: { session: any, profile: any }) 
 
         if (!error) {
             setHasStartedRoute(true);
+            setIsNavigationMode(true);
+            setIsSheetExpanded(false);
             setOrdersQueue(prev => prev.map(o => o.id === currentOrder.id ? { ...o, status: 'em_rota' } : o));
             ordersQueueRef.current = ordersQueueRef.current.map(o => o.id === currentOrder.id ? { ...o, status: 'em_rota' } : o);
             stopAudio();
@@ -307,6 +345,7 @@ const MotoboyDashboard = ({ session, profile }: { session: any, profile: any }) 
                 .select(`
                     *,
                     profiles:customer_id(*),
+                    pharmacies(*),
                     order_items(*, products(*))
                 `)
                 .eq('motoboy_id', session.user.id)
@@ -362,12 +401,14 @@ const MotoboyDashboard = ({ session, profile }: { session: any, profile: any }) 
         fetchOrdersQueue();
     }, [session?.user?.id]);
 
-    // Realtime Subscription
+    // --- REALTIME SUBSCRIPTION (Consolidada) ---
     useEffect(() => {
         if (!session?.user?.id) return;
 
-        const sub = supabase
-            .channel('motoboy-dashboard-queue')
+        console.log("🔌 Conectando Realtime (Entregas e Fila)...", session.user.id);
+
+        const channel = supabase
+            .channel(`motoboy_dashboard_all_${session.user.id}`)
             .on(
                 'postgres_changes',
                 {
@@ -377,14 +418,37 @@ const MotoboyDashboard = ({ session, profile }: { session: any, profile: any }) 
                     filter: `motoboy_id=eq.${session.user.id}`
                 },
                 (payload) => {
-                    console.log("Realtime update:", payload);
-                    fetchOrdersQueue(); // Refresh full queue to ensure correct sorting
+                    console.log("📦 Atualização Realtime:", payload.eventType, (payload.new as any)?.id);
+
+                    if (payload.eventType === 'UPDATE') {
+                        const oldStatus = (payload.old as any)?.status;
+                        const newStatus = (payload.new as any)?.status;
+                        const isNewStatus = oldStatus !== newStatus;
+                        const alertableStatuses = ['aguardando_motoboy', 'pronto_entrega'];
+                        const isAlertable = alertableStatuses.includes(newStatus);
+
+                        // Se o status mudou para algo que requer atenção imediata
+                        // E não estamos em meio a uma ação manual no app
+                        if (!isProcessingAction.current && isNewStatus && isAlertable) {
+                            playAudio(notificationSound === 'voice' ? 'voice' : 'new_order', 3);
+                            setNewOrderAlert(`VOCÊ TEM UM NOVO PEDIDO!`);
+                            setTimeout(() => setNewOrderAlert(null), 6000);
+                            console.log("🚀 Alerta sonoro disparado para status:", payload.new.status);
+                        }
+                    } else if (payload.eventType === 'INSERT') {
+                        // Novo pedido inserido diretamente para mim
+                        playAudio(notificationSound === 'voice' ? 'voice' : 'new_order', 3);
+                        setNewOrderAlert(`NOVA ENTREGA PARA VOCÊ!`);
+                        setTimeout(() => setNewOrderAlert(null), 6000);
+                    }
+
+                    fetchOrdersQueue();
                 }
             )
             .subscribe();
 
         return () => {
-            supabase.removeChannel(sub);
+            supabase.removeChannel(channel);
         };
     }, [session?.user?.id]);
 
@@ -525,54 +589,7 @@ const MotoboyDashboard = ({ session, profile }: { session: any, profile: any }) 
         }
     }, [profile]);
 
-    // ✅ NOVO (V2): Escutar mudanças na tabela PEDIDOS diretamente (Mais robusto)
-    useEffect(() => {
-        if (!session?.user?.id) return;
 
-        console.log("🔌 Conectando Realtime para PEDIDOS do Motoboy...", session.user.id);
-
-        const channel = supabase
-            .channel(`orders_motoboy_${session.user.id}`)
-            .on(
-                'postgres_changes',
-                {
-                    event: 'UPDATE',
-                    schema: 'public',
-                    table: 'orders',
-                    filter: `motoboy_id=eq.${session.user.id}`
-                },
-                (payload) => {
-                    console.log("📦 Pedido Realtime:", payload);
-
-                    // LÓGICA DE ÁUDIO REFINADA:
-                    // Tocar APENAS se:
-                    // 1. O motoboy ID mudou (fui atribuído agora)
-                    // 2. OU o status mudou para 'pronto_entrega' (caso o restaurante volte o status)
-                    // 3. E NÃO tocar se eu mesmo acabei de aceitar (status mudou para 'em_rota' ou similar via minha ação)
-
-                    const isNewAssignment = payload.old?.motoboy_id !== payload.new.motoboy_id;
-                    const isNewStatus = payload.old?.status !== payload.new.status;
-                    const safeStatus = ['aguardando_motoboy', 'pronto_entrega'];
-
-                    // Se fui atribuído AGORA ou status voltou para fila
-                    // NÃO tocar se eu já estiver processando uma ação local
-                    if (!isProcessingAction.current && (isNewAssignment || (isNewStatus && safeStatus.includes(payload.new.status)))) {
-                        // Alerta Sonoro e Visual (Via hook)
-                        playAudio(notificationSound === 'voice' ? 'voice' : 'new_order', 3);
-                        setNewOrderAlert(`VOCÊ TEM UM NOVO PEDIDO!`);
-                        setTimeout(() => setNewOrderAlert(null), 6000);
-                        console.log("🚀 Notificação disparada para pedido:", payload.new.id);
-                    }
-
-                    fetchOrdersQueue();
-                }
-            )
-            .subscribe();
-
-        return () => {
-            supabase.removeChannel(channel);
-        };
-    }, [session?.user?.id]);
 
     const toggleOnline = async () => {
         const newStatus = !isOnline;
@@ -668,10 +685,6 @@ const MotoboyDashboard = ({ session, profile }: { session: any, profile: any }) 
         };
     }, [session.user.id]);
 
-    const center: [number, number] = [
-        latitude || -22.9068,
-        longitude || -43.1729
-    ];
 
     // --- RENDER ---
 
@@ -855,7 +868,7 @@ const MotoboyDashboard = ({ session, profile }: { session: any, profile: any }) 
         <div className="relative flex min-h-screen w-full flex-col overflow-x-hidden bg-background-light dark:bg-background-dark">
 
             {/* Map Section (Fixed Top Half) */}
-            <div className="fixed top-0 left-0 w-full h-[55vh] z-0">
+            <div className={`fixed top-0 left-0 w-full z-0 transition-all duration-500 ease-in-out ${isSheetExpanded ? 'h-[45vh]' : 'h-[88vh]'}`}>
                 <div className="w-full h-full relative">
                     <MapContainer
                         center={center}
@@ -864,22 +877,71 @@ const MotoboyDashboard = ({ session, profile }: { session: any, profile: any }) 
                         zoomControl={false}
                     >
                         <TileLayer
-                            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                            url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
+                            attribution='&copy; CARTO'
                         />
                         {latitude && longitude && (
                             <>
-                                <MapUpdater center={center} />
+                                <MapUpdater center={center} routeCoords={currentOrder?.status === 'em_rota' && routePath.length > 0 ? routePath : []} followUser={isNavigationMode} />
+
                                 <Marker position={center} icon={motoboyIcon} />
-                                {currentOrder?.status === 'em_rota' && routeData.coordinates.length > 0 && (
+
+                                {(currentOrder?.status === 'em_rota' || currentOrder?.status === 'retirado') && routePath.length > 0 && (
                                     <>
-                                        <Polyline positions={routeData.coordinates} pathOptions={{ color: '#2563eb', weight: 6, opacity: 0.8 }} />
-                                        {currentOrder.delivery_lat && <Marker position={[currentOrder.delivery_lat, currentOrder.delivery_lng]} icon={destinationIcon} />}
+                                        <Polyline
+                                            positions={routePath}
+                                            pathOptions={{
+                                                color: '#000000', // Linha preta Uber Style para tema claro
+                                                weight: 6,
+                                                opacity: 0.8,
+                                                lineJoin: 'round',
+                                            }}
+                                        />
+
+                                        {/* Label da Farmácia (Origem) */}
+                                        {currentOrder.pharmacies?.latitude && (
+                                            <Marker position={[currentOrder.pharmacies.latitude, currentOrder.pharmacies.longitude]} icon={L.divIcon({
+                                                className: 'custom-div-icon',
+                                                html: `<div class="bg-black text-white text-[10px] font-black px-2 py-1 rounded shadow-lg whitespace-nowrap border border-white/20">${currentOrder.pharmacies.name}</div>`,
+                                                iconAnchor: [0, 40]
+                                            })} />
+                                        )}
+
+                                        {/* Label do Cliente (Destino) */}
+                                        {(currentOrder.delivery_lat || currentOrder.latitude) && (
+                                            <>
+                                                <Marker
+                                                    position={[currentOrder.delivery_lat ?? currentOrder.latitude, currentOrder.delivery_lng ?? currentOrder.longitude]}
+                                                    icon={destinationIcon}
+                                                />
+                                                <Marker position={[currentOrder.delivery_lat ?? currentOrder.latitude, currentOrder.delivery_lng ?? currentOrder.longitude]} icon={L.divIcon({
+                                                    className: 'custom-div-icon',
+                                                    html: `<div class="bg-white text-black text-[10px] font-black px-3 py-1.5 rounded-lg shadow-xl whitespace-nowrap border-2 border-black flex items-center gap-1">
+                                                        <span class="bg-black text-white px-1 rounded-sm text-[8px]">CHEGADA</span>
+                                                        ${currentOrder.profiles?.full_name?.split(' ')[0] || 'Cliente'}
+                                                    </div>`,
+                                                    iconAnchor: [50, 45]
+                                                })} />
+                                            </>
+                                        )}
                                     </>
                                 )}
                             </>
                         )}
                     </MapContainer>
+
+                    {/* Recenter Button */}
+                    <button
+                        onClick={() => {
+                            // O MapUpdater com followUser já cuida disso se mudarmos o estado de navegação
+                            // ou apenas forçamos o mapa a centrar agora.
+                            setIsNavigationMode(true);
+                            setTimeout(() => setIsNavigationMode(false), 100);
+                        }}
+                        className="absolute bottom-32 right-4 z-[400] size-12 bg-white dark:bg-slate-800 rounded-full shadow-2xl flex items-center justify-center text-slate-900 dark:text-white active:scale-95 transition-transform"
+                    >
+                        <MaterialIcon name="my_location" />
+                    </button>
 
 
 
@@ -918,263 +980,299 @@ const MotoboyDashboard = ({ session, profile }: { session: any, profile: any }) 
                 </div>
             </div>
 
-            {/* Bottom Sheet (Scrollable Content) */}
-            <div className="relative mt-[45vh] z-10 min-h-[55vh] rounded-t-[2.5rem] bg-white dark:bg-slate-900 shadow-[0_-10px_40px_rgba(0,0,0,0.12)] pb-32">
-
-                {/* Handle */}
-                <div className="flex w-full items-center justify-center py-4" onClick={() => { /* Opção de collapse/expand futuro */ }}>
-                    <div className="h-1.5 w-12 rounded-full bg-[#dbe6df] dark:bg-gray-700"></div>
-                </div>
-
-                {/* Actions Grid (Contact) */}
-                <div className="grid grid-cols-2 gap-4 px-6 mb-6">
-                    <a href={`tel:${currentOrder.profiles?.phone || ''}`} className="flex items-center justify-center gap-2 py-3 bg-slate-50 dark:bg-slate-800 rounded-xl font-bold text-sm text-slate-700 dark:text-white border border-slate-200 dark:border-slate-700 active:bg-slate-100">
-                        <MaterialIcon name="call" className="text-primary" />
-                        Ligar
-                    </a>
-                    <button
-                        onClick={() => {
-                            setUnreadChatCount(0);
-                            navigate('/motoboy-chat/' + currentOrder.id);
-                        }}
-                        className="relative flex items-center justify-center gap-2 py-3 bg-slate-50 dark:bg-slate-800 rounded-xl font-bold text-sm text-slate-700 dark:text-white border border-slate-200 dark:border-slate-700 active:bg-slate-100"
-                    >
-                        <MaterialIcon name="chat" className="text-primary" />
-                        Chat
-                        {unreadChatCount > 0 && (
-                            <div className="absolute -top-2 -right-2 bg-red-600 text-white text-[10px] font-black w-6 h-6 rounded-full flex items-center justify-center animate-bounce shadow-lg ring-2 ring-white dark:ring-slate-900 z-10">
-                                {unreadChatCount}
-                            </div>
-                        )}
-                    </button>
-                </div>
-
-                {/* Customer & Address */}
-                <div className="px-6 mb-6">
-                    <div className="flex items-center gap-4">
-                        <div className="size-14 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-xl font-black text-slate-400">
-                            {(currentOrder.profiles?.full_name || currentOrder.client_name || 'C').charAt(0)}
-                        </div>
-                        <div className="flex-1">
-                            <p className="text-lg font-bold leading-none">{currentOrder.profiles?.full_name || currentOrder.client_name || 'Cliente'}</p>
-                            <p className="text-[#61896f] dark:text-gray-400 text-sm font-normal mt-1 leading-snug">
-                                {currentOrder.address}
-                            </p>
-                        </div>
-                    </div>
-
-                    {/* Payment Info Card */}
-                    <div className="mt-4 bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl border border-slate-100 dark:border-slate-700/50">
-                        <div className="flex items-center justify-between mb-2">
-                            <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Pagamento</span>
-                            <span className="text-xs font-black text-primary uppercase">
-                                {currentOrder.payment_method === 'pix' ? 'PIX' :
-                                    currentOrder.payment_method === 'cash' ? 'Dinheiro' :
-                                        currentOrder.payment_method === 'credit' ? 'Cartão (Crédito)' :
-                                            currentOrder.payment_method === 'debit' ? 'Cartão (Débito)' : 'A Combinar'}
-                            </span>
-                        </div>
-                        {currentOrder.payment_method === 'cash' && (
-                            <div className="flex items-center justify-between pt-2 border-t border-slate-200 dark:border-slate-700">
-                                <span className="text-xs font-bold text-slate-500">Troco para:</span>
-                                <span className="text-sm font-black text-slate-700 dark:text-white">
-                                    {currentOrder.change_for ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(currentOrder.change_for) : 'Não precisa'}
-                                </span>
-                            </div>
-                        )}
-                        {currentOrder.payment_method === 'cash' && currentOrder.change_for && (
-                            <div className="flex flex-col gap-1 mt-2 pt-2 border-t border-slate-200 dark:border-slate-700">
-                                <div className="flex items-center justify-between opacity-60">
-                                    <span className="text-[10px] font-bold">Total do Pedido:</span>
-                                    <span className="text-xs font-bold">
-                                        - {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(currentOrder.total_price || currentOrder.total_amount || 0)}
-                                    </span>
-                                </div>
-                                <div className="flex items-center justify-between">
-                                    <span className="text-xs font-bold text-slate-500">Troco a devolver:</span>
-                                    <span className="text-sm font-black text-red-500">
-                                        {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(currentOrder.change_for) - Number(currentOrder.total_price || currentOrder.total_amount || 0))}
-                                    </span>
-                                </div>
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Instructions */}
-                    <div className="mt-4 bg-blue-50 dark:bg-blue-900/20 p-4 rounded-xl border border-blue-100 dark:border-blue-800/30">
-                        <h4 className="text-[10px] font-black uppercase text-blue-400 mb-1 flex items-center gap-1">
-                            <MaterialIcon name="info" className="text-xs" />
-                            Observações
-                        </h4>
-                        <p className="text-sm text-blue-900 dark:text-blue-100 leading-relaxed font-medium">
-                            {currentOrder.notes || "Nenhuma observação informada."}
+            {/* Bottom Sheet - Uber Style */}
+            <div
+                className={`relative z-[40] rounded-t-[3rem] bg-white dark:bg-slate-900 shadow-[0_-20px_50px_rgba(0,0,0,0.4)] transition-all duration-700 ease-in-out flex flex-col ${isSheetExpanded ? 'mt-[40vh] min-h-[60vh] pb-8' : 'mt-[calc(100vh-260px)] min-h-[260px] cursor-pointer'}`}
+                onClick={() => !isSheetExpanded && setIsSheetExpanded(true)}
+            >
+                {/* Handle - Retractable & Tap Area */}
+                <div
+                    className="flex w-full items-center justify-center py-5 cursor-pointer group touch-none shrink-0"
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        setIsSheetExpanded(!isSheetExpanded);
+                    }}
+                >
+                    <div className="flex flex-col items-center gap-1.5">
+                        <div className={`h-1.5 w-14 rounded-full transition-all duration-300 ${isSheetExpanded ? 'bg-slate-200 dark:bg-slate-700' : 'bg-primary w-20 shadow-[0_0_15px_rgba(19,236,109,0.8)]'}`}></div>
+                        <p className={`text-[9px] font-black uppercase tracking-[0.3em] transition-all duration-300 ${isSheetExpanded ? 'text-slate-400 opacity-0' : 'text-primary opacity-100 animate-pulse'}`}>
+                            {isSheetExpanded ? 'Recolher' : 'Toque para detalhes'}
                         </p>
                     </div>
                 </div>
 
-                {/* Items List */}
-                <div className="px-6 mb-6">
-                    <div className="flex items-center justify-between mb-4">
-                        <h4 className="text-lg font-bold">Itens do Pedido</h4>
-                        <span className="text-sm text-[#61896f] font-bold">
-                            Total: {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(currentOrder.total_price || currentOrder.total_amount || 0)}
-                        </span>
-                    </div>
+                {/* Conteúdo rolável do card - Só visível quando expandido ou parcialmente visível */}
+                <div className={`flex-1 transition-opacity duration-300 ${isSheetExpanded ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none h-0'}`}>
 
-                    <div className="flex flex-col gap-3">
-                        {currentOrder.order_items && currentOrder.order_items.length > 0 ? (
-                            currentOrder.order_items.map((item: any, idx: number) => (
-                                <div key={item.id || idx} className="flex items-center gap-4 p-3 bg-white dark:bg-slate-800/50 border border-gray-100 dark:border-slate-700 rounded-xl">
-                                    <div className="bg-gray-100 dark:bg-slate-700 size-12 rounded-lg flex items-center justify-center shrink-0">
-                                        {(item.products?.image_url || item.image_url) ? (
-                                            <img src={item.products?.image_url || item.image_url} alt={item.products?.name || item.name} className="w-full h-full object-cover rounded-lg" />
-                                        ) : (
-                                            <MaterialIcon name="medication" className="text-gray-400" />
-                                        )}
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                        <p className="font-bold text-sm truncate">{item.products?.name || item.product_name || item.name || 'Produto'}</p>
-                                        <p className="text-xs text-slate-500">Qtd: {item.quantity || 1}x</p>
-                                    </div>
-                                    <p className="text-sm font-bold text-slate-700 dark:text-slate-300">
-                                        {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format((item.price || item.unit_price || 0) * (item.quantity || 1))}
-                                    </p>
-                                </div>
-                            ))
-                        ) : (
-                            <div className="text-center p-4 bg-slate-50 dark:bg-slate-800/20 rounded-xl text-slate-400 text-sm">
-                                <MaterialIcon name="shopping_bag" className="text-3xl mb-2 opacity-20" />
-                                <p>Nenhum item listado.</p>
-                                <p className="text-[10px] mt-1 opacity-60">ID do Pedido: {currentOrder.id.split('-')[0]}...</p>
+                    {/* Uber Style Promo/Alert */}
+                    <div className="px-6 mb-4">
+                        <div className="bg-red-50 dark:bg-red-900/10 p-3 rounded-xl flex items-center justify-between border border-red-100 dark:border-red-900/20">
+                            <div className="flex items-center gap-2">
+                                <MaterialIcon name="local_offer" className="text-red-500 text-lg" />
+                                <p className="text-xs font-bold text-red-600 dark:text-red-400">Entrega Expressa</p>
                             </div>
-                        )}
-                    </div>
-                </div>
-
-                <div className="h-48"></div> {/* Spacer to prevent overlap with sticky bottom */}
-
-                {/* Queue List / Próximas Entregas */}
-                {renderQueueList()}
-
-                {/* Sticky Bottom Actions */}
-                <div className="fixed bottom-0 left-0 right-0 p-6 bg-white dark:bg-slate-900 border-t border-gray-100 dark:border-slate-800 z-30">
-                    <div className="flex flex-col gap-3 max-w-lg mx-auto">
-
-                        {/* Buzina Option (Proximal) */}
-                        <button
-                            onClick={handleArrived}
-                            className="w-full flex items-center justify-center gap-2 py-3 text-slate-400 text-xs font-bold uppercase tracking-widest hover:text-primary transition-colors"
-                        >
-                            <MaterialIcon name="volume_up" />
-                            Enviar Aviso Sonoro (Buzina)
-                        </button>
-
-                        {/* Ação Principal: Confirmar/Chequei */}
-                        {currentOrder.status === 'pronto_entrega' ? (
-                            !hasAccepted ? (
-                                <button
-                                    onClick={() => {
-                                        setHasAccepted(true);
-                                        isProcessingAction.current = true;
-                                        stopAudio(); // Parar o som ao aceitar
-                                        setTimeout(() => {
-                                            isProcessingAction.current = false;
-                                        }, 4000);
-                                    }}
-                                    className="w-full bg-green-600 hover:bg-green-700 text-white font-black py-4 rounded-xl text-lg flex items-center justify-center gap-2 transition-all active:scale-95 shadow-lg shadow-green-600/20"
-                                >
-                                    <MaterialIcon name="thumb_up" className="font-bold" />
-                                    ACEITAR ENTREGA
-                                </button>
-                            ) : (
-                                <button
-                                    onClick={handleConfirmPickup}
-                                    className="w-full bg-primary hover:bg-primary/90 text-black font-black py-4 rounded-xl text-lg flex items-center justify-center gap-2 transition-all active:scale-95 shadow-lg shadow-primary/20"
-                                >
-                                    <MaterialIcon name="inventory" className="font-bold" />
-                                    CONFIRMAR RETIRADA
-                                </button>
-                            )
-                        ) : currentOrder.status === 'retirado' ? (
-                            <button
-                                onClick={() => {
-                                    handleAutoOpenMap();
-                                    setHasStartedRoute(true);
-                                }}
-                                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-4 rounded-xl text-lg flex items-center justify-center gap-2 transition-all active:scale-95 shadow-lg shadow-blue-500/20"
-                            >
-                                <MaterialIcon name="near_me" className="font-bold" />
-                                INICIAR ROTA
-                            </button>
-                        ) : (
-                            <div className="flex flex-col gap-3">
-                                {/* CONFIRMAR ENTREGA - Lógica de Geofencing (100m) */}
-                                {(() => {
-                                    const hasCoords = !!currentOrder.delivery_lat;
-                                    const isClose = distanceToDest !== null && distanceToDest <= 100;
-                                    // Permite se: não tem coordenadas (fallback) OU está perto
-                                    const canConfirm = !hasCoords || isClose;
-
-                                    return (
-                                        <button
-                                            onClick={() => {
-                                                if (canConfirm) navigate(`/motoboy-confirm/${currentOrder.id}`);
-                                            }}
-                                            disabled={!canConfirm}
-                                            className={`w-full font-black py-4 rounded-xl text-lg flex items-center justify-center gap-2 transition-all shadow-lg
-                                                ${canConfirm
-                                                    ? 'bg-primary hover:bg-primary/90 text-black shadow-primary/20 active:scale-95'
-                                                    : 'bg-slate-200 dark:bg-slate-800 text-slate-400 cursor-not-allowed shadow-none'
-                                                }
-                                            `}
-                                        >
-                                            {canConfirm ? (
-                                                <>
-                                                    <MaterialIcon name="check_circle" className="font-bold" />
-                                                    CONFIRMAR ENTREGA
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <MaterialIcon name="location_off" className="font-bold" />
-                                                    {distanceToDest === null ? "AGUARDANDO GPS..." : `APROXIME-SE (${Math.round(distanceToDest)}m)`}
-                                                </>
-                                            )}
-                                        </button>
-                                    );
-                                })()}
-                            </div>
-                        )}
-                    </div>
-                    {/* iOS Safe Area Spacer */}
-                    <div className="h-4"></div>
-                </div>
-
-            </div>
-
-
-
-            {/* Menu Modal (Duplicate needed here if showMenu is true while order active) */}
-            {
-                showMenu && (
-                    <div className="absolute inset-0 z-[500] bg-black/50 backdrop-blur-sm" onClick={() => setShowMenu(false)}>
-                        <div
-                            className="absolute right-0 top-0 bottom-0 w-80 bg-white dark:bg-slate-900 shadow-2xl p-6 overflow-y-auto"
-                            onClick={(e) => e.stopPropagation()}
-                        >
-                            <div className="flex items-center justify-between mb-6">
-                                <h2 className="text-2xl font-black italic tracking-tighter">Menu</h2>
-                                <button onClick={() => setShowMenu(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full">
-                                    <MaterialIcon name="close" />
-                                </button>
-                            </div>
-                            <button onClick={async () => { await supabase.auth.signOut(); navigate('/login'); }} className="w-full flex items-center gap-3 p-4 rounded-xl hover:bg-red-500/10 text-red-500 transition-colors">
-                                <MaterialIcon name="logout" />
-                                <span className="font-bold">Sair</span>
-                            </button>
+                            <p className="text-[10px] font-black uppercase text-red-400">Prioritário</p>
                         </div>
                     </div>
-                )
-            }
+
+                    {/* Main Delivery Info Card - iFarma Style */}
+                    <div className="px-6 mb-6">
+                        <div className="bg-white dark:bg-slate-800 p-1 rounded-3xl border-2 border-black dark:border-white/10 shadow-sm">
+                            <div className="flex items-center p-4 gap-4">
+                                <div className="size-16 bg-slate-100 dark:bg-slate-700 rounded-2xl flex items-center justify-center shrink-0">
+                                    <MaterialIcon name="medication" className="text-3xl text-slate-800 dark:text-white" />
+                                </div>
+                                <div className="flex-1">
+                                    <div className="flex items-center justify-between">
+                                        <h3 className="text-xl font-black italic tracking-tighter truncate max-w-[150px]">
+                                            {currentOrder.pharmacies?.name || 'Farmácia iFarma'}
+                                        </h3>
+                                        <div className="flex flex-col items-end">
+                                            <p className="text-[9px] font-black bg-primary text-black px-2 py-0.5 rounded-full uppercase tracking-widest">
+                                                #{currentOrder.id.substring(0, 5)}
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex items-center gap-3 mt-1">
+                                        <p className="text-[10px] font-black uppercase text-slate-400">
+                                            {currentOrder.status === 'retirado' ? 'Entrega em curso' : 'Aguardando Retirada'}
+                                        </p>
+                                        <div className="size-1 rounded-full bg-slate-300"></div>
+                                        <p className="text-[10px] font-black uppercase text-slate-400">
+                                            {distanceToDest ? `${(distanceToDest / 1000).toFixed(1)} km` : 'Calculando...'}
+                                        </p>
+                                    </div>
+
+                                    <div className="mt-3 flex items-center justify-between border-t border-slate-100 dark:border-white/5 pt-3">
+                                        <div>
+                                            <p className="text-[9px] font-black uppercase text-slate-400">Seu Repasse</p>
+                                            <p className="text-lg font-black text-primary leading-tight">
+                                                {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(currentOrder.delivery_fee || 0)}
+                                            </p>
+                                        </div>
+                                        <div className="text-right">
+                                            <p className="text-[9px] font-black uppercase text-slate-400">
+                                                {currentOrder.payment_method === 'cash' ? 'Receber Dinheiro' : 'Pagamento Online'}
+                                            </p>
+                                            <p className="text-lg font-black text-slate-900 dark:text-white leading-tight">
+                                                {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(currentOrder.total_price || currentOrder.total_amount || 0)}
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Actions Grid (Contact) */}
+                    <div className="grid grid-cols-2 gap-4 px-6 mb-6">
+                        <a href={`tel:${currentOrder.profiles?.phone || ''}`} className="flex items-center justify-center gap-2 py-4 bg-slate-100 dark:bg-slate-800 rounded-2xl font-black text-xs uppercase tracking-widest text-slate-800 dark:text-white transition-all active:scale-95">
+                            <MaterialIcon name="call" />
+                            Ligar
+                        </a>
+                        <button
+                            onClick={() => {
+                                setUnreadChatCount(0);
+                                navigate('/motoboy-chat/' + currentOrder.id);
+                            }}
+                            className="relative flex items-center justify-center gap-2 py-4 bg-slate-100 dark:bg-slate-800 rounded-2xl font-black text-xs uppercase tracking-widest text-slate-800 dark:text-white transition-all active:scale-95"
+                        >
+                            <MaterialIcon name="chat" />
+                            Chat
+                            {unreadChatCount > 0 && (
+                                <div className="absolute -top-1 -right-1 bg-primary text-black text-[10px] font-black w-6 h-6 rounded-full flex items-center justify-center animate-bounce shadow-lg ring-4 ring-white dark:ring-slate-900 z-10">
+                                    {unreadChatCount}
+                                </div>
+                            )}
+                        </button>
+                    </div>
+
+                    {/* Customer & Address */}
+                    <div className="px-6 mb-6">
+                        <div className="flex items-start gap-4">
+                            <div className="size-12 rounded-full bg-slate-800 flex items-center justify-center text-lg font-black text-white shrink-0">
+                                {(currentOrder.profiles?.full_name || currentOrder.client_name || 'C').charAt(0)}
+                            </div>
+                            <div className="flex-1">
+                                <p className="text-sm font-black uppercase tracking-tight text-slate-400">Destino</p>
+                                <p className="text-lg font-bold leading-none mt-1">{currentOrder.profiles?.full_name || currentOrder.client_name || 'Cliente'}</p>
+                                <p className="text-slate-500 dark:text-gray-400 text-sm font-medium mt-1 leading-snug">
+                                    {currentOrder.address}
+                                </p>
+                            </div>
+                        </div>
+
+                        {/* Payment Info Card */}
+                        <div className="mt-4 bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl border border-slate-100 dark:border-slate-700/50">
+                            <div className="flex items-center justify-between mb-2">
+                                <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Pagamento</span>
+                                <span className="text-xs font-black text-primary uppercase">
+                                    {currentOrder.payment_method === 'pix' ? 'PIX' :
+                                        currentOrder.payment_method === 'cash' ? 'Dinheiro' :
+                                            currentOrder.payment_method === 'credit' ? 'Cartão (Crédito)' :
+                                                currentOrder.payment_method === 'debit' ? 'Cartão (Débito)' : 'A Combinar'}
+                                </span>
+                            </div>
+                            {currentOrder.payment_method === 'cash' && (
+                                <div className="flex items-center justify-between pt-2 border-t border-slate-200 dark:border-slate-700">
+                                    <span className="text-xs font-bold text-slate-500">Troco para:</span>
+                                    <span className="text-sm font-black text-slate-700 dark:text-white">
+                                        {currentOrder.change_for ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(currentOrder.change_for) : 'Não precisa'}
+                                    </span>
+                                </div>
+                            )}
+                            {currentOrder.payment_method === 'cash' && currentOrder.change_for && (
+                                <div className="flex flex-col gap-1 mt-2 pt-2 border-t border-slate-200 dark:border-slate-700">
+                                    <div className="flex items-center justify-between opacity-60">
+                                        <span className="text-[10px] font-bold">Total do Pedido:</span>
+                                        <span className="text-xs font-bold">
+                                            - {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(currentOrder.total_price || currentOrder.total_amount || 0)}
+                                        </span>
+                                    </div>
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-xs font-bold text-slate-500">Troco a devolver:</span>
+                                        <span className="text-sm font-black text-red-500">
+                                            {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(currentOrder.change_for) - Number(currentOrder.total_price || currentOrder.total_amount || 0))}
+                                        </span>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Instructions */}
+                        <div className="mt-4 bg-blue-50 dark:bg-blue-900/20 p-4 rounded-xl border border-blue-100 dark:border-blue-800/30">
+                            <h4 className="text-[10px] font-black uppercase text-blue-400 mb-1 flex items-center gap-1">
+                                <MaterialIcon name="info" className="text-xs" />
+                                Observações
+                            </h4>
+                            <p className="text-sm text-blue-900 dark:text-blue-100 leading-relaxed font-medium">
+                                {currentOrder.notes || "Nenhuma observação informada."}
+                            </p>
+                        </div>
+                    </div>
+
+                    {/* Items List */}
+                    <div className="px-6 mb-6">
+                        <div className="flex items-center justify-between mb-4">
+                            <h4 className="text-lg font-bold">Itens do Pedido</h4>
+                            <span className="text-sm text-[#61896f] font-bold">
+                                Total: {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(currentOrder.total_price || currentOrder.total_amount || 0)}
+                            </span>
+                        </div>
+
+                        <div className="flex flex-col gap-3">
+                            {currentOrder.order_items && currentOrder.order_items.length > 0 ? (
+                                currentOrder.order_items.map((item: any, idx: number) => (
+                                    <div key={item.id || idx} className="flex items-center gap-4 p-3 bg-white dark:bg-slate-800/50 border border-gray-100 dark:border-slate-700 rounded-xl">
+                                        <div className="bg-gray-100 dark:bg-slate-700 size-12 rounded-lg flex items-center justify-center shrink-0">
+                                            {(item.products?.image_url || item.image_url) ? (
+                                                <img src={item.products?.image_url || item.image_url} alt={item.products?.name || item.name} className="w-full h-full object-cover rounded-lg" />
+                                            ) : (
+                                                <MaterialIcon name="medication" className="text-gray-400" />
+                                            )}
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <p className="font-bold text-sm truncate">{item.products?.name || item.product_name || item.name || 'Produto'}</p>
+                                            <p className="text-xs text-slate-500">Qtd: {item.quantity || 1}x</p>
+                                        </div>
+                                        <p className="text-sm font-bold text-slate-700 dark:text-slate-300">
+                                            {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format((item.price || item.unit_price || 0) * (item.quantity || 1))}
+                                        </p>
+                                    </div>
+                                ))
+                            ) : (
+                                <div className="text-center p-4 bg-slate-50 dark:bg-slate-800/20 rounded-xl text-slate-400 text-sm">
+                                    <MaterialIcon name="shopping_bag" className="text-3xl mb-2 opacity-20" />
+                                    <p>Nenhum item listado.</p>
+                                    <p className="text-[10px] mt-1 opacity-60">ID do Pedido: {currentOrder.id.split('-')[0]}...</p>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Bottom Actions - Now PART of the Sheet for better layering */}
+                    <div className={`sticky bottom-0 left-0 right-0 p-6 bg-white dark:bg-slate-900 border-t border-gray-100 dark:border-slate-800 z-50 transition-transform ${!isSheetExpanded ? 'translate-y-0' : ''}`}>
+                        <div className="flex flex-col gap-3 max-w-lg mx-auto">
+
+                            {/* Buzina Option (Só se estiver em rota) */}
+                            <button
+                                onClick={(e) => { e.stopPropagation(); handleArrived(); }}
+                                className="w-full flex items-center justify-center gap-2 py-3 text-slate-400 text-[10px] font-black uppercase tracking-[0.2em] hover:text-primary transition-colors active:scale-95"
+                            >
+                                <MaterialIcon name="volume_up" className="text-sm" />
+                                Enviar Aviso Sonoro (Buzina)
+                            </button>
+
+                            {/* Ação Principal: Aceitar / Confirmar */}
+                            <div className="w-full">
+                                {currentOrder.status === 'pronto_entrega' ? (
+                                    !hasAccepted ? (
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setHasAccepted(true);
+                                                isProcessingAction.current = true;
+                                                stopAudio();
+                                                setTimeout(() => { isProcessingAction.current = false; }, 4000);
+                                            }}
+                                            className="w-full bg-green-600 hover:bg-green-700 text-white font-black py-4 rounded-2xl text-lg flex items-center justify-center gap-2 transition-all active:scale-95 shadow-xl shadow-green-600/20"
+                                        >
+                                            <MaterialIcon name="thumb_up" /> ACEITAR ENTREGA
+                                        </button>
+                                    ) : (
+                                        <button
+                                            onClick={(e) => { e.stopPropagation(); handleConfirmPickup(); }}
+                                            className="w-full bg-primary hover:bg-primary/90 text-black font-black py-4 rounded-2xl text-lg flex items-center justify-center gap-2 transition-all active:scale-95 shadow-xl shadow-primary/20"
+                                        >
+                                            <MaterialIcon name="inventory" /> CONFIRMAR RETIRADA
+                                        </button>
+                                    )
+                                ) : currentOrder.status === 'retirado' ? (
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleAutoOpenMap();
+                                            setHasStartedRoute(true);
+                                        }}
+                                        className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-4 rounded-2xl text-lg flex items-center justify-center gap-2 transition-all active:scale-95 shadow-xl shadow-blue-500/20"
+                                    >
+                                        <MaterialIcon name="near_me" /> INICIAR ROTA
+                                    </button>
+                                ) : (
+                                    <div className="flex flex-col gap-3">
+                                        {(() => {
+                                            const hasCoords = !!currentOrder.delivery_lat;
+                                            const isClose = distanceToDest !== null && distanceToDest <= 100;
+                                            const canConfirm = !hasCoords || isClose;
+                                            return (
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        if (canConfirm) navigate(`/motoboy-confirm/${currentOrder.id}`);
+                                                    }}
+                                                    disabled={!canConfirm}
+                                                    className={`w-full font-black py-4 rounded-2xl text-lg flex items-center justify-center gap-2 transition-all shadow-xl
+                                                    ${canConfirm ? 'bg-primary hover:bg-primary/90 text-black shadow-primary/20 active:scale-95' : 'bg-slate-200 dark:bg-slate-800 text-slate-400 cursor-not-allowed shadow-none'}
+                                                `}
+                                                >
+                                                    {canConfirm ? (
+                                                        <><MaterialIcon name="check_circle" /> CONFIRMAR ENTREGA</>
+                                                    ) : (
+                                                        <><MaterialIcon name="location_off" /> {distanceToDest === null ? "AGUARDANDO GPS..." : `APROXIME-SE (${Math.round(distanceToDest)}m)`}</>
+                                                    )}
+                                                </button>
+                                            );
+                                        })()}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                        {/* iOS Safe Area Spacer */}
+                        <div className="h-4"></div>
+                    </div>
+                </div>
+            </div>
         </div >
     );
 };
