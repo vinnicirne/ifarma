@@ -3,10 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useGeolocation } from '../hooks/useGeolocation';
 import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
-
-const MaterialIcon = ({ name, className = "", style = {} }: { name: string, className?: string, style?: React.CSSProperties }) => (
-    <span className={`material-symbols-outlined ${className}`} style={style}>{name}</span>
-);
+import { MaterialIcon } from '../components/MaterialIcon';
 
 const MotoboyDeliveryConfirm = () => {
     const navigate = useNavigate();
@@ -17,13 +14,24 @@ const MotoboyDeliveryConfirm = () => {
     const [uploading, setUploading] = useState(false);
     const [loading, setLoading] = useState(false);
     const [userId, setUserId] = useState<string | null>(null);
+    const [initError, setInitError] = useState<string | null>(null);
 
     // Obter usuário e posição atual
     useEffect(() => {
-        supabase.auth.getUser().then(({ data }) => setUserId(data.user?.id || null));
+        supabase.auth.getUser()
+            .then(({ data, error }) => {
+                if (error) throw error;
+                setUserId(data.user?.id || null);
+            })
+            .catch(err => {
+                console.error("Auth Error:", err);
+                setInitError("Falha na autenticação. Tente novamente.");
+            });
     }, []);
 
-    const { latitude, longitude } = useGeolocation(userId, true);
+    // Safe Geolocation Hook Usage
+    const geoState = useGeolocation(userId, true);
+    const { latitude, longitude } = geoState || { latitude: null, longitude: null };
 
     const handleConfirm = async () => {
         if (!receiverName.trim()) {
@@ -70,7 +78,7 @@ const MotoboyDeliveryConfirm = () => {
             setShowSuccess(true);
         } catch (error: any) {
             console.error(error);
-            alert('Erro ao confirmar entrega: ' + error.message);
+            alert('Erro ao confirmar entrega: ' + (error.message || 'Erro desconhecido'));
         } finally {
             setLoading(false);
         }
@@ -79,6 +87,28 @@ const MotoboyDeliveryConfirm = () => {
     const handleBackToHome = () => {
         navigate('/motoboy-dashboard');
     };
+
+    // Fail-safe for critical errors
+    if (initError) {
+        return (
+            <div className="min-h-screen bg-slate-900 flex items-center justify-center p-6 text-center text-white">
+                <div>
+                    <MaterialIcon name="error" className="text-red-500 text-5xl mb-4" />
+                    <p>{initError}</p>
+                    <button onClick={handleBackToHome} className="mt-4 bg-white text-black px-6 py-2 rounded-lg font-bold">Voltar</button>
+                </div>
+            </div>
+        );
+    }
+
+    if (!orderId) {
+        return (
+            <div className="min-h-screen bg-slate-900 flex items-center justify-center text-white">
+                <p>Pedido inválido.</p>
+                <button onClick={handleBackToHome} className="ml-4 underline">Voltar</button>
+            </div>
+        );
+    }
 
     // Custom theme constants for this specific dark/green flow
     const confirmTheme = {
@@ -166,7 +196,7 @@ const MotoboyDeliveryConfirm = () => {
                                 <img src={URL.createObjectURL(proofFile)} alt="Preview" className="h-full w-full object-cover" />
                                 <button
                                     onClick={() => setProofFile(null)}
-                                    className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 shadow-lg"
+                                    className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 shadow-lg z-10"
                                 >
                                     <MaterialIcon name="close" className="text-sm" />
                                 </button>
