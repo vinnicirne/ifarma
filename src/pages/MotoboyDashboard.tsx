@@ -11,6 +11,7 @@ import { Geolocation } from '@capacitor/geolocation';
 import { Capacitor } from '@capacitor/core';
 import { MaterialIcon } from '../components/MaterialIcon';
 import { useAudio } from '../hooks/useAudio';
+import { OrderCancellationModal } from '../components/OrderCancellationModal';
 
 // Componente para centralizar o mapa na localização e ajustar limites
 function MapUpdater({ center, routeCoords, followUser }: { center: [number, number], routeCoords?: [number, number][], followUser?: boolean }) {
@@ -121,6 +122,7 @@ const MotoboyDashboard = ({ session, profile }: { session: any, profile: any }) 
     const [isSoundBlocked, setIsSoundBlocked] = useState(false);
     const [newOrderAlert, setNewOrderAlert] = useState<string | null>(null);
     const [unreadChatCount, setUnreadChatCount] = useState(0);
+    const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
 
     // Ref para evitar closure bug em listeners de realtime
     const ordersQueueRef = useRef<any[]>([]);
@@ -192,22 +194,30 @@ const MotoboyDashboard = ({ session, profile }: { session: any, profile: any }) 
     };
 
     // --- 4. FETCH ROUTE (OSRM) ---
+    // --- 4. FETCH ROUTE (Google Directions) ---
     const fetchRoute = async (startLat: number, startLng: number, destLat: number, destLng: number) => {
-        // OSRM Request: driving profile, coordinates in Lng,Lat order
-        const url = `https://router.project-osrm.org/route/v1/driving/${startLng},${startLat};${destLng},${destLat}?overview=full&geometries=polyline`;
+        if (!(window as any).google) return;
 
-        try {
-            const response = await fetch(url);
-            const data = await response.json();
+        const directionsService = new (window as any).google.maps.DirectionsService();
 
-            if (data.code === 'Ok' && data.routes.length > 0) {
-                // OSRM returns encoded geometry similar to Google
-                const points = decodePolyline(data.routes[0].geometry);
-                setRoutePath(points);
+        directionsService.route({
+            origin: { lat: startLat, lng: startLng },
+            destination: { lat: destLat, lng: destLng },
+            travelMode: (window as any).google.maps.TravelMode.DRIVING,
+        }, (result: any, status: any) => {
+            if (status === 'OK' && result.routes.length > 0) {
+                const route = result.routes[0];
+                const path = route.overview_path.map((p: any) => [p.lat(), p.lng()]);
+                setRoutePath(path);
+
+                // Update precise distance
+                if (route.legs[0]?.distance?.value) {
+                    setDistanceToDest(route.legs[0].distance.value);
+                }
+            } else {
+                console.error('Google Directions requests failed:', status);
             }
-        } catch (error) {
-            console.error('Error fetching OSRM route:', error);
-        }
+        });
     };
 
     // --- 5. TRIGGER FETCH ---
@@ -1190,87 +1200,119 @@ const MotoboyDashboard = ({ session, profile }: { session: any, profile: any }) 
                             )}
                         </div>
                     </div>
+                </div>
 
-                    {/* Bottom Actions - Now PART of the Sheet for better layering */}
-                    <div className={`sticky bottom-0 left-0 right-0 p-6 bg-white dark:bg-slate-900 border-t border-gray-100 dark:border-slate-800 z-50 transition-transform ${!isSheetExpanded ? 'translate-y-0' : ''}`}>
-                        <div className="flex flex-col gap-3 max-w-lg mx-auto">
+                {/* Bottom Actions - Now PART of the Sheet for better layering */}
+                <div className={`sticky bottom-0 left-0 right-0 p-6 bg-white dark:bg-slate-900 border-t border-gray-100 dark:border-slate-800 z-50 transition-transform ${!isSheetExpanded ? 'translate-y-0' : ''}`}>
+                    <div className="flex flex-col gap-3 max-w-lg mx-auto">
 
-                            {/* Buzina Option (Só se estiver em rota) */}
-                            <button
-                                onClick={(e) => { e.stopPropagation(); handleArrived(); }}
-                                className="w-full flex items-center justify-center gap-2 py-3 text-slate-400 text-[10px] font-black uppercase tracking-[0.2em] hover:text-primary transition-colors active:scale-95"
-                            >
-                                <MaterialIcon name="volume_up" className="text-sm" />
-                                Enviar Aviso Sonoro (Buzina)
-                            </button>
+                        {/* Buzina Option (Só se estiver em rota) */}
+                        <button
+                            onClick={(e) => { e.stopPropagation(); handleArrived(); }}
+                            className="w-full flex items-center justify-center gap-2 py-3 text-slate-400 text-[10px] font-black uppercase tracking-[0.2em] hover:text-primary transition-colors active:scale-95"
+                        >
+                            <MaterialIcon name="volume_up" className="text-sm" />
+                            Enviar Aviso Sonoro (Buzina)
+                        </button>
 
-                            {/* Ação Principal: Aceitar / Confirmar */}
-                            <div className="w-full">
-                                {currentOrder.status === 'pronto_entrega' ? (
-                                    !hasAccepted ? (
-                                        <button
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                setHasAccepted(true);
-                                                isProcessingAction.current = true;
-                                                stopAudio();
-                                                setTimeout(() => { isProcessingAction.current = false; }, 4000);
-                                            }}
-                                            className="w-full bg-green-600 hover:bg-green-700 text-white font-black py-4 rounded-2xl text-lg flex items-center justify-center gap-2 transition-all active:scale-95 shadow-xl shadow-green-600/20"
-                                        >
-                                            <MaterialIcon name="thumb_up" /> ACEITAR ENTREGA
-                                        </button>
-                                    ) : (
-                                        <button
-                                            onClick={(e) => { e.stopPropagation(); handleConfirmPickup(); }}
-                                            className="w-full bg-primary hover:bg-primary/90 text-black font-black py-4 rounded-2xl text-lg flex items-center justify-center gap-2 transition-all active:scale-95 shadow-xl shadow-primary/20"
-                                        >
-                                            <MaterialIcon name="inventory" /> CONFIRMAR RETIRADA
-                                        </button>
-                                    )
-                                ) : currentOrder.status === 'retirado' ? (
+                        {/* Botão de Cancelamento (Emergência) */}
+                        <button
+                            onClick={(e) => { e.stopPropagation(); setIsCancelModalOpen(true); }}
+                            className="w-full text-center text-[10px] font-black uppercase tracking-widest text-red-400 hover:text-red-500 transition-colors py-2"
+                        >
+                            Cancelar Entrega
+                        </button>
+
+                        <OrderCancellationModal
+                            isOpen={isCancelModalOpen}
+                            onClose={() => setIsCancelModalOpen(false)}
+                            userRole="motoboy"
+                            onConfirm={async (reason) => {
+                                try {
+                                    if (!currentOrder?.id) return;
+                                    const { error: updateError } = await supabase
+                                        .from('orders')
+                                        .update({ status: 'cancelado', cancellation_reason: reason })
+                                        .eq('id', currentOrder.id);
+
+                                    if (updateError) throw updateError;
+
+                                    setNewOrderAlert("PEDIDO CANCELADO");
+                                    setIsCancelModalOpen(false);
+                                    // A lista será atualizada via Realtime
+                                } catch (err) {
+                                    console.error("Erro ao cancelar:", err);
+                                    alert("Erro ao cancelar pedido. Tente novamente.");
+                                }
+                            }}
+                        />
+
+                        {/* Ação Principal: Aceitar / Confirmar */}
+                        <div className="w-full">
+                            {currentOrder.status === 'pronto_entrega' ? (
+                                !hasAccepted ? (
                                     <button
                                         onClick={(e) => {
                                             e.stopPropagation();
-                                            handleAutoOpenMap();
-                                            setHasStartedRoute(true);
+                                            setHasAccepted(true);
+                                            isProcessingAction.current = true;
+                                            stopAudio();
+                                            setTimeout(() => { isProcessingAction.current = false; }, 4000);
                                         }}
-                                        className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-4 rounded-2xl text-lg flex items-center justify-center gap-2 transition-all active:scale-95 shadow-xl shadow-blue-500/20"
+                                        className="w-full bg-green-600 hover:bg-green-700 text-white font-black py-4 rounded-2xl text-lg flex items-center justify-center gap-2 transition-all active:scale-95 shadow-xl shadow-green-600/20"
                                     >
-                                        <MaterialIcon name="near_me" /> INICIAR ROTA
+                                        <MaterialIcon name="thumb_up" /> ACEITAR ENTREGA
                                     </button>
                                 ) : (
-                                    <div className="flex flex-col gap-3">
-                                        {(() => {
-                                            const hasCoords = !!currentOrder.delivery_lat;
-                                            const isClose = distanceToDest !== null && distanceToDest <= 100;
-                                            const canConfirm = !hasCoords || isClose;
-                                            return (
-                                                <button
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        if (canConfirm) navigate(`/motoboy-confirm/${currentOrder.id}`);
-                                                    }}
-                                                    disabled={!canConfirm}
-                                                    className={`w-full font-black py-4 rounded-2xl text-lg flex items-center justify-center gap-2 transition-all shadow-xl
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); handleConfirmPickup(); }}
+                                        className="w-full bg-primary hover:bg-primary/90 text-black font-black py-4 rounded-2xl text-lg flex items-center justify-center gap-2 transition-all active:scale-95 shadow-xl shadow-primary/20"
+                                    >
+                                        <MaterialIcon name="inventory" /> CONFIRMAR RETIRADA
+                                    </button>
+                                )
+                            ) : currentOrder.status === 'retirado' ? (
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleAutoOpenMap();
+                                        setHasStartedRoute(true);
+                                    }}
+                                    className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-4 rounded-2xl text-lg flex items-center justify-center gap-2 transition-all active:scale-95 shadow-xl shadow-blue-500/20"
+                                >
+                                    <MaterialIcon name="near_me" /> INICIAR ROTA
+                                </button>
+                            ) : (
+                                <div className="flex flex-col gap-3">
+                                    {(() => {
+                                        const hasCoords = !!currentOrder.delivery_lat;
+                                        const isClose = distanceToDest !== null && distanceToDest <= 100;
+                                        const canConfirm = !hasCoords || isClose;
+                                        return (
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    if (canConfirm) navigate(`/motoboy-confirm/${currentOrder.id}`);
+                                                }}
+                                                disabled={!canConfirm}
+                                                className={`w-full font-black py-4 rounded-2xl text-lg flex items-center justify-center gap-2 transition-all shadow-xl
                                                     ${canConfirm ? 'bg-primary hover:bg-primary/90 text-black shadow-primary/20 active:scale-95' : 'bg-slate-200 dark:bg-slate-800 text-slate-400 cursor-not-allowed shadow-none'}
                                                 `}
-                                                >
-                                                    {canConfirm ? (
-                                                        <><MaterialIcon name="check_circle" /> CONFIRMAR ENTREGA</>
-                                                    ) : (
-                                                        <><MaterialIcon name="location_off" /> {distanceToDest === null ? "AGUARDANDO GPS..." : `APROXIME-SE (${Math.round(distanceToDest)}m)`}</>
-                                                    )}
-                                                </button>
-                                            );
-                                        })()}
-                                    </div>
-                                )}
-                            </div>
+                                            >
+                                                {canConfirm ? (
+                                                    <><MaterialIcon name="check_circle" /> CONFIRMAR ENTREGA</>
+                                                ) : (
+                                                    <><MaterialIcon name="location_off" /> {distanceToDest === null ? "AGUARDANDO GPS..." : `APROXIME-SE (${Math.round(distanceToDest)}m)`}</>
+                                                )}
+                                            </button>
+                                        );
+                                    })()}
+                                </div>
+                            )}
                         </div>
-                        {/* iOS Safe Area Spacer */}
-                        <div className="h-4"></div>
                     </div>
+                    {/* iOS Safe Area Spacer */}
+                    <div className="h-4"></div>
                 </div>
             </div>
         </div >

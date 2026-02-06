@@ -25,6 +25,13 @@ function App() {
     const init = async () => {
       await initAppContext();
       setContextLoaded(true);
+
+      try {
+        const { LocalNotifications } = await import('@capacitor/local-notifications');
+        await LocalNotifications.requestPermissions();
+      } catch (e) {
+        console.warn("LocalNotifications init error:", e);
+      }
     };
     init();
   }, []);
@@ -209,13 +216,38 @@ function App() {
           window.addEventListener('click', () => audio.play(), { once: true });
         });
 
-        // System Notification
-        if (window.Notification?.permission === 'granted' && document.hidden) {
-          new Notification(newMsg.message_type === 'horn' ? '📢 MOTOBOY CHEGOU!' : 'Ifarma: Nova mensagem', {
-            body: newMsg.content || 'Novo anexo recebido.',
-            icon: '/pwa-192x192.png'
-          });
-        }
+        // Local Notification (Capacitor)
+        const showLocalNotification = async () => {
+          try {
+            // Dynamic import to avoid SSR issues
+            const { LocalNotifications } = await import('@capacitor/local-notifications');
+
+            await LocalNotifications.schedule({
+              notifications: [
+                {
+                  title: newMsg.message_type === 'horn' ? '📢 MOTOBOY CHEGOU!' : 'Ifarma: Nova mensagem',
+                  body: newMsg.content || 'Novo anexo recebido.',
+                  id: Math.floor(Math.random() * 100000),
+                  schedule: { at: new Date(Date.now() + 100) },
+                  sound: newMsg.message_type === 'horn' ? 'horn.wav' : undefined,
+                  actionTypeId: '',
+                  extra: null
+                }
+              ]
+            });
+          } catch (e) {
+            console.error("Local Notification Error:", e);
+            // Fallback to Web Notification
+            if (window.Notification?.permission === 'granted' && document.hidden) {
+              new Notification(newMsg.message_type === 'horn' ? '📢 MOTOBOY CHEGOU!' : 'Ifarma: Nova mensagem', {
+                body: newMsg.content || 'Novo anexo recebido.',
+                icon: '/pwa-192x192.png'
+              });
+            }
+          }
+        };
+        showLocalNotification();
+
       })
       .subscribe();
 

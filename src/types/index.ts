@@ -57,6 +57,18 @@ export interface Order {
     payment_method?: string;
     installments?: number;
     notes?: string;
+    cancellation_reason?: string;
+    delivery_fee?: number;
+    delivery_lat?: number;
+    delivery_lng?: number;
+    receiver_name?: string;
+    proof_url?: string;
+    delivered_at?: string;
+    motoboy_arrived_at?: string;
+    delivery_sequence?: number;
+    change_for?: number;
+    client_name?: string;
+    picked_up_at?: string;
     created_at: string;
     updated_at: string;
 }

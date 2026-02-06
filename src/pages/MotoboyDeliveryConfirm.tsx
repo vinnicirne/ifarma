@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useGeolocation } from '../hooks/useGeolocation';
+import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
 
 const MaterialIcon = ({ name, className = "", style = {} }: { name: string, className?: string, style?: React.CSSProperties }) => (
     <span className={`material-symbols-outlined ${className}`} style={style}>{name}</span>
@@ -132,19 +133,34 @@ const MotoboyDeliveryConfirm = () => {
                 <div className="px-4 py-2 mt-4">
                     <h3 className="text-slate-900 dark:text-white text-lg font-bold leading-tight tracking-tight mb-4">Comprovante (Opcional)</h3>
                     <div className="flex flex-col gap-4">
-                        <label className="flex w-full items-center justify-center gap-3 p-4 border-2 border-dashed border-slate-300 dark:border-white/10 rounded-xl bg-slate-100 dark:bg-white/5 cursor-pointer active:scale-95 transition-transform">
-                            <input
-                                type="file"
-                                accept="image/*"
-                                capture="environment"
-                                className="hidden"
-                                onChange={(e) => setProofFile(e.target.files ? e.target.files[0] : null)}
-                            />
+                        <button
+                            type="button"
+                            onClick={async () => {
+                                try {
+                                    const image = await Camera.getPhoto({
+                                        quality: 70,
+                                        allowEditing: false,
+                                        resultType: CameraResultType.Uri,
+                                        source: CameraSource.Camera
+                                    });
+
+                                    if (image.webPath) {
+                                        const response = await fetch(image.webPath);
+                                        const blob = await response.blob();
+                                        const file = new File([blob], `proof_${Date.now()}.jpg`, { type: "image/jpeg" });
+                                        setProofFile(file);
+                                    }
+                                } catch (e) {
+                                    // cancelled
+                                }
+                            }}
+                            className="flex w-full items-center justify-center gap-3 p-4 border-2 border-dashed border-slate-300 dark:border-white/10 rounded-xl bg-slate-100 dark:bg-white/5 cursor-pointer active:scale-95 transition-transform"
+                        >
                             <MaterialIcon name="photo_camera" className="text-3xl text-slate-400" />
                             <span className="text-sm font-bold text-slate-500 dark:text-gray-400">
                                 {proofFile ? 'Foto Selecionada' : 'Tirar Foto do Comprovante'}
                             </span>
-                        </label>
+                        </button>
                         {proofFile && (
                             <div className="relative h-32 w-full rounded-xl overflow-hidden">
                                 <img src={URL.createObjectURL(proofFile)} alt="Preview" className="h-full w-full object-cover" />

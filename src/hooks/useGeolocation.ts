@@ -168,13 +168,12 @@ export const useGeolocation = (userId: string | null, shouldTrack: boolean = fal
                                 }
 
                                 // Fallback
-                                if (!invokeSuccess) {
-                                    await supabase.from('location_history').insert({
-                                        motoboy_id: userId,
-                                        latitude,
-                                        longitude
-                                    });
-                                }
+                                await supabase.from('route_history').insert({
+                                    motoboy_id: userId,
+                                    order_id: orderId || null,
+                                    latitude,
+                                    longitude
+                                });
                             }
                         }
                     }

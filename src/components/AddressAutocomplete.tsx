@@ -22,7 +22,7 @@ export const AddressAutocomplete = ({ value, onChange, onSelect, placeholder = "
     }, [value]);
 
     useEffect(() => {
-        if (!autocompleteService.current && (window as any).google) {
+        if (!autocompleteService.current && (window as any).google && (window as any).google.maps && (window as any).google.maps.places) {
             autocompleteService.current = new (window as any).google.maps.places.AutocompleteService();
             // Create a dummy div for PlacesService as it requires an HTML element or a map
             const dummyDiv = document.createElement('div');

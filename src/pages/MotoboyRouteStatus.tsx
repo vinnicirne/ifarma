@@ -145,27 +145,34 @@ const MotoboyRouteStatus = () => {
     }, [orderId]);
 
     // Buscar Rota (OSRM)
+    // Buscar Rota (Google Directions)
     useEffect(() => {
-        const fetchRouteOSRM = async () => {
+        const fetchRouteGoogle = async () => {
             const destLat = order?.latitude || order?.delivery_lat;
             const destLng = order?.longitude || order?.delivery_lng;
 
-            if (latitude && longitude && destLat && destLng) {
+            if (latitude && longitude && destLat && destLng && (window as any).google) {
                 try {
-                    const url = `https://router.project-osrm.org/route/v1/driving/${longitude},${latitude};${destLng},${destLat}?overview=full&geometries=polyline`;
-                    const res = await fetch(url);
-                    const data = await res.json();
-                    if (data.code === 'Ok' && data.routes.length > 0) {
-                        const points = decodePolyline(data.routes[0].geometry);
-                        setRoutePath(points);
-                    }
+                    const directionsService = new (window as any).google.maps.DirectionsService();
+                    directionsService.route({
+                        origin: { lat: latitude, lng: longitude },
+                        destination: { lat: destLat, lng: destLng },
+                        travelMode: (window as any).google.maps.TravelMode.DRIVING,
+                    }, (result: any, status: any) => {
+                        if (status === 'OK' && result.routes.length > 0) {
+                            const path = result.routes[0].overview_path.map((p: any) => [p.lat(), p.lng()]);
+                            setRoutePath(path);
+                        } else {
+                            console.error('Google Directions failed:', status);
+                        }
+                    });
                 } catch (err) {
-                    console.error("Erro ao buscar rota OSRM:", err);
+                    console.error("Erro ao buscar rota Google:", err);
                 }
             }
         };
 
-        if (order) fetchRouteOSRM();
+        if (order) fetchRouteGoogle();
     }, [latitude, longitude, order?.id]);
 
     const handleHorn = async () => {

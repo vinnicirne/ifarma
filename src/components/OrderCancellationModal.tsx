@@ -4,7 +4,7 @@ interface OrderCancellationModalProps {
     isOpen: boolean;
     onClose: () => void;
     onConfirm: (reason: string) => void;
-    userRole: 'customer' | 'pharmacy';
+    userRole: 'customer' | 'pharmacy' | 'motoboy';
 }
 
 const MaterialIcon = ({ name, className = "" }: { name: string, className?: string }) => (
@@ -15,9 +15,11 @@ export const OrderCancellationModal: React.FC<OrderCancellationModalProps> = ({ 
     const [reason, setReason] = useState('');
     const [loading, setLoading] = useState(false);
 
-    const commonReasons = userRole === 'customer'
-        ? ['Desisti da compra', 'Endereço incorreto', 'Esqueci de aplicar cupom', 'Demora muito para entregar', 'Outro']
-        : ['Produtos sem estoque', 'Fora da área de entrega', 'Endereço não localizado', 'Problema técnico', 'Outro'];
+    const commonReasons = {
+        customer: ['Desisti da compra', 'Endereço incorreto', 'Esqueci de aplicar cupom', 'Demora muito para entregar', 'Outro'],
+        pharmacy: ['Produtos sem estoque', 'Fora da área de entrega', 'Endereço não localizado', 'Problema técnico', 'Outro'],
+        motoboy: ['Pneu furou / Problema mecânico', 'Acidente', 'Endereço não localizado', 'Cliente ausente', 'Chuva forte / Risco', 'Outro']
+    }[userRole] || ['Outro'];
 
     if (!isOpen) return null;
 
@@ -51,8 +53,8 @@ export const OrderCancellationModal: React.FC<OrderCancellationModalProps> = ({ 
                             key={i}
                             onClick={() => setReason(r)}
                             className={`w-full text-left px-5 py-4 rounded-2xl text-sm font-black transition-all border outline-none ${reason === r
-                                    ? 'bg-red-500/10 border-red-500 text-red-500 shadow-lg shadow-red-500/10'
-                                    : 'bg-slate-50 dark:bg-white/5 border-transparent text-slate-600 dark:text-slate-300 hover:border-slate-200 dark:hover:border-white/10'
+                                ? 'bg-red-500/10 border-red-500 text-red-500 shadow-lg shadow-red-500/10'
+                                : 'bg-slate-50 dark:bg-white/5 border-transparent text-slate-600 dark:text-slate-300 hover:border-slate-200 dark:hover:border-white/10'
                                 }`}
                         >
                             {r}

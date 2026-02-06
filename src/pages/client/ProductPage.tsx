@@ -44,7 +44,8 @@ export const ProductPage = ({ session }: { session: any }) => {
 
             if (error) {
                 console.error("Error fetching product:", error);
-                navigate(-1);
+                console.error("Error fetching product:", error);
+                navigate('/');
                 return;
             }
             setProduct(data);
