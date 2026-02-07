@@ -10,6 +10,7 @@ const MerchantLayout = ({ children, activeTab, title }: { children: React.ReactN
     const navigate = useNavigate();
     const location = useLocation();
     const [isCollapsed, setIsCollapsed] = React.useState(false);
+    const [storeStatus, setStoreStatus] = React.useState(false);
 
     const handleLogout = async () => {
         await supabase.auth.signOut();
@@ -17,21 +18,81 @@ const MerchantLayout = ({ children, activeTab, title }: { children: React.ReactN
     };
 
     React.useEffect(() => {
-        const updateAccess = async () => {
+        const checkAutoOpen = async () => {
             const { data: { user } } = await supabase.auth.getUser();
-            if (user) {
-                const { data: profile } = await supabase
-                    .from('profiles')
-                    .select('pharmacy_id')
-                    .eq('id', user.id)
-                    .single();
+            if (!user) return;
 
-                if (profile?.pharmacy_id) {
+            // Fetch Pharmacy Settings
+            const { data: profile } = await supabase.from('profiles').select('pharmacy_id').eq('id', user.id).single();
+            const pharmacyId = profile?.pharmacy_id;
+
+            // Also handle Admin Impersonation from localStorage if applicable (simplified here to just focus on direct link or owner)
+            // But let's respect the user context
+
+            if (!pharmacyId) return;
+
+            const { data: pharmacy } = await supabase
+                .from('pharmacies')
+                .select('id, is_open, auto_open_status, opening_hours_start, opening_hours_end')
+                .eq('id', pharmacyId)
+                .single();
+
+            if (pharmacy && pharmacy.auto_open_status && pharmacy.opening_hours_start && pharmacy.opening_hours_end) {
+                const now = new Date();
+                const currentTime = now.toTimeString().slice(0, 5); // "HH:MM"
+
+                // Supports overnight shifts (e.g., 22:00 to 06:00)
+                const start = pharmacy.opening_hours_start?.slice(0, 5);
+                const end = pharmacy.opening_hours_end?.slice(0, 5);
+
+                let isOpenTime = false;
+                if (start && end) {
+                    if (start <= end) {
+                        isOpenTime = currentTime >= start && currentTime < end;
+                    } else {
+                        // Crossing midnight
+                        isOpenTime = currentTime >= start || currentTime < end;
+                    }
+                }
+
+                if (pharmacy.is_open !== isOpenTime) {
+                    console.log(`⏰ Auto-Scheduler: Updating Status to ${isOpenTime ? 'OPEN' : 'CLOSED'} based on time ${currentTime}`);
                     await supabase
                         .from('pharmacies')
-                        .update({ last_access: new Date().toISOString() })
-                        .eq('id', profile.pharmacy_id);
+                        .update({ is_open: isOpenTime })
+                        .eq('id', pharmacy.id);
+                    setStoreStatus(isOpenTime);
+                } else {
+                    setStoreStatus(!!pharmacy.is_open);
                 }
+            } else if (pharmacy) {
+                setStoreStatus(!!pharmacy.is_open);
+            }
+        };
+
+        // Run immediately and then every minute
+        checkAutoOpen();
+        const interval = setInterval(checkAutoOpen, 60000);
+
+        return () => clearInterval(interval);
+    }, []);
+
+    React.useEffect(() => {
+        const updateAccess = async () => {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) return;
+
+            const { data: profile } = await supabase
+                .from('profiles')
+                .select('pharmacy_id')
+                .eq('id', user.id)
+                .single();
+
+            if (profile?.pharmacy_id) {
+                await supabase
+                    .from('pharmacies')
+                    .update({ last_access: new Date().toISOString() })
+                    .eq('id', profile.pharmacy_id);
             }
         };
         updateAccess();
@@ -59,7 +120,11 @@ const MerchantLayout = ({ children, activeTab, title }: { children: React.ReactN
                     {!isCollapsed && (
                         <div className="overflow-hidden whitespace-nowrap">
                             <h1 className="text-xl font-black italic tracking-tighter text-slate-900 dark:text-white leading-none">ifarma</h1>
-                            <span className="text-[10px] font-bold uppercase tracking-widest text-primary">Portal Gestor</span>
+                            <div className="flex items-center gap-2">
+                                <span className="text-[10px] font-bold uppercase tracking-widest text-primary">Portal Gestor</span>
+                                {/* Status Dot */}
+                                <div className={`size-2 rounded-full animate-pulse ${storeStatus ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]' : 'bg-red-500 opacity-50'}`} title={storeStatus ? "Abriremos automaticamente" : "Loja Fechada"} />
+                            </div>
                         </div>
                     )}
                 </div>

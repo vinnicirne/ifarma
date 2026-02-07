@@ -26,6 +26,11 @@ const StoreCustomization = () => {
     const [autoMessageCancelEnabled, setAutoMessageCancelEnabled] = useState(false);
     const [autoMessageCancelText, setAutoMessageCancelText] = useState('');
 
+    // Opening Hours States
+    const [autoOpenStatus, setAutoOpenStatus] = useState(false);
+    const [openingHoursStart, setOpeningHoursStart] = useState('08:00');
+    const [openingHoursEnd, setOpeningHoursEnd] = useState('18:00');
+
     // Address States
     const [cep, setCep] = useState('');
     const [street, setStreet] = useState('');
@@ -87,6 +92,11 @@ const StoreCustomization = () => {
                 setAutoMessageAcceptText(data.auto_message_accept_text || 'Olá! Recebemos seu pedido e já estamos preparando.');
                 setAutoMessageCancelEnabled(data.auto_message_cancel_enabled ?? false);
                 setAutoMessageCancelText(data.auto_message_cancel_text || 'Infelizmente tivemos que cancelar seu pedido por um motivo de força maior. Entre em contato para mais detalhes.');
+
+                // Opening Hours
+                setAutoOpenStatus(data.auto_open_status ?? false);
+                setOpeningHoursStart(data.opening_hours_start || '08:00');
+                setOpeningHoursEnd(data.opening_hours_end || '18:00');
             }
         } catch (error) {
             console.error("Error fetching pharmacy:", error);
@@ -178,6 +188,10 @@ const StoreCustomization = () => {
                     auto_message_accept_text: autoMessageAcceptText,
                     auto_message_cancel_enabled: autoMessageCancelEnabled,
                     auto_message_cancel_text: autoMessageCancelText,
+                    // Opening Hours
+                    auto_open_status: autoOpenStatus,
+                    opening_hours_start: openingHoursStart,
+                    opening_hours_end: openingHoursEnd,
                     updated_at: new Date()
                 })
                 .eq('id', pharmacy.id);
@@ -301,23 +315,51 @@ const StoreCustomization = () => {
                             </div>
 
                             <div className="md:col-span-2 pt-4">
-                                <h3 className="text-sm font-black italic text-slate-900 dark:text-white mb-4 mt-2">Status da Loja</h3>
-                                <div className="flex flex-wrap gap-4">
-                                    <label className={`flex items-center gap-3 p-4 rounded-2xl cursor-pointer border transition-all w-full md:w-auto ${isOpen ? 'bg-primary/10 border-primary' : 'bg-slate-50 dark:bg-black/20 border-transparent hover:border-slate-300'}`}>
-                                        <input type="radio" name="status" checked={isOpen} onChange={() => setIsOpen(true)} className="accent-primary size-5" />
-                                        <div>
-                                            <span className="block font-bold text-sm text-slate-900 dark:text-white">Aberta</span>
-                                            <span className="text-[10px] text-slate-500 uppercase font-black">Recebendo pedidos</span>
-                                        </div>
-                                    </label>
-                                    <label className={`flex items-center gap-3 p-4 rounded-2xl cursor-pointer border transition-all w-full md:w-auto ${!isOpen ? 'bg-red-500/10 border-red-500' : 'bg-slate-50 dark:bg-black/20 border-transparent hover:border-slate-300'}`}>
-                                        <input type="radio" name="status" checked={!isOpen} onChange={() => setIsOpen(false)} className="accent-primary size-5" />
-                                        <div>
-                                            <span className="block font-bold text-sm text-slate-900 dark:text-white">Fechada</span>
-                                            <span className="text-[10px] text-slate-500 uppercase font-black">Não aceita pedidos</span>
-                                        </div>
-                                    </label>
+                                <div className="flex items-center justify-between mb-4 mt-2">
+                                    <h3 className="text-sm font-black italic text-slate-900 dark:text-white">Status da Loja</h3>
+                                    <div className="flex items-center gap-2">
+                                        <label className="flex items-center gap-2 cursor-pointer">
+                                            <div className={`w-10 h-6 rounded-full p-1 transition-colors ${autoOpenStatus ? 'bg-primary' : 'bg-slate-300 dark:bg-zinc-700'}`}>
+                                                <div className={`w-4 h-4 rounded-full bg-white transition-transform ${autoOpenStatus ? 'translate-x-4' : ''}`} />
+                                            </div>
+                                            <input type="checkbox" className="hidden" checked={autoOpenStatus} onChange={(e) => setAutoOpenStatus(e.target.checked)} />
+                                            <span className="text-xs font-bold uppercase text-slate-500">Automático</span>
+                                        </label>
+                                    </div>
                                 </div>
+
+                                {autoOpenStatus ? (
+                                    <div className="bg-slate-50 dark:bg-black/20 p-4 rounded-2xl border border-slate-200 dark:border-white/5 grid grid-cols-2 gap-4">
+                                        <label className="flex flex-col gap-1">
+                                            <span className="text-[10px] font-black uppercase text-slate-500">Abre às</span>
+                                            <input type="time" value={openingHoursStart} onChange={e => setOpeningHoursStart(e.target.value)} className="h-10 px-3 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-white/10 rounded-lg outline-none font-bold text-slate-900 dark:text-white" />
+                                        </label>
+                                        <label className="flex flex-col gap-1">
+                                            <span className="text-[10px] font-black uppercase text-slate-500">Fecha às</span>
+                                            <input type="time" value={openingHoursEnd} onChange={e => setOpeningHoursEnd(e.target.value)} className="h-10 px-3 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-white/10 rounded-lg outline-none font-bold text-slate-900 dark:text-white" />
+                                        </label>
+                                        <div className="col-span-2 text-center text-xs text-slate-400 mt-1">
+                                            <p>A loja abrirá e fechará automaticamente nestes horários de Segunda a Domingo.</p>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="flex flex-wrap gap-4">
+                                        <label className={`flex items-center gap-3 p-4 rounded-2xl cursor-pointer border transition-all w-full md:w-auto ${isOpen ? 'bg-primary/10 border-primary' : 'bg-slate-50 dark:bg-black/20 border-transparent hover:border-slate-300'}`}>
+                                            <input type="radio" name="status" checked={isOpen} onChange={() => setIsOpen(true)} className="accent-primary size-5" />
+                                            <div>
+                                                <span className="block font-bold text-sm text-slate-900 dark:text-white">Aberta</span>
+                                                <span className="text-[10px] text-slate-500 uppercase font-black">Recebendo pedidos</span>
+                                            </div>
+                                        </label>
+                                        <label className={`flex items-center gap-3 p-4 rounded-2xl cursor-pointer border transition-all w-full md:w-auto ${!isOpen ? 'bg-red-500/10 border-red-500' : 'bg-slate-50 dark:bg-black/20 border-transparent hover:border-slate-300'}`}>
+                                            <input type="radio" name="status" checked={!isOpen} onChange={() => setIsOpen(false)} className="accent-primary size-5" />
+                                            <div>
+                                                <span className="block font-bold text-sm text-slate-900 dark:text-white">Fechada</span>
+                                                <span className="text-[10px] text-slate-500 uppercase font-black">Não aceita pedidos</span>
+                                            </div>
+                                        </label>
+                                    </div>
+                                )}
                             </div>
                         </div>
 
