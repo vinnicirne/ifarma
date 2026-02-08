@@ -18,8 +18,13 @@ const MerchantLogin = () => {
         setLoading(true);
 
         try {
+            // Suporte para Login por Telefone (Funcionários) e E-mail (Gestor)
+            const loginIdentifier = email.includes('@')
+                ? email
+                : `${email.replace(/\D/g, '')}@employee.ifarma.com`;
+
             const { error, data } = await supabase.auth.signInWithPassword({
-                email,
+                email: loginIdentifier,
                 password
             });
 
@@ -41,7 +46,8 @@ const MerchantLogin = () => {
 
             navigate('/gestor');
         } catch (error: any) {
-            alert(error.message || 'Erro ao entrar');
+            console.error(error);
+            alert(error.message === 'Invalid login credentials' ? 'Dados inválidos. Verifique seu login e senha.' : error.message || 'Erro ao entrar');
         } finally {
             setLoading(false);
         }
@@ -64,18 +70,17 @@ const MerchantLogin = () => {
 
                 <form onSubmit={handleLogin} className="space-y-4">
                     <div>
-                        <label className="block text-xs font-bold uppercase text-slate-500 mb-1">E-mail Profissional</label>
+                        <label className="block text-xs font-bold uppercase text-slate-500 mb-1">E-mail ou Telefone</label>
                         <div className="relative">
                             <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                                <MaterialIcon name="mail" className="text-slate-400" />
+                                <MaterialIcon name="person" className="text-slate-400" />
                             </div>
                             <input
                                 required
-                                type="email"
                                 value={email}
                                 onChange={e => setEmail(e.target.value)}
                                 className="w-full h-14 pl-12 pr-4 rounded-xl bg-slate-50 dark:bg-black/20 border-none focus:ring-2 focus:ring-primary outline-none font-medium text-slate-900 dark:text-white transition-all"
-                                placeholder="seu@email.com"
+                                placeholder="E-mail ou (00) 00000-0000"
                             />
                         </div>
                     </div>

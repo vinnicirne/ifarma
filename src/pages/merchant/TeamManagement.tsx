@@ -146,17 +146,16 @@ const TeamManagement = () => {
                     displayMessage = `Motoboy cadastrado!\nLogin: ${formData.phone.replace(/\D/g, '')}\nSenha: ${formData.password}`;
                 } else {
                     // Lógica para outros membros (Gerente, Caixa)
-                    if (!formData.email) {
-                        throw new Error("E-mail é obrigatório.");
-                    }
-                    if (!formData.password) {
-                        throw new Error("Senha é obrigatória.");
+                    if (!formData.phone || !formData.password) {
+                        throw new Error("Telefone e Senha são obrigatórios.");
                     }
                     const { allMet } = getPasswordStrength(formData.password);
                     if (!allMet) {
                         throw new Error("A senha não atende aos requisitos mínimos de segurança.");
                     }
-                    displayMessage = `Membro cadastrado!\nEmail: ${loginEmail}\nSenha: ${formData.password}`;
+                    // Gerar email de login baseado no telefone (Padrão Employee)
+                    loginEmail = `${formData.phone.replace(/\D/g, '')}@employee.ifarma.com`;
+                    displayMessage = `Membro cadastrado!\nLogin: ${formData.phone.replace(/\D/g, '')}\nSenha: ${formData.password}`;
                 }
 
                 // Manual Fetch to bypass potential Supabase Client invoke issues
@@ -251,7 +250,7 @@ const TeamManagement = () => {
             }
 
             if (msg.includes("User already registered") || msg.includes("already exists") || error.code === 'USER_ALREADY_EXISTS') {
-                msg = "Este usuário (telefone ou email) já está cadastrado no sistema. Tente fazer login ou use outro número.";
+                msg = "Este usuário (telefone) já está cadastrado no sistema. Tente fazer login.";
             } else if (msg.includes("weak_password") || error.code === 'PASSWORD_TOO_WEAK') {
                 msg = "A senha é muito fraca. Certifique-se de seguir os requisitos: 6+ caracteres, números e símbolos.";
             }
@@ -434,18 +433,6 @@ const TeamManagement = () => {
                                     !editingMember && (
                                         <>
                                             <div>
-                                                <label className="text-[10px] font-black uppercase text-slate-500 pl-1 block mb-1">Email de Acesso</label>
-                                                <input
-                                                    required
-                                                    type="email"
-                                                    value={formData.email}
-                                                    onChange={e => setFormData({ ...formData, email: e.target.value })}
-                                                    className="w-full h-12 px-4 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 rounded-xl outline-none font-bold italic"
-                                                    placeholder="ana@suafarma.com"
-                                                />
-                                            </div>
-
-                                            <div>
                                                 <label className="text-[10px] font-black uppercase text-slate-500 pl-1 block mb-1">Senha de Acesso</label>
                                                 <input
                                                     required
@@ -480,8 +467,10 @@ const TeamManagement = () => {
                                                     </div>
                                                 </div>
 
-                                                <p className="text-[10px] text-slate-400 mt-2 pl-1 leading-relaxed">Esta senha será necessária para o primeiro acesso no sistema.</p>
+                                                <p className="text-[10px] text-slate-400 mt-2 pl-1 leading-relaxed">Esta senha será usada para acessar o painel com o número de telefone.</p>
                                             </div>
+
+                                            {/* Email Opcional ou Removido - Decisão: Remover para simplificar login por telefone */}
                                         </>
                                     )
                                 ) : (
@@ -554,18 +543,16 @@ const TeamManagement = () => {
 
                                 <div>
                                     <label className="text-[10px] font-black uppercase text-slate-500 pl-1 block mb-1">
-                                        {formData.role === 'motoboy' ? 'Telefone (Login)' : 'WhatsApp / Telefone'}
+                                        Telefone (Login)
                                     </label>
                                     <input
-                                        required={formData.role === 'motoboy'}
+                                        required
                                         value={formData.phone}
                                         onChange={e => setFormData({ ...formData, phone: e.target.value })}
                                         className="w-full h-12 px-4 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 rounded-xl outline-none font-bold italic"
                                         placeholder="(00) 00000-0000"
                                     />
-                                    {formData.role === 'motoboy' && (
-                                        <p className="text-[10px] text-slate-400 mt-1 pl-1">Este número será usado como login.</p>
-                                    )}
+                                    <p className="text-[10px] text-slate-400 mt-1 pl-1">Este número será usado como login.</p>
                                 </div>
                             </div>
 
