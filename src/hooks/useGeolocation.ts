@@ -2,7 +2,6 @@ import { useEffect, useState, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { Geolocation } from '@capacitor/geolocation';
 import { Device } from '@capacitor/device';
-import { Network } from '@capacitor/network';
 import { Capacitor } from '@capacitor/core';
 
 interface GeolocationState {
