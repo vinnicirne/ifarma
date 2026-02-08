@@ -9,10 +9,8 @@ const AdminLayout = () => {
             <Sidebar />
 
             {/* Área de Conteúdo à Direita */}
-            <div className="flex-1 ml-72 flex flex-col h-screen overflow-y-auto hide-scrollbar bg-[#060a08]">
-                <Header />
-
-                <main className="flex-1 px-8 pb-12 w-full max-w-[1700px] mx-auto">
+            <div className="flex-1 ml-72 flex flex-col min-h-screen bg-[#060a08]">
+                <main className="flex-1 px-8 pb-12 pt-8 w-full max-w-[1700px] mx-auto">
                     <Outlet />
                 </main>
             </div>
