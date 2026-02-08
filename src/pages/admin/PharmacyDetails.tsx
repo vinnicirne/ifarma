@@ -5,8 +5,88 @@ import { MaterialIcon } from '../../components/Shared';
 import AdminMap from '../../components/admin/AdminMap';
 import RealtimeMetrics from '../../components/dashboard/RealtimeMetrics';
 import PharmacyFinanceTab from '../../components/admin/PharmacyFinanceTab';
+import { Autocomplete, useJsApiLoader } from '@react-google-maps/api';
+
+const libraries: ("places" | "visualization")[] = ["places", "visualization"];
 
 const PharmacyDetails = () => {
+    const [googleKey, setGoogleKey] = useState<string | null>(null);
+
+    // Fetch Google Maps Key (Same logic as AdminDashboard)
+    useEffect(() => {
+        const fetchGoogleKey = async () => {
+            const envKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+            if (envKey) {
+                setGoogleKey(envKey);
+                return;
+            }
+            const { data: settings } = await supabase
+                .from('system_settings')
+                .select('value')
+                .eq('key', 'google_maps_api_key')
+                .single();
+
+            if (settings?.value) {
+                setGoogleKey(settings.value);
+            }
+        };
+        fetchGoogleKey();
+    }, []);
+
+    const { isLoaded } = useJsApiLoader({
+        id: 'google-map-script',
+        googleMapsApiKey: googleKey || import.meta.env.VITE_GOOGLE_MAPS_API_KEY || "",
+        libraries: libraries
+    });
+
+    const [autocomplete, setAutocomplete] = useState<google.maps.places.Autocomplete | null>(null);
+
+    const onPlaceChanged = () => {
+        if (autocomplete) {
+            const place = autocomplete.getPlace();
+
+            if (place.geometry && place.geometry.location) {
+                const lat = place.geometry.location.lat().toString();
+                const lng = place.geometry.location.lng().toString();
+
+                let street = '';
+                let street_number = '';
+                let neighborhood = '';
+                let city = '';
+                let state = '';
+                let cep = '';
+
+                // Mapping Google Address Components to our fields
+                place.address_components?.forEach(component => {
+                    const types = component.types;
+                    if (types.includes('route')) street = component.long_name;
+                    if (types.includes('street_number')) street_number = component.long_name;
+                    if (types.includes('sublocality_level_1') || types.includes('neighborhood')) neighborhood = component.long_name;
+                    if (types.includes('administrative_area_level_2') || types.includes('locality')) city = component.long_name;
+                    if (types.includes('administrative_area_level_1')) state = component.short_name;
+                    if (types.includes('postal_code')) cep = component.long_name;
+                });
+
+                setFormData(prev => ({
+                    ...prev,
+                    latitude: lat,
+                    longitude: lng,
+                    street: street || prev.street,
+                    number: street_number || prev.number,
+                    neighborhood: neighborhood || prev.neighborhood,
+                    city: city || prev.city,
+                    state: state || prev.state,
+                    cep: cep || prev.cep,
+                    address: place.formatted_address || prev.address
+                }));
+            }
+        }
+    };
+
+    const onLoadAutocomplete = (autocompleteInstance: google.maps.places.Autocomplete) => {
+        setAutocomplete(autocompleteInstance);
+    };
+
     const { id } = useParams();
     const navigate = useNavigate();
     const [loading, setLoading] = useState(false);
@@ -46,7 +126,15 @@ const PharmacyDetails = () => {
         created_at: '',
         last_access: '',
         logo_url: '',
-        banner_url: ''
+        banner_url: '',
+        // Delivery Fees
+        delivery_fee_type: 'fixed',
+        delivery_fee_fixed: 0,
+        delivery_fee_per_km: 0,
+        delivery_ranges: [] as { max_km: number, fee: number }[],
+        delivery_free_min_km: 0,
+        delivery_free_min_value: 0,
+        delivery_max_km: 15
     });
 
     const isNew = id === 'new';
@@ -87,7 +175,15 @@ const PharmacyDetails = () => {
                     number: pharmaData.number || '',
                     neighborhood: pharmaData.neighborhood || '',
                     city: pharmaData.city || '',
-                    state: pharmaData.state || ''
+                    state: pharmaData.state || '',
+                    // Delivery Fees
+                    delivery_fee_type: pharmaData.delivery_fee_type || 'fixed',
+                    delivery_fee_fixed: pharmaData.delivery_fee_fixed || 0,
+                    delivery_fee_per_km: pharmaData.delivery_fee_per_km || 0,
+                    delivery_ranges: pharmaData.delivery_ranges || [],
+                    delivery_free_min_km: pharmaData.delivery_free_min_km || 0,
+                    delivery_free_min_value: pharmaData.delivery_free_min_value || 0,
+                    delivery_max_km: pharmaData.delivery_max_km || 15
                 }));
             }
 
@@ -153,6 +249,68 @@ const PharmacyDetails = () => {
         };
     }, [id]);
 
+    // --- Geocoding Functions ---
+    const geocodeAddress = async (address: string): Promise<{ lat: string, lng: string, formattedAddress?: string } | null> => {
+        const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+        if (!apiKey) {
+            console.warn('Google Maps API key not found');
+            return null;
+        }
+
+        try {
+            const response = await fetch(
+                `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=${apiKey}`
+            );
+            const data = await response.json();
+
+            if (data.results?.[0]) {
+                const result = data.results[0];
+                return {
+                    lat: result.geometry.location.lat.toString(),
+                    lng: result.geometry.location.lng.toString(),
+                    formattedAddress: result.formatted_address
+                };
+            }
+        } catch (error) {
+            console.error('Geocoding error:', error);
+        }
+        return null;
+    };
+
+    const reverseGeocode = async (lat: number, lng: number): Promise<any> => {
+        const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+        if (!apiKey) return null;
+
+        try {
+            const response = await fetch(
+                `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${apiKey}`
+            );
+            const data = await response.json();
+
+            if (data.results?.[0]) {
+                const result = data.results[0];
+                const addressComponents = result.address_components;
+
+                // Extract address parts
+                const getComponent = (type: string) =>
+                    addressComponents.find((c: any) => c.types.includes(type))?.long_name || '';
+
+                return {
+                    street: getComponent('route'),
+                    number: getComponent('street_number'),
+                    neighborhood: getComponent('sublocality_level_1') || getComponent('neighborhood'),
+                    city: getComponent('administrative_area_level_2') || getComponent('locality'),
+                    state: getComponent('administrative_area_level_1'),
+                    cep: getComponent('postal_code'),
+                    formattedAddress: result.formatted_address
+                };
+            }
+        } catch (error) {
+            console.error('Reverse geocoding error:', error);
+        }
+        return null;
+    };
+
     // --- Handlers (Save, CEP, etc) ---
     const handleCEPBlur = async () => {
         const cep = formData.cep.replace(/\D/g, '');
@@ -168,19 +326,11 @@ const PharmacyDetails = () => {
                 return;
             }
 
-            const fullAddress = `${viaCEPData.logradouro}, ${viaCEPData.bairro}, ${viaCEPData.localidade} - ${viaCEPData.uf}`;
+            // Build full address for geocoding
+            const fullAddress = `${viaCEPData.logradouro}, ${viaCEPData.bairro}, ${viaCEPData.localidade} - ${viaCEPData.uf}, Brasil`;
 
-            const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
-            let lat = '', lng = '';
-
-            if (apiKey) {
-                const mapsResponse = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(fullAddress)}&key=${apiKey}`);
-                const mapsData = await mapsResponse.json();
-                if (mapsData.results?.[0]) {
-                    lat = mapsData.results[0].geometry.location.lat.toString();
-                    lng = mapsData.results[0].geometry.location.lng.toString();
-                }
-            }
+            // Get coordinates from Google Maps
+            const geoResult = await geocodeAddress(fullAddress);
 
             setFormData(prev => ({
                 ...prev,
@@ -189,13 +339,29 @@ const PharmacyDetails = () => {
                 neighborhood: viaCEPData.bairro,
                 city: viaCEPData.localidade,
                 state: viaCEPData.uf,
-                latitude: lat,
-                longitude: lng
+                latitude: geoResult?.lat || '',
+                longitude: geoResult?.lng || ''
             }));
         } catch (error) {
             console.error("Erro ao buscar CEP:", error);
         } finally {
             setLoading(false);
+        }
+    };
+
+    // Handler for manual address changes
+    const handleAddressChange = async () => {
+        if (!formData.street || !formData.city || !formData.state) return;
+
+        const fullAddress = `${formData.street}${formData.number ? ', ' + formData.number : ''}, ${formData.neighborhood}, ${formData.city} - ${formData.state}, Brasil`;
+
+        const geoResult = await geocodeAddress(fullAddress);
+        if (geoResult) {
+            setFormData(prev => ({
+                ...prev,
+                latitude: geoResult.lat,
+                longitude: geoResult.lng
+            }));
         }
     };
 
@@ -229,7 +395,15 @@ const PharmacyDetails = () => {
             owner_email: formData.owner_email,
             establishment_phone: formData.establishment_phone,
             logo_url: formData.logo_url,
-            banner_url: formData.banner_url
+            banner_url: formData.banner_url,
+            // Delivery Fees
+            delivery_fee_type: formData.delivery_fee_type,
+            delivery_fee_fixed: formData.delivery_fee_fixed,
+            delivery_fee_per_km: formData.delivery_fee_per_km,
+            delivery_ranges: formData.delivery_ranges,
+            delivery_free_min_km: formData.delivery_free_min_km,
+            delivery_free_min_value: formData.delivery_free_min_value,
+            delivery_max_km: formData.delivery_max_km
         };
 
         try {
@@ -376,8 +550,8 @@ const PharmacyDetails = () => {
                                                 </td>
                                                 <td className="p-6">
                                                     <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${order.status === 'completed' ? 'bg-emerald-500/10 text-emerald-500' :
-                                                            order.status === 'canceled' ? 'bg-red-500/10 text-red-500' :
-                                                                'bg-amber-500/10 text-amber-500'
+                                                        order.status === 'canceled' ? 'bg-red-500/10 text-red-500' :
+                                                            'bg-amber-500/10 text-amber-500'
                                                         }`}>
                                                         {order.status === 'completed' ? 'Concluído' :
                                                             order.status === 'canceled' ? 'Cancelado' :
@@ -401,9 +575,14 @@ const PharmacyDetails = () => {
                     </div>
                 )}
 
+                {/* 3. FINANCE TAB */}
+                {activeTab === 'finance' && !isNew && (
+                    <PharmacyFinanceTab pharmacyId={id || ''} />
+                )}
+
                 {/* ... (Orders Tab Logic would go here) ... */}
 
-                {/* 3. SETTINGS TAB */}
+                {/* 4. SETTINGS TAB */}
                 {
                     (activeTab === 'settings' || isNew) && (
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-fade-in">
@@ -488,7 +667,25 @@ const PharmacyDetails = () => {
                                         </div>
                                         <div className="col-span-12 md:col-span-8 flex flex-col gap-2">
                                             <label className="text-[10px] font-black uppercase tracking-widest text-[#92c9a9] px-1">Rua / Logradouro</label>
-                                            <input value={formData.street} onChange={e => setFormData({ ...formData, street: e.target.value })} className="h-14 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-2xl px-4 text-slate-900 dark:text-white font-bold outline-none focus:border-primary/50 transition-colors" />
+                                            {isLoaded ? (
+                                                <Autocomplete
+                                                    onLoad={onLoadAutocomplete}
+                                                    onPlaceChanged={onPlaceChanged}
+                                                >
+                                                    <input
+                                                        value={formData.street}
+                                                        onChange={e => setFormData({ ...formData, street: e.target.value })}
+                                                        className="h-14 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-2xl px-4 text-slate-900 dark:text-white font-bold outline-none focus:border-primary/50 transition-colors w-full"
+                                                        placeholder="Comece a digitar o endereço..."
+                                                    />
+                                                </Autocomplete>
+                                            ) : (
+                                                <input
+                                                    value={formData.street}
+                                                    onChange={e => setFormData({ ...formData, street: e.target.value })}
+                                                    className="h-14 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-2xl px-4 text-slate-900 dark:text-white font-bold outline-none focus:border-primary/50 transition-colors w-full"
+                                                />
+                                            )}
                                         </div>
                                         <div className="col-span-12 md:col-span-4 flex flex-col gap-2">
                                             <label className="text-[10px] font-black uppercase tracking-widest text-[#92c9a9] px-1">Número</label>
@@ -507,20 +704,153 @@ const PharmacyDetails = () => {
                                             <input value={formData.longitude} onChange={e => setFormData({ ...formData, longitude: e.target.value })} className="h-14 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-2xl px-4 text-slate-900 dark:text-white font-bold outline-none focus:border-primary/50 transition-colors" />
                                         </div>
                                         <div className="col-span-12 md:col-span-4 flex flex-col gap-2">
-                                            <label className="text-[10px] font-black uppercase tracking-widest text-[#92c9a9] px-1">Cidade / UF</label>
-                                            <input value={`${formData.city} - ${formData.state}`} readOnly className="h-14 bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/5 rounded-2xl px-4 text-slate-500 font-bold outline-none cursor-not-allowed" />
+                                            <label className="text-[10px] font-black uppercase tracking-widest text-[#92c9a9] px-1">Ação</label>
+                                            <button
+                                                type="button"
+                                                onClick={handleAddressChange}
+                                                disabled={loading || !formData.street || !formData.city}
+                                                className="h-14 bg-primary/10 hover:bg-primary/20 border border-primary/20 rounded-2xl px-4 text-primary font-black text-xs uppercase tracking-widest transition-all disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                                                title="Recalcular coordenadas a partir do endereço"
+                                            >
+                                                <MaterialIcon name="my_location" />
+                                                <span>Geocodificar</span>
+                                            </button>
                                         </div>
 
                                         {/* MAP PREVIEW */}
                                         <div className="col-span-12 h-[300px] rounded-3xl overflow-hidden border border-slate-200 dark:border-white/10 relative mt-4">
-                                            {formData.latitude && formData.longitude && !isNaN(parseFloat(formData.latitude)) ? (
-                                                <AdminMap type="tracking" markers={[{ id: 'pharma-loc', lat: parseFloat(formData.latitude), lng: parseFloat(formData.longitude), type: 'pharmacy' }]} />
+                                            <AdminMap
+                                                type="tracking"
+                                                markers={formData.latitude && formData.longitude && !isNaN(parseFloat(formData.latitude))
+                                                    ? [{ id: 'pharma-loc', lat: parseFloat(formData.latitude), lng: parseFloat(formData.longitude), type: 'pharmacy' }]
+                                                    : []
+                                                }
+                                                autoCenter={true}
+                                                center={formData.latitude && formData.longitude && !isNaN(parseFloat(formData.latitude))
+                                                    ? { lat: parseFloat(formData.latitude), lng: parseFloat(formData.longitude) }
+                                                    : undefined
+                                                }
+                                                onMapClick={async (e) => {
+                                                    if (e.latLng) {
+                                                        const lat = e.latLng.lat();
+                                                        const lng = e.latLng.lng();
+
+                                                        // Update coordinates immediately
+                                                        setFormData(prev => ({ ...prev, latitude: lat.toString(), longitude: lng.toString() }));
+
+                                                        // Fetch address from coordinates
+                                                        const addressData = await reverseGeocode(lat, lng);
+                                                        if (addressData) {
+                                                            setFormData(prev => ({
+                                                                ...prev,
+                                                                latitude: lat.toString(),
+                                                                longitude: lng.toString(),
+                                                                street: addressData.street || prev.street,
+                                                                number: addressData.number || prev.number,
+                                                                neighborhood: addressData.neighborhood || prev.neighborhood,
+                                                                city: addressData.city || prev.city,
+                                                                state: addressData.state || prev.state,
+                                                                cep: addressData.cep || prev.cep,
+                                                                address: addressData.formattedAddress || prev.address
+                                                            }));
+                                                        }
+                                                    }
+                                                }}
+                                                isLoaded={isLoaded}
+                                            />
+                                        </div>
+                                    </div>
+                                </section>
+
+                                {/* 3.3 DELIVERY FEES CONFIGURATION (Admin Review) */}
+                                <section className="bg-white dark:bg-[#1a2e23] p-8 rounded-[40px] border border-slate-200 dark:border-white/5 shadow-xl">
+                                    <h3 className="text-lg font-black italic text-slate-900 dark:text-white mb-6 flex items-center gap-2">
+                                        <MaterialIcon name="delivery_dining" className="text-primary" />
+                                        Regras de Entrega
+                                    </h3>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                        <div className="space-y-4">
+                                            <div className="flex flex-col gap-2">
+                                                <label className="text-[10px] font-black uppercase tracking-widest text-[#92c9a9] px-1">Tipo de Cobrança</label>
+                                                <div className="flex bg-black/20 p-1 rounded-xl">
+                                                    <button
+                                                        onClick={() => setFormData({ ...formData, delivery_fee_type: 'fixed' })}
+                                                        className={`flex-1 py-2 rounded-lg text-xs font-black uppercase transition-all ${formData.delivery_fee_type === 'fixed' ? 'bg-primary text-background-dark' : 'text-slate-500'}`}
+                                                    >
+                                                        Fixo
+                                                    </button>
+                                                    <button
+                                                        onClick={() => setFormData({ ...formData, delivery_fee_type: 'km' })}
+                                                        className={`flex-1 py-2 rounded-lg text-xs font-black uppercase transition-all ${formData.delivery_fee_type === 'km' ? 'bg-primary text-background-dark' : 'text-slate-500'}`}
+                                                    >
+                                                        Por KM
+                                                    </button>
+                                                    <button
+                                                        onClick={() => setFormData({ ...formData, delivery_fee_type: 'range' as any })}
+                                                        className={`flex-1 py-2 rounded-lg text-xs font-black uppercase transition-all ${formData.delivery_fee_type === 'range' ? 'bg-primary text-background-dark' : 'text-slate-500'}`}
+                                                    >
+                                                        Faixas
+                                                    </button>
+                                                </div>
+                                            </div>
+
+                                            {formData.delivery_fee_type === 'fixed' ? (
+                                                <div className="flex flex-col gap-2">
+                                                    <label className="text-[10px] font-black uppercase tracking-widest text-[#92c9a9] px-1">Valor Fixo (R$)</label>
+                                                    <input type="number" value={formData.delivery_fee_fixed} onChange={e => setFormData({ ...formData, delivery_fee_fixed: parseFloat(e.target.value) })} className="h-14 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-2xl px-4 text-slate-900 dark:text-white font-bold outline-none focus:border-primary/50" />
+                                                </div>
+                                            ) : formData.delivery_fee_type === 'km' ? (
+                                                <div className="flex flex-col gap-2">
+                                                    <label className="text-[10px] font-black uppercase tracking-widest text-[#92c9a9] px-1">Valor por KM (R$)</label>
+                                                    <input type="number" value={formData.delivery_fee_per_km} onChange={e => setFormData({ ...formData, delivery_fee_per_km: parseFloat(e.target.value) })} className="h-14 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-2xl px-4 text-slate-900 dark:text-white font-bold outline-none focus:border-primary/50" />
+                                                </div>
                                             ) : (
-                                                <div className="w-full h-full bg-slate-100 dark:bg-black/40 flex items-center justify-center flex-col gap-3 text-slate-400">
-                                                    <MaterialIcon name="wrong_location" className="text-4xl" />
-                                                    <span className="text-xs font-bold uppercase tracking-widest">Localização não definida</span>
+                                                <div className="space-y-4">
+                                                    <div className="flex justify-between items-center">
+                                                        <label className="text-[10px] font-black uppercase tracking-widest text-[#92c9a9] px-1">Faixas de Distância</label>
+                                                        <button
+                                                            onClick={() => setFormData({ ...formData, delivery_ranges: [...formData.delivery_ranges, { max_km: 0, fee: 0 }] })}
+                                                            className="text-[9px] font-black uppercase bg-primary/10 text-primary px-3 py-1.5 rounded-lg hover:bg-primary hover:text-white transition-all"
+                                                        >
+                                                            + Nova Faixa
+                                                        </button>
+                                                    </div>
+                                                    <div className="space-y-2 max-h-[150px] overflow-y-auto pr-2">
+                                                        {formData.delivery_ranges.map((range, idx) => (
+                                                            <div key={idx} className="flex gap-2 items-center">
+                                                                <input type="number" placeholder="KM" value={range.max_km} onChange={e => {
+                                                                    const newRanges = [...formData.delivery_ranges];
+                                                                    newRanges[idx].max_km = parseFloat(e.target.value);
+                                                                    setFormData({ ...formData, delivery_ranges: newRanges });
+                                                                }} className="w-1/2 h-10 bg-black/20 rounded-lg px-3 text-xs text-white" />
+                                                                <input type="number" placeholder="R$" value={range.fee} onChange={e => {
+                                                                    const newRanges = [...formData.delivery_ranges];
+                                                                    newRanges[idx].fee = parseFloat(e.target.value);
+                                                                    setFormData({ ...formData, delivery_ranges: newRanges });
+                                                                }} className="w-1/2 h-10 bg-black/20 rounded-lg px-3 text-xs text-white" />
+                                                                <button onClick={() => setFormData({ ...formData, delivery_ranges: formData.delivery_ranges.filter((_, i) => i !== idx) })} className="p-2 text-red-500 hover:bg-red-500/10 rounded-lg">
+                                                                    <MaterialIcon name="delete" className="text-sm" />
+                                                                </button>
+                                                            </div>
+                                                        ))}
+                                                    </div>
                                                 </div>
                                             )}
+                                        </div>
+
+                                        <div className="space-y-4">
+                                            <div className="flex flex-col gap-2">
+                                                <label className="text-[10px] font-black uppercase tracking-widest text-[#92c9a9] px-1">Raio Frete Grátis (KM)</label>
+                                                <input type="number" value={formData.delivery_free_min_km} onChange={e => setFormData({ ...formData, delivery_free_min_km: parseFloat(e.target.value) })} className="h-14 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-2xl px-4 text-slate-900 dark:text-white font-bold outline-none focus:border-primary/50" />
+                                            </div>
+                                            <div className="flex flex-col gap-2">
+                                                <label className="text-[10px] font-black uppercase tracking-widest text-[#92c9a9] px-1">Valor Frete Grátis (R$)</label>
+                                                <input type="number" value={formData.delivery_free_min_value} onChange={e => setFormData({ ...formData, delivery_free_min_value: parseFloat(e.target.value) })} className="h-14 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-2xl px-4 text-slate-900 dark:text-white font-bold outline-none focus:border-primary/50" />
+                                            </div>
+                                            <div className="flex flex-col gap-2">
+                                                <label className="text-[10px] font-black uppercase tracking-widest text-[#92c9a9] px-1">Raio Máximo (KM)</label>
+                                                <input type="number" value={formData.delivery_max_km} onChange={e => setFormData({ ...formData, delivery_max_km: parseFloat(e.target.value) })} className="h-14 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-2xl px-4 text-slate-900 dark:text-white font-bold outline-none focus:border-primary/50" />
+                                            </div>
                                         </div>
                                     </div>
                                 </section>

@@ -155,6 +155,81 @@ export const MotoboyManagement = ({ profile }: { profile: any }) => {
         }
     };
 
+
+    // Contract Management State
+    const [showContractModal, setShowContractModal] = useState(false);
+    const [selectedMotoboy, setSelectedMotoboy] = useState<any>(null);
+    const [contractData, setContractData] = useState({
+        delivery_fee: 0,
+        fixed_salary: 0,
+        daily_rate: 0,
+        productivity_goal: 0,
+        productivity_bonus: 0
+    });
+
+    const openContractModal = async (boy: any) => {
+        if (!boy.pharmacy_id) {
+            alert('Este motoboy não está vinculado a nenhuma farmácia.');
+            return;
+        }
+
+        setSelectedMotoboy(boy);
+        setContractData({
+            delivery_fee: 0,
+            fixed_salary: 0,
+            daily_rate: 0,
+            productivity_goal: 0,
+            productivity_bonus: 0
+        });
+
+        // Fetch existing contract using the motoboy's pharmacy
+        const { data: contract } = await supabase
+            .from('courier_contracts')
+            .select('*')
+            .eq('courier_id', boy.id)
+            .eq('pharmacy_id', boy.pharmacy_id)
+            .single();
+
+        if (contract) {
+            setContractData({
+                delivery_fee: contract.delivery_fee || 0,
+                fixed_salary: contract.fixed_salary || 0,
+                daily_rate: contract.daily_rate || 0,
+                productivity_goal: contract.productivity_goal || 0,
+                productivity_bonus: contract.productivity_bonus || 0
+            });
+        }
+        setShowContractModal(true);
+    };
+
+    const handleSaveContract = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!selectedMotoboy || !selectedMotoboy.pharmacy_id) return;
+
+        setSaving(true);
+        try {
+            const { error } = await supabase
+                .from('courier_contracts')
+                .upsert({
+                    courier_id: selectedMotoboy.id,
+                    pharmacy_id: selectedMotoboy.pharmacy_id,
+                    ...contractData,
+                    updated_at: new Date().toISOString()
+                }, { onConflict: 'courier_id, pharmacy_id' });
+
+            if (error) throw error;
+
+            alert('Contrato atualizado com sucesso (Admin)!');
+            setShowContractModal(false);
+            fetchData();
+        } catch (error: any) {
+            console.error('Error saving contract:', error);
+            alert('Erro ao salvar contrato: ' + error.message);
+        } finally {
+            setSaving(false);
+        }
+    };
+
     return (
         <div className="flex flex-col gap-6">
             <header className="sticky top-0 z-30 bg-background-light/80 dark:bg-background-dark/80 backdrop-blur-md border-b border-slate-200 dark:border-white/10 -mx-8 px-8 flex items-center justify-between p-5">
@@ -222,9 +297,12 @@ export const MotoboyManagement = ({ profile }: { profile: any }) => {
                                 </div>
 
                                 <div className="flex gap-2 pt-4 border-t border-slate-50 dark:border-white/5">
-                                    <button className="flex-1 flex items-center justify-center gap-2 h-11 bg-slate-100 dark:bg-white/5 hover:bg-primary/20 hover:text-primary rounded-xl text-[10px] font-black uppercase tracking-widest transition-all">
-                                        <MaterialIcon name="edit" className="text-base" />
-                                        Editar
+                                    <button
+                                        onClick={() => openContractModal(moto)}
+                                        className="flex-1 flex items-center justify-center gap-2 h-11 bg-slate-100 dark:bg-white/5 hover:bg-primary/20 hover:text-primary rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
+                                    >
+                                        <MaterialIcon name="request_quote" className="text-base" />
+                                        Contrato
                                     </button>
                                     <button
                                         onClick={() => handleDelete(moto.id)}
@@ -318,6 +396,126 @@ export const MotoboyManagement = ({ profile }: { profile: any }) => {
                                 {saving ? 'Cadastrando...' : 'Finalizar Cadastro'}
                             </button>
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Contract Management Modal (Admin Version) */}
+            {showContractModal && selectedMotoboy && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowContractModal(false)}></div>
+                    <div className="relative w-full max-w-md bg-white dark:bg-[#1a2e22] rounded-[32px] shadow-2xl overflow-hidden border border-white/10 animate-scale-in">
+                        <form onSubmit={handleSaveContract} className="p-8">
+                            <div className="flex justify-between items-center mb-6">
+                                <div>
+                                    <h2 className="text-2xl font-black italic tracking-tighter text-slate-900 dark:text-white">Contrato Admin</h2>
+                                    <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mt-1">{selectedMotoboy.name}</p>
+                                    <p className="text-[8px] font-bold text-primary uppercase tracking-widest mt-0.5">{selectedMotoboy.pharmacy?.name}</p>
+                                </div>
+                                <button type="button" onClick={() => setShowContractModal(false)} className="size-10 rounded-full bg-slate-100 dark:bg-black/20 flex items-center justify-center hover:rotate-90 transition-transform"><MaterialIcon name="close" /></button>
+                            </div>
+
+                            <div className="space-y-6">
+                                {/* Delivery Fee */}
+                                <div className="bg-slate-50 dark:bg-black/20 p-4 rounded-2xl border border-slate-100 dark:border-white/5">
+                                    <div className="flex items-center justify-between mb-2">
+                                        <div className="flex items-center gap-2">
+                                            <MaterialIcon name="local_shipping" className="text-slate-400" />
+                                            <label className="text-[10px] font-black uppercase text-slate-600 dark:text-slate-300">Taxa por Entrega</label>
+                                        </div>
+                                    </div>
+                                    <div className="relative">
+                                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">R$</span>
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            min="0"
+                                            value={contractData.delivery_fee}
+                                            onChange={e => setContractData({ ...contractData, delivery_fee: parseFloat(e.target.value) })}
+                                            className="w-full h-12 pl-10 pr-4 bg-white dark:bg-white/5 border border-slate-200 dark:border-white/5 rounded-xl outline-none font-bold italic text-lg"
+                                            placeholder="0.00"
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* Fixed Salary & Daily Rate */}
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="bg-slate-50 dark:bg-black/20 p-4 rounded-2xl border border-slate-100 dark:border-white/5">
+                                        <label className="text-[10px] font-black uppercase text-slate-600 dark:text-slate-300 block mb-2">Salário Fixo</label>
+                                        <div className="relative">
+                                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">R$</span>
+                                            <input
+                                                type="number"
+                                                step="0.01"
+                                                min="0"
+                                                value={contractData.fixed_salary}
+                                                onChange={e => setContractData({ ...contractData, fixed_salary: parseFloat(e.target.value) })}
+                                                className="w-full h-10 pl-8 pr-3 bg-white dark:bg-white/5 border border-slate-200 dark:border-white/5 rounded-xl outline-none font-bold italic text-sm"
+                                            />
+                                        </div>
+                                    </div>
+                                    <div className="bg-slate-50 dark:bg-black/20 p-4 rounded-2xl border border-slate-100 dark:border-white/5">
+                                        <label className="text-[10px] font-black uppercase text-slate-600 dark:text-slate-300 block mb-2">Diária (Freelance)</label>
+                                        <div className="relative">
+                                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">R$</span>
+                                            <input
+                                                type="number"
+                                                step="0.01"
+                                                min="0"
+                                                value={contractData.daily_rate}
+                                                onChange={e => setContractData({ ...contractData, daily_rate: parseFloat(e.target.value) })}
+                                                className="w-full h-10 pl-8 pr-3 bg-white dark:bg-white/5 border border-slate-200 dark:border-white/5 rounded-xl outline-none font-bold italic text-sm"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Productivity Bonus */}
+                                <div className="bg-slate-50 dark:bg-black/20 p-4 rounded-2xl border border-slate-100 dark:border-white/5">
+                                    <div className="flex items-center gap-2 mb-3">
+                                        <MaterialIcon name="trending_up" className="text-slate-400" />
+                                        <label className="text-[10px] font-black uppercase text-slate-600 dark:text-slate-300">Bônus de Produtividade</label>
+                                    </div>
+                                    <div className="flex items-center gap-3">
+                                        <div className="flex-1">
+                                            <p className="text-[9px] font-bold text-slate-400 uppercase mb-1">Meta</p>
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                value={contractData.productivity_goal}
+                                                onChange={e => setContractData({ ...contractData, productivity_goal: parseInt(e.target.value) })}
+                                                className="w-full h-10 px-3 bg-white dark:bg-white/5 border border-slate-200 dark:border-white/5 rounded-xl outline-none font-bold italic text-sm"
+                                                placeholder="Qtd"
+                                            />
+                                        </div>
+                                        <div className="flex-1">
+                                            <p className="text-[9px] font-bold text-slate-400 uppercase mb-1">Bônus</p>
+                                            <div className="relative">
+                                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">R$</span>
+                                                <input
+                                                    type="number"
+                                                    step="0.01"
+                                                    min="0"
+                                                    value={contractData.productivity_bonus}
+                                                    onChange={e => setContractData({ ...contractData, productivity_bonus: parseFloat(e.target.value) })}
+                                                    className="w-full h-10 pl-8 pr-3 bg-white dark:bg-white/5 border border-slate-200 dark:border-white/5 rounded-xl outline-none font-bold italic text-sm"
+                                                    placeholder="0.00"
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <button
+                                type="submit"
+                                disabled={saving}
+                                className="w-full mt-8 h-12 bg-primary text-background-dark rounded-xl font-black uppercase tracking-widest hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
+                            >
+                                {saving ? <div className="animate-spin size-4 border-2 border-background-dark border-t-transparent rounded-full"></div> : <MaterialIcon name="save" />}
+                                Salvar (Admin)
+                            </button>
+                        </form>
                     </div>
                 </div>
             )}

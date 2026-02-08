@@ -90,11 +90,13 @@ serve(async (req) => {
             })
         }
 
+
         const isAdmin = requesterProfile.role === 'admin'
         const isManager = requesterProfile.role === 'manager'
+        const isMerchant = requesterProfile.role === 'merchant'
 
-        if (!isAdmin && !isManager) {
-            return new Response(JSON.stringify({ error: 'Unauthorized: Only admins or managers can create users' }), {
+        if (!isAdmin && !isManager && !isMerchant) {
+            return new Response(JSON.stringify({ error: 'Unauthorized: Only admins, managers or merchants can create users' }), {
                 headers: { ...corsHeaders, 'Content-Type': 'application/json' },
                 status: 403,
             })
@@ -102,9 +104,9 @@ serve(async (req) => {
 
         // Body already parsed above to extract auth_token
 
-        // Additional security: Managers can only create users for their own pharmacy
-        if (isManager && metadata?.pharmacy_id !== requesterProfile.pharmacy_id && !isAdmin) {
-            return new Response(JSON.stringify({ error: 'Unauthorized: Managers can only create users for their own pharmacy' }), {
+        // Additional security: Managers/Merchants can only create users for their own pharmacy
+        if ((isManager || isMerchant) && metadata?.pharmacy_id !== requesterProfile.pharmacy_id && !isAdmin) {
+            return new Response(JSON.stringify({ error: 'Unauthorized: You can only create users for your own pharmacy' }), {
                 headers: { ...corsHeaders, 'Content-Type': 'application/json' },
                 status: 403,
             })

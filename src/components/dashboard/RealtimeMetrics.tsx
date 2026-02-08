@@ -2,11 +2,24 @@ import React, { useMemo, useState, useEffect } from 'react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { supabase } from '../../lib/supabase';
 
-const RealtimeMetrics = ({ orders = [], className = '' }: { orders: any[], className?: string }) => {
+const RealtimeMetrics = ({ orders = [], className = '', userRole = 'merchant' }: { orders: any[], className?: string, userRole?: string }) => {
     const [ranking, setRanking] = useState<any[]>([]);
-    const [filterPeriod, setFilterPeriod] = useState('7 dias');
+    const [filterPeriod, setFilterPeriod] = useState('Hoje'); // Default to Today, safer
     const [customRange, setCustomRange] = useState({ start: '', end: '' });
     const [showDatePicker, setShowDatePicker] = useState(false);
+
+    // Filter Options Logic
+    const availableFilters = useMemo(() => {
+        if (userRole === 'staff') return ['Hoje'];
+        return ['Hoje', '7 dias', 'Semana passada', '30 dias', 'Personalizado'];
+    }, [userRole]);
+
+    // Force 'Hoje' if staff tries to access other periods (or on mount/change)
+    useEffect(() => {
+        if (userRole === 'staff' && filterPeriod !== 'Hoje') {
+            setFilterPeriod('Hoje');
+        }
+    }, [userRole, filterPeriod]);
 
     // 1. Process Data & Filter
     const { filteredOrders, todaySales, todayOrders, todayUnits, chartData } = useMemo(() => {
@@ -160,12 +173,15 @@ const RealtimeMetrics = ({ orders = [], className = '' }: { orders: any[], class
                 <div>
                     <div className="flex items-center gap-3 mb-2">
                         <h2 className="text-xl font-black italic text-slate-900 dark:text-white tracking-tighter">Métricas Integradas</h2>
+                        {userRole === 'staff' && (
+                            <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-600 dark:bg-blue-500/20 dark:text-blue-400 text-[10px] font-black uppercase tracking-widest border border-blue-200 dark:border-blue-500/30">Visão de Caixa</span>
+                        )}
                     </div>
                 </div>
 
                 {/* Date Selector */}
                 <div className="flex flex-wrap items-center gap-2 bg-slate-100 dark:bg-black/20 p-1 rounded-xl">
-                    {['Hoje', '7 dias', 'Semana passada', '30 dias', 'Personalizado'].map(Option => (
+                    {availableFilters.map(Option => (
                         <button
                             key={Option}
                             onClick={() => {
@@ -174,8 +190,8 @@ const RealtimeMetrics = ({ orders = [], className = '' }: { orders: any[], class
                                 else setShowDatePicker(true);
                             }}
                             className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${filterPeriod === Option
-                                    ? 'bg-white dark:bg-[#1a2e23] text-slate-900 dark:text-white shadow-sm'
-                                    : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-200'
+                                ? 'bg-white dark:bg-[#1a2e23] text-slate-900 dark:text-white shadow-sm'
+                                : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-200'
                                 }`}
                         >
                             {Option}

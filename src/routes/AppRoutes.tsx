@@ -55,8 +55,13 @@ const MerchantDashboard = lazy(() => import('../pages/merchant/MerchantDashboard
 const MerchantOrderManagement = lazy(() => import('../pages/merchant/MerchantOrderManagement'));
 const InventoryControl = lazy(() => import('../pages/merchant/InventoryControl'));
 const MerchantFinancial = lazy(() => import('../pages/merchant/MerchantFinancial'));
+
 const StoreCustomization = lazy(() => import('../pages/merchant/StoreCustomization'));
 const TeamManagement = lazy(() => import('../pages/merchant/TeamManagement'));
+const MerchantNotifications = lazy(() => import('../pages/merchant/MerchantNotifications'));
+
+// Layout
+const MerchantLayout = lazy(() => import('../pages/merchant/MerchantLayout'));
 
 // Pages - Motoboy (lazy load - large dashboard)
 import MotoboyLogin from '../pages/MotoboyLogin';
@@ -128,12 +133,13 @@ export const AppRoutes = ({ session, profile, userLocation, sortedPharmacies, re
 
             {/* Protected Gestor Routes (with Suspense) */}
             <Route path="/gestor/login" element={<MerchantLogin />} />
-            <Route path="/gestor" element={<GestorRoute session={session} profile={profile}><Suspense fallback={<LoadingScreen />}><MerchantDashboard /></Suspense></GestorRoute>} />
-            <Route path="/gestor/orders" element={<GestorRoute session={session} profile={profile}><Suspense fallback={<LoadingScreen />}><MerchantOrderManagement /></Suspense></GestorRoute>} />
-            <Route path="/gestor/products" element={<GestorRoute session={session} profile={profile}><Suspense fallback={<LoadingScreen />}><InventoryControl /></Suspense></GestorRoute>} />
-            <Route path="/gestor/financial" element={<GestorRoute session={session} profile={profile}><Suspense fallback={<LoadingScreen />}><MerchantFinancial /></Suspense></GestorRoute>} />
-            <Route path="/gestor/settings" element={<GestorRoute session={session} profile={profile}><Suspense fallback={<LoadingScreen />}><StoreCustomization /></Suspense></GestorRoute>} />
-            <Route path="/gestor/equipe" element={<GestorRoute session={session} profile={profile}><Suspense fallback={<LoadingScreen />}><TeamManagement /></Suspense></GestorRoute>} />
+            <Route path="/gestor" element={<GestorRoute session={session} profile={profile}><Suspense fallback={<LoadingScreen />}><MerchantLayout activeTab="dashboard"><MerchantDashboard /></MerchantLayout></Suspense></GestorRoute>} />
+            <Route path="/gestor/orders" element={<GestorRoute session={session} profile={profile}><Suspense fallback={<LoadingScreen />}><MerchantLayout activeTab="orders"><MerchantOrderManagement /></MerchantLayout></Suspense></GestorRoute>} />
+            <Route path="/gestor/products" element={<GestorRoute session={session} profile={profile}><Suspense fallback={<LoadingScreen />}><MerchantLayout activeTab="products"><InventoryControl /></MerchantLayout></Suspense></GestorRoute>} />
+            <Route path="/gestor/financial" element={<GestorRoute session={session} profile={profile}><Suspense fallback={<LoadingScreen />}><MerchantLayout activeTab="financial"><MerchantFinancial /></MerchantLayout></Suspense></GestorRoute>} />
+            <Route path="/gestor/settings" element={<GestorRoute session={session} profile={profile}><Suspense fallback={<LoadingScreen />}><MerchantLayout activeTab="settings"><StoreCustomization /></MerchantLayout></Suspense></GestorRoute>} />
+            <Route path="/gestor/equipe" element={<GestorRoute session={session} profile={profile}><Suspense fallback={<LoadingScreen />}><MerchantLayout activeTab="team"><TeamManagement /></MerchantLayout></Suspense></GestorRoute>} />
+            <Route path="/gestor/notifications" element={<GestorRoute session={session} profile={profile}><Suspense fallback={<LoadingScreen />}><MerchantLayout activeTab="notifications"><MerchantNotifications /></MerchantLayout></Suspense></GestorRoute>} />
 
             {/* Motoboy Routes (with Suspense) */}
             <Route path="/motoboy-login" element={<MotoboyLogin />} />

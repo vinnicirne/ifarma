@@ -21,6 +21,12 @@ const Checkout = () => {
     const [selectedAddressId, setSelectedAddressId] = useState<string>('');
     const [needsChange, setNeedsChange] = useState(false);
     const [changeFor, setChangeFor] = useState(0);
+    const [deliveryFee, setDeliveryFee] = useState(0);
+    const [distance, setDistance] = useState<number | null>(null);
+    const [pharmacy, setPharmacy] = useState<any>(null);
+    const [isOutOfRange, setIsOutOfRange] = useState(false);
+    const [complement, setComplement] = useState('');
+    const [observation, setObservation] = useState('');
 
     useEffect(() => {
         fetchCartAndSettings();
@@ -63,6 +69,10 @@ const Checkout = () => {
                 else if (settings.accepts_debit) setSelectedPayment('debit');
                 else if (settings.accepts_credit) setSelectedPayment('credit');
             }
+
+            // Buscar dados extras da farmácia (taxas)
+            const pharmData = cart[0].products.pharmacies;
+            setPharmacy(pharmData);
         }
 
         // Buscar endereço do perfil
@@ -92,6 +102,71 @@ const Checkout = () => {
         }
     };
 
+    // Helper: Haversine distance
+    const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+        const R = 6371; // km
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLon = (lon2 - lon1) * Math.PI / 180;
+        const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+            Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        return R * c;
+    };
+
+    // Logic: Calculate Delivery Fee when Address or Cart changes
+    useEffect(() => {
+        if (!pharmacy || !selectedAddressId || addresses.length === 0) {
+            setDeliveryFee(0);
+            return;
+        }
+
+        const selectedAddr = addresses.find(a => a.id === selectedAddressId);
+        if (!selectedAddr || !selectedAddr.latitude) return;
+
+        const dist = calculateDistance(
+            pharmacy.latitude,
+            pharmacy.longitude,
+            selectedAddr.latitude,
+            selectedAddr.longitude
+        );
+
+        setDistance(dist);
+
+        // Check range
+        if (pharmacy.delivery_max_km > 0 && dist > pharmacy.delivery_max_km) {
+            setIsOutOfRange(true);
+            setDeliveryFee(0);
+            return;
+        } else {
+            setIsOutOfRange(false);
+        }
+
+        // Apply Rules
+        let fee = 0;
+
+        // 1. Check Free Value
+        const isFreeValue = pharmacy.delivery_free_min_value > 0 && total >= pharmacy.delivery_free_min_value;
+        // 2. Check Free Distance
+        const isFreeDist = pharmacy.delivery_free_min_km > 0 && dist <= pharmacy.delivery_free_min_km;
+
+        if (isFreeValue || isFreeDist) {
+            fee = 0;
+        } else {
+            if (pharmacy.delivery_fee_type === 'km') {
+                fee = dist * (pharmacy.delivery_fee_per_km || 0);
+            } else if (pharmacy.delivery_fee_type === 'range' && pharmacy.delivery_ranges?.length > 0) {
+                const ranges = [...pharmacy.delivery_ranges].sort((a, b) => a.max_km - b.max_km);
+                const match = ranges.find(r => dist <= r.max_km);
+                fee = match ? match.fee : (ranges[ranges.length - 1].fee || 0);
+            } else {
+                fee = pharmacy.delivery_fee_fixed || 0;
+            }
+        }
+
+        setDeliveryFee(fee);
+    }, [selectedAddressId, total, pharmacy, addresses]);
+
     const getAvailableInstallments = () => {
         if (!paymentSettings || selectedPayment !== 'credit') return [1];
         if (total < paymentSettings.min_installment_value) return [1];
@@ -112,6 +187,11 @@ const Checkout = () => {
 
         if (!address) {
             alert('Adicione um endereço de entrega');
+            return;
+        }
+
+        if (isOutOfRange) {
+            alert(`Sua localização está fora do raio de entrega desta farmácia (${pharmacy?.delivery_max_km}km).`);
             return;
         }
 
@@ -139,10 +219,13 @@ const Checkout = () => {
             const payload: any = {
                 customer_id: session.user.id,
                 pharmacy_id: pharmacyId,
-                total_price: total,
+                total_price: total + deliveryFee, // Soma a taxa ao total
+                delivery_fee: deliveryFee, // Campo para auditoria
                 payment_method: selectedPayment,
                 installments: selectedPayment === 'credit' ? installments : 1,
                 address: address,
+                complement: complement,
+                customer_notes: observation,
                 latitude: selectedAddrObj?.latitude || 0,
                 longitude: selectedAddrObj?.longitude || 0,
                 status: 'pendente'
@@ -245,33 +328,113 @@ const Checkout = () => {
                     </div>
 
                     <p className="text-xs font-bold text-slate-500 uppercase mb-2">Endereço selecionado:</p>
-                    <textarea
-                        value={address}
-                        onChange={(e) => {
-                            setAddress(e.target.value);
-                            setSelectedAddressId(''); // Desmarcar se editar manual
-                        }}
-                        placeholder="Digite seu endereço completo"
-                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-sm resize-none font-medium"
-                        rows={2}
-                    />
+                    <div className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-sm font-medium min-h-[60px] flex flex-col justify-center">
+                        <p className="text-slate-900 dark:text-white leading-tight">
+                            {address || <span className="text-slate-400 italic">Nenhum endereço selecionado</span>}
+                        </p>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3 mt-4">
+                        <div>
+                            <label className="text-[10px] font-black uppercase text-slate-400 mb-1 block">Complemento</label>
+                            <input
+                                type="text"
+                                value={complement}
+                                onChange={(e) => setComplement(e.target.value)}
+                                placeholder="Apto, Bloco..."
+                                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-sm font-medium outline-none focus:border-primary"
+                            />
+                        </div>
+                        <div className="col-span-1">
+                            {/* Empty space or another field if needed */}
+                        </div>
+                    </div>
+
+                    <div className="mt-4">
+                        <label className="text-[10px] font-black uppercase text-slate-400 mb-1 block">Observações p/ o Entregador</label>
+                        <textarea
+                            value={observation}
+                            onChange={(e) => setObservation(e.target.value)}
+                            placeholder="Ex: Tocar a campainha, deixar na portaria..."
+                            className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-sm resize-none font-medium h-20 outline-none focus:border-primary"
+                        />
+                    </div>
                 </div>
 
-                {/* Resumo do Pedido */}
-                <div className="bg-white dark:bg-background-dark/40 rounded-2xl p-4 border border-gray-100 dark:border-gray-800">
-                    <h3 className="text-sm font-bold uppercase tracking-wider text-gray-400 mb-3">Resumo do Pedido</h3>
-                    <div className="flex justify-between mb-2">
-                        <span className="text-gray-600 dark:text-gray-400">Subtotal</span>
-                        <span className="font-bold">R$ {total.toFixed(2)}</span>
-                    </div>
-                    <div className="flex justify-between mb-2">
-                        <span className="text-gray-600 dark:text-gray-400">Taxa de Entrega</span>
-                        <span className="font-bold text-primary">GRÁTIS</span>
-                    </div>
-                    <div className="h-px bg-gray-100 dark:bg-gray-800 my-3"></div>
-                    <div className="flex justify-between">
-                        <span className="text-lg font-bold">Total</span>
-                        <span className="text-xl font-bold text-primary">R$ {total.toFixed(2)}</span>
+                {/* Resumo do Pedido - Premium Refined Layout */}
+                <div className="bg-white dark:bg-zinc-900/40 rounded-[32px] p-6 border border-gray-100 dark:border-white/5 shadow-xl shadow-black/5 relative overflow-hidden group">
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full -mr-16 -mt-16 blur-3xl transition-all group-hover:bg-primary/10"></div>
+
+                    <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400 mb-6 flex items-center gap-2">
+                        <span className="size-1.5 rounded-full bg-primary animate-pulse"></span>
+                        Resumo do Pedido
+                    </h3>
+
+                    <div className="space-y-4 relative z-10">
+                        <div className="flex justify-between items-center group/item transition-all hover:translate-x-1">
+                            <span className="text-sm font-bold text-gray-500 dark:text-gray-400">Subtotal</span>
+                            <span className="font-black text-lg">R$ {total.toFixed(2)}</span>
+                        </div>
+
+                        {distance !== null && (
+                            <div className="flex justify-between items-center px-3 py-2 bg-slate-50 dark:bg-black/20 rounded-xl border border-dashed border-slate-200 dark:border-white/5">
+                                <span className="text-[10px] font-black uppercase text-slate-400 flex items-center gap-1">
+                                    <MaterialIcon name="route" className="text-sm" />
+                                    Distância
+                                </span>
+                                <span className="text-xs font-bold italic text-primary">{distance.toFixed(1)} km</span>
+                            </div>
+                        )}
+
+                        <div className="flex justify-between items-center group/item transition-all hover:translate-x-1">
+                            <div className="flex flex-col">
+                                <span className="text-sm font-bold text-gray-500 dark:text-gray-400">Taxa de Entrega</span>
+                                {deliveryFee === 0 && (
+                                    <span className="text-[9px] font-black text-green-500 uppercase tracking-widest">Oferta Ativa</span>
+                                )}
+                            </div>
+                            {deliveryFee === 0 ? (
+                                <div className="px-3 py-1 bg-green-500/10 border border-green-500/20 rounded-full">
+                                    <span className="font-black text-green-500 text-xs">GRÁTIS</span>
+                                </div>
+                            ) : (
+                                <span className="font-black text-lg">R$ {deliveryFee.toFixed(2)}</span>
+                            )}
+                        </div>
+
+                        {isOutOfRange && (
+                            <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl flex items-center gap-3 animate-bounce">
+                                <MaterialIcon name="error" className="text-red-500" />
+                                <span className="text-[10px] text-red-500 font-black uppercase tracking-tight">Fora do raio de entrega</span>
+                            </div>
+                        )}
+
+                        {paymentSettings && total < paymentSettings.min_order_value && (
+                            <div className="p-3 bg-orange-500/10 border border-orange-500/20 rounded-xl flex items-center gap-3">
+                                <MaterialIcon name="warning" className="text-orange-500" />
+                                <div className="flex flex-col">
+                                    <span className="text-[10px] text-orange-500 font-black uppercase tracking-tight">Pedido Mínimo não atingido</span>
+                                    <span className="text-[9px] text-orange-400 font-bold">Faltam R$ {(paymentSettings.min_order_value - total).toFixed(2)}</span>
+                                </div>
+                            </div>
+                        )}
+
+                        <div className="pt-4 mt-2 border-t-2 border-dashed border-gray-100 dark:border-white/5">
+                            <div className="flex justify-between items-end">
+                                <div className="flex flex-col">
+                                    <span className="text-[10px] font-black uppercase text-gray-400">Valor Total</span>
+                                    <span className="text-sm text-gray-400 line-through opacity-50">
+                                        R$ {(total + deliveryFee + 4.90).toFixed(2)}
+                                    </span>
+                                </div>
+                                <div className="text-right">
+                                    <span className="block text-[10px] font-black text-primary uppercase">Economia no App</span>
+                                    <span className="text-3xl font-black italic tracking-tighter text-primary">
+                                        R$ {(total + deliveryFee).toFixed(2)}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
 

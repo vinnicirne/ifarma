@@ -619,6 +619,7 @@ const AdminDashboard = ({ profile }: { profile: any }) => {
                             fleet={simulationFleet}
                             onMotoboyClick={handleMotoboyClick}
                             markers={mapMarkers}
+                            autoCenter={true}
                             googleMapsApiKey={googleKey || ""}
                         />
                     </div>

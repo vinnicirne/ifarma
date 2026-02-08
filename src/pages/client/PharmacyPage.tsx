@@ -81,6 +81,68 @@ export const PharmacyPage = ({ session }: { session: any }) => {
         );
     }
 
+    const getStatusInfo = () => {
+        if (!pharmacy) return { text: 'Fechado', color: 'bg-red-500/20 text-red-500' };
+
+        // Manual override
+        if (!pharmacy.is_open && !pharmacy.auto_open_status) {
+            return { text: 'Fechado', color: 'bg-red-500/20 text-red-500' };
+        }
+
+        if (pharmacy.auto_open_status && Array.isArray(pharmacy.opening_hours) && pharmacy.opening_hours.length > 0) {
+            const now = new Date();
+            const currentDay = now.getDay();
+            const currentTime = now.getHours() * 60 + now.getMinutes();
+
+            const todayRule = pharmacy.opening_hours.find((h: any) => h.day === currentDay);
+
+            if (todayRule && !todayRule.closed && todayRule.open && todayRule.close) {
+                const [hOpen, mOpen] = todayRule.open.split(':').map(Number);
+                const [hClose, mClose] = todayRule.close.split(':').map(Number);
+                const openTime = hOpen * 60 + mOpen;
+                const closeTime = hClose * 60 + mClose;
+
+                if (currentTime >= openTime && currentTime < closeTime) {
+                    const diff = closeTime - currentTime;
+                    if (diff <= 60) {
+                        return {
+                            text: `Fecha em ${diff} min`,
+                            subText: `Corre! Fecha às ${todayRule.close}`,
+                            color: 'bg-orange-500 text-white animate-pulse shadow-lg shadow-orange-500/20',
+                            isUrgent: true
+                        };
+                    }
+                    return {
+                        text: `Até às ${todayRule.close}`,
+                        subText: 'Disponível para pedidos',
+                        color: 'bg-primary/10 text-primary border border-primary/20',
+                        isUrgent: false
+                    };
+                }
+
+                if (currentTime < openTime) {
+                    return { text: `Abre hoje às ${todayRule.open}`, color: 'bg-blue-500/20 text-blue-500', isUrgent: false };
+                }
+            }
+
+            // Find next opening day
+            for (let i = 1; i <= 7; i++) {
+                const nextDay = (currentDay + i) % 7;
+                const nextRule = pharmacy.opening_hours.find((h: any) => h.day === nextDay);
+                if (nextRule && !nextRule.closed) {
+                    const label = i === 1 ? 'Amanhã' : ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'][nextDay];
+                    return { text: `Abre ${label} às ${nextRule.open}`, color: 'bg-slate-500/20 text-slate-400', isUrgent: false };
+                }
+            }
+        }
+
+        return pharmacy.is_open
+            ? { text: 'Disponível', color: 'bg-primary/10 text-primary border border-primary/20', isUrgent: false }
+            : { text: 'Fechado', color: 'bg-red-500/10 text-red-500 border border-red-500/20', isUrgent: false };
+    };
+
+    const status = getStatusInfo();
+
     if (!pharmacy) return null;
 
     return (
@@ -127,17 +189,21 @@ export const PharmacyPage = ({ session }: { session: any }) => {
 
             {/* Store Information */}
             <div className="pt-16 px-4">
-                <div className="flex justify-between items-start">
-                    <div>
-                        <h1 className="text-2xl font-bold tracking-tight text-[#0d1b13] dark:text-white font-display italic">{pharmacy.name}</h1>
-                        <div className="flex items-center gap-1 mt-1">
+                <div className="flex justify-between items-center bg-slate-50 dark:bg-zinc-800/50 p-4 rounded-2xl border border-slate-100 dark:border-white/5 mt-4">
+                    <div className="flex flex-col">
+                        <h1 className="text-2xl font-bold tracking-tight text-[#0d1b13] dark:text-white font-display italic leading-none">{pharmacy.name}</h1>
+                        <div className="flex items-center gap-1 mt-2">
                             <MaterialIcon name="star" className="text-yellow-400 text-lg" fill />
                             <span className="text-sm font-bold text-[#0d1b13] dark:text-white">{pharmacy.rating || '5.0'}</span>
-                            <span className="text-sm text-zinc-500">(Novo Parceiro)</span>
+                            <span className="text-xs text-zinc-500 ml-1">• Novo Parceiro</span>
                         </div>
                     </div>
-                    <div className="bg-primary/20 px-3 py-1 rounded-full">
-                        <span className="text-primary font-bold text-xs uppercase tracking-wider">Aberto</span>
+
+                    <div className="flex flex-col items-end gap-1">
+                        <div className={`${status.color} px-4 py-2 rounded-2xl transition-all flex flex-col items-center justify-center min-w-[100px]`}>
+                            <span className={`font-black text-[10px] uppercase tracking-widest ${status.isUrgent ? 'animate-pulse' : ''}`}>{status.text}</span>
+                            {status.subText && <span className="text-[7px] font-black uppercase opacity-70 leading-none mt-0.5">{status.subText}</span>}
+                        </div>
                     </div>
                 </div>
                 <div className="flex items-center gap-2 mt-3 text-zinc-500">

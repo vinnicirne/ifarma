@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import MerchantLayout from './MerchantLayout';
 import { supabase } from '../../lib/supabase';
 import { OrderReceipt } from '../../components/merchant/OrderReceipt';
@@ -11,42 +12,16 @@ const MaterialIcon = ({ name, className = "" }: { name: string, className?: stri
     <span className={`material-symbols-outlined ${className}`}>{name}</span>
 );
 
-// --- Subcomponent: Audio Activation Overlay ---
+// --- Subcomponent: Audio Activation Overlay (Non-Intrusive Toast) ---
 const AudioActivationOverlay = ({ onActivate }: { onActivate: () => void }) => (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
-        {/* Backdrop with extreme blur */}
-        <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-[8px] animate-fade-in" />
-
-        {/* Premium Card */}
-        <div className="relative bg-white dark:bg-zinc-900 w-full max-w-md rounded-[32px] p-8 shadow-[0_20px_50px_rgba(0,0,0,0.3)] border border-slate-100 dark:border-white/10 overflow-hidden animate-scale-up">
-            {/* Decoration */}
-            <div className="absolute -top-24 -right-24 size-48 bg-primary/20 rounded-full blur-[60px]" />
-            <div className="absolute -bottom-24 -left-24 size-48 bg-blue-500/20 rounded-full blur-[60px]" />
-
-            <div className="relative flex flex-col items-center text-center">
-                <div className="size-20 rounded-3xl bg-primary/10 flex items-center justify-center mb-6 animate-pulse">
-                    <MaterialIcon name="notifications_active" className="text-4xl text-primary" />
-                </div>
-
-                <h2 className="text-2xl font-black italic text-slate-900 dark:text-white mb-3 tracking-tighter">
-                    Ative os Alertas Sonoros
-                </h2>
-
-                <p className="text-slate-500 dark:text-slate-400 text-sm mb-8 leading-relaxed font-medium">
-                    Para garantir que você ouça cada novo pedido, precisamos da sua permissão para ativar o som neste navegador. Clique abaixo para começar.
-                </p>
-
-                <button
-                    onClick={onActivate}
-                    className="w-full py-4 rounded-2xl bg-primary text-slate-900 font-black italic uppercase tracking-tighter hover:scale-[1.02] active:scale-[0.98] transition-all shadow-lg flex items-center justify-center gap-2 group"
-                >
-                    <MaterialIcon name="volume_up" className="group-hover:animate-bounce" />
-                    Ativar Alertas Agora
-                </button>
-
-                <p className="mt-6 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">
-                    Segurança • Operação • Alertas em Tempo Real
-                </p>
+    <div className="fixed bottom-24 right-6 z-[9999] animate-slide-up pointer-events-none">
+        <div className="bg-slate-900/90 dark:bg-zinc-800/90 text-white p-4 rounded-2xl shadow-2xl border border-white/10 flex items-center gap-4 max-w-sm backdrop-blur-md">
+            <div className="size-10 rounded-full bg-red-500/20 text-red-500 flex items-center justify-center animate-pulse shrink-0">
+                <MaterialIcon name="volume_off" className="text-xl" />
+            </div>
+            <div className="flex-1 min-w-0">
+                <p className="font-bold text-sm">Sons Desativados</p>
+                <p className="text-[10px] text-slate-400 leading-tight">Interaja com a página para ativar.</p>
             </div>
         </div>
     </div>
@@ -126,7 +101,7 @@ const AssignDriverModal = ({ isOpen, onClose, onAssign, pharmacyId }: any) => {
 };
 
 // --- Subcomponent: Order Details Modal ---
-const OrderDetailsModal = ({ isOpen, onClose, order, updateStatus }: any) => {
+const OrderDetailsModal = ({ isOpen, onClose, order, updateStatus, onPrint }: any) => {
     const [items, setItems] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
 
@@ -150,7 +125,7 @@ const OrderDetailsModal = ({ isOpen, onClose, order, updateStatus }: any) => {
     if (!isOpen || !order) return null;
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-fade-in p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-fade-in p-4 print:hidden">
             <div className="bg-white dark:bg-zinc-900 w-full max-w-2xl rounded-2xl p-6 shadow-2xl border border-slate-100 dark:border-white/10 flex flex-col max-h-[90vh]">
                 <div className="flex justify-between items-center mb-6 border-b border-slate-100 dark:border-white/5 pb-4">
                     <div>
@@ -248,7 +223,7 @@ const OrderDetailsModal = ({ isOpen, onClose, order, updateStatus }: any) => {
                     <button onClick={onClose} className="px-6 py-2 rounded-xl text-slate-500 font-bold hover:bg-slate-100 dark:hover:bg-white/10 transition-colors">
                         Fechar
                     </button>
-                    <button onClick={() => window.print()} className="px-6 py-2 rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-bold hover:opacity-90 transition-opacity flex items-center gap-2">
+                    <button onClick={() => onPrint(order)} className="px-6 py-2 rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-bold hover:opacity-90 transition-opacity flex items-center gap-2">
                         <MaterialIcon name="print" /> Imprimir
                     </button>
                 </div>
@@ -304,6 +279,23 @@ const MerchantOrderManagement = () => {
         };
     }, [notificationSound]);
 
+    // Global Unlocker: Clear blocked status on any user interaction
+    useEffect(() => {
+        const unlockAudio = () => {
+            if (isSoundBlocked) setIsSoundBlocked(false);
+        };
+
+        window.addEventListener('click', unlockAudio);
+        window.addEventListener('keydown', unlockAudio);
+        window.addEventListener('touchstart', unlockAudio);
+
+        return () => {
+            window.removeEventListener('click', unlockAudio);
+            window.removeEventListener('keydown', unlockAudio);
+            window.removeEventListener('touchstart', unlockAudio);
+        }
+    }, [isSoundBlocked]);
+
     // Helper for TTS/Sound Notification
     const playNotificationSound = async (repeatCount = 1) => {
         const currentSound = notificationSoundRef.current;
@@ -332,6 +324,15 @@ const MerchantOrderManagement = () => {
                         });
                     }
                 } else {
+                    // Try to unlock audio context silently on first interaction or check
+                    const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+                    if (AudioContext) {
+                        const ctx = new AudioContext();
+                        if (ctx.state === 'suspended') {
+                            await ctx.resume();
+                        }
+                    }
+
                     await new Promise<void>((resolve) => {
                         const sounds: any = {
                             bell: 'https://assets.mixkit.co/active_storage/sfx/571/571-preview.mp3', // Updated to clearer bell
@@ -346,19 +347,27 @@ const MerchantOrderManagement = () => {
                         // Safety timeout
                         const safetyTimeout = setTimeout(() => resolve(), 3000);
 
-                        audio.onended = () => { clearTimeout(safetyTimeout); resolve(); };
+                        audio.onended = () => {
+                            clearTimeout(safetyTimeout);
+                            setIsSoundBlocked(false); // Success!
+                            resolve();
+                        };
+
                         audio.onerror = () => { clearTimeout(safetyTimeout); resolve(); };
 
-                        audio.play().catch(e => {
-                            console.error("Audio block:", e);
-                            setIsSoundBlocked(true); // Flag audio issue
+                        audio.play().then(() => {
+                            // Play started successfully
+                            setIsSoundBlocked(false);
+                        }).catch(e => {
+                            console.error("Audio block detected:", e);
+                            setIsSoundBlocked(true); // Flag audio issue only on real failure
                             clearTimeout(safetyTimeout);
                             resolve();
                         });
                     });
                 }
 
-                // Delay between repetitions (only if not the last one)
+                // If first attempt succeeded, subsequent loops are safer
                 if (i < repeatCount - 1) {
                     await new Promise(r => setTimeout(r, 1000));
                 }
@@ -367,6 +376,37 @@ const MerchantOrderManagement = () => {
             }
         }
     };
+
+    // Auto-check audio permission on mount silently
+    useEffect(() => {
+        const checkAudio = async () => {
+            try {
+                const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+                if (!AudioContext) return;
+
+                const ctx = new AudioContext();
+                // If context starts suspended, browser is blocking audio
+                if (ctx.state === 'suspended') {
+                    // We don't set blocked immediately, we wait for a failed play attempt
+                    // or user interaction to resume
+                    const resume = () => {
+                        ctx.resume().then(() => {
+                            setIsSoundBlocked(false);
+                        });
+                        window.removeEventListener('click', resume);
+                        window.removeEventListener('keydown', resume);
+                    };
+                    window.addEventListener('click', resume);
+                    window.addEventListener('keydown', resume);
+                } else {
+                    setIsSoundBlocked(false);
+                }
+            } catch (e) {
+                console.warn("Audio context check failed", e);
+            }
+        };
+        checkAudio();
+    }, []);
 
     // Columns mapping to DB status - Merged 'Aguardando Entregador' into logic, removed from tabs
     const columns = [
@@ -793,12 +833,23 @@ const MerchantOrderManagement = () => {
     };
 
     const moveOrder = (orderId: string, currentStatus: string) => {
-        const statusOrder = ['pendente', 'preparando', 'pronto_entrega', 'em_rota', 'entregue'];
-        const currentIndex = statusOrder.indexOf(currentStatus);
-        const nextStatus = statusOrder[currentIndex + 1];
+        const nextStatusMap: Record<string, string> = {
+            'pendente': 'preparando',
+            'aceito': 'preparando',
+            'preparando': 'pronto_entrega',
+            'aguardando_motoboy': 'pronto_entrega',
+            'pronto_entrega': 'em_rota',
+            'aguardando_retirada': 'em_rota',
+            'em_rota': 'entregue'
+        };
+
+        const nextStatus = nextStatusMap[currentStatus];
 
         if (nextStatus) {
             updateStatus(orderId, nextStatus);
+        } else {
+            console.warn(`Status desconhecido ou final: ${currentStatus}. Nenhuma ação tomada.`);
+            // Fallback safety: do not reset to 'pendente'
         }
     };
 
@@ -843,17 +894,18 @@ const MerchantOrderManagement = () => {
 
     return (
         <MerchantLayout activeTab="orders" title="Pedidos">
-            {/* Print Area (Separated from hidden UI) */}
-            <div className="hidden print:block fixed inset-0 bg-white z-[9999] p-0 m-0 overflow-auto">
-                {selectedOrderToPrint && (
+            {/* Print Area: Portal to Body to avoid layout issues */}
+            {selectedOrderToPrint && createPortal(
+                <div className="hidden print:block fixed inset-0 z-[9999] bg-white">
                     <OrderReceipt
                         order={selectedOrderToPrint}
                         pharmacyName={pharmacy?.name}
                         pharmacyAddress={pharmacy?.address}
                         pharmacyPhone={pharmacy?.phone}
                     />
-                )}
-            </div>
+                </div>,
+                document.body
+            )}
 
             {/* Main UI (Hidden when printing) */}
             <div className="flex flex-col h-auto lg:h-[calc(100vh-140px)] relative print:hidden pb-24 lg:pb-0">
@@ -882,6 +934,7 @@ const MerchantOrderManagement = () => {
                     onClose={() => setIsDetailsModalOpen(false)}
                     order={selectedOrderDetails}
                     updateStatus={updateStatus}
+                    onPrint={handlePrint}
                 />
 
                 <OrderCancellationModal
@@ -1135,6 +1188,19 @@ const MerchantOrderManagement = () => {
                                                                 <MaterialIcon name="sports_motorsports" className="text-[10px]" />
                                                                 {order.motoboy.full_name || 'Motoboy'}
                                                             </span>
+                                                        )}
+
+                                                        {/* Observation / Customer Notes */}
+                                                        {order.customer_notes && (
+                                                            <div className="flex flex-col gap-0.5 mt-2 p-2 bg-orange-50 dark:bg-orange-500/10 rounded-lg border border-orange-100 dark:border-orange-500/20">
+                                                                <span className="text-[9px] font-black uppercase text-orange-600 dark:text-orange-400 flex items-center gap-1">
+                                                                    <MaterialIcon name="comment" className="text-[10px]" />
+                                                                    Observação do Cliente
+                                                                </span>
+                                                                <p className="text-[10px] text-orange-800 dark:text-orange-200 font-bold leading-tight">
+                                                                    {order.customer_notes}
+                                                                </p>
+                                                            </div>
                                                         )}
                                                     </div>
                                                 </div>

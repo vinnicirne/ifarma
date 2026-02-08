@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import MerchantLayout from './MerchantLayout';
 import { supabase } from '../../lib/supabase';
+import { Toast } from '../../components/Toast';
 
 const Toggle = ({ check, onChange, label, disabled = false }: any) => (
     <div className={`flex items-center justify-between p-4 bg-slate-50 dark:bg-white/5 rounded-xl border border-slate-100 dark:border-white/5 ${disabled ? 'opacity-50' : ''}`}>
@@ -25,6 +26,12 @@ const MerchantFinancial = () => {
         pix_key_type: 'random'
     });
     const [pharmacyId, setPharmacyId] = useState<string | null>(null);
+    const [toast, setToast] = useState<{ message: string, type: 'success' | 'error' | 'info' | 'warning' } | null>(null);
+
+    const showToast = (message: string, type: 'success' | 'error' | 'info' | 'warning' = 'info') => {
+        setToast({ message, type });
+        setTimeout(() => setToast(null), 3000);
+    };
 
     useEffect(() => {
         fetchSettings();
@@ -102,10 +109,10 @@ const MerchantFinancial = () => {
                 .eq('pharmacy_id', pharmacyId);
 
             if (error) throw error;
-            alert('Configurações salvas com sucesso!');
+            showToast('Configurações salvas com sucesso!', 'success');
         } catch (error) {
             console.error('Error saving:', error);
-            alert('Erro ao salvar configurações.');
+            showToast('Erro ao salvar configurações.', 'error');
         }
     };
 
@@ -224,7 +231,8 @@ const MerchantFinancial = () => {
                 </div>
 
             </div>
-        </MerchantLayout>
+            {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+        </MerchantLayout >
     );
 };
 

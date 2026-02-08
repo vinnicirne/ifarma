@@ -30,6 +30,16 @@ const StoreCustomization = () => {
     const [autoOpenStatus, setAutoOpenStatus] = useState(false);
     const [openingHoursStart, setOpeningHoursStart] = useState('08:00');
     const [openingHoursEnd, setOpeningHoursEnd] = useState('18:00');
+    const [openingHours, setOpeningHours] = useState<{ day: number, open: string, close: string, closed: boolean }[]>([]);
+
+    // Delivery Fee States
+    const [deliveryFeeType, setDeliveryFeeType] = useState<'fixed' | 'km' | 'range'>('fixed');
+    const [deliveryFeeFixed, setDeliveryFeeFixed] = useState(0);
+    const [deliveryFeePerKm, setDeliveryFeePerKm] = useState(0);
+    const [deliveryRanges, setDeliveryRanges] = useState<{ max_km: number, fee: number }[]>([]);
+    const [deliveryFreeMinKm, setDeliveryFreeMinKm] = useState(0);
+    const [deliveryFreeMinValue, setDeliveryFreeMinValue] = useState(0);
+    const [deliveryMaxKm, setDeliveryMaxKm] = useState(15);
 
     // Address States
     const [cep, setCep] = useState('');
@@ -97,6 +107,20 @@ const StoreCustomization = () => {
                 setAutoOpenStatus(data.auto_open_status ?? false);
                 setOpeningHoursStart(data.opening_hours_start || '08:00');
                 setOpeningHoursEnd(data.opening_hours_end || '18:00');
+
+                const rawHours = data.opening_hours;
+                setOpeningHours(Array.isArray(rawHours) ? rawHours : []);
+
+                // Delivery Fees
+                setDeliveryFeeType(data.delivery_fee_type || 'fixed');
+                setDeliveryFeeFixed(data.delivery_fee_fixed || 0);
+                setDeliveryFeePerKm(data.delivery_fee_per_km || 0);
+
+                const rawRanges = data.delivery_ranges;
+                setDeliveryRanges(Array.isArray(rawRanges) ? rawRanges : []);
+                setDeliveryFreeMinKm(data.delivery_free_min_km || 0);
+                setDeliveryFreeMinValue(data.delivery_free_min_value || 0);
+                setDeliveryMaxKm(data.delivery_max_km || 15);
             }
         } catch (error) {
             console.error("Error fetching pharmacy:", error);
@@ -192,6 +216,15 @@ const StoreCustomization = () => {
                     auto_open_status: autoOpenStatus,
                     opening_hours_start: openingHoursStart,
                     opening_hours_end: openingHoursEnd,
+                    opening_hours: openingHours,
+                    // Delivery Fees
+                    delivery_fee_type: deliveryFeeType,
+                    delivery_fee_fixed: deliveryFeeFixed,
+                    delivery_fee_per_km: deliveryFeePerKm,
+                    delivery_ranges: deliveryRanges,
+                    delivery_free_min_km: deliveryFreeMinKm,
+                    delivery_free_min_value: deliveryFreeMinValue,
+                    delivery_max_km: deliveryMaxKm,
                     updated_at: new Date()
                 })
                 .eq('id', pharmacy.id);
@@ -329,17 +362,72 @@ const StoreCustomization = () => {
                                 </div>
 
                                 {autoOpenStatus ? (
-                                    <div className="bg-slate-50 dark:bg-black/20 p-4 rounded-2xl border border-slate-200 dark:border-white/5 grid grid-cols-2 gap-4">
-                                        <label className="flex flex-col gap-1">
-                                            <span className="text-[10px] font-black uppercase text-slate-500">Abre às</span>
-                                            <input type="time" value={openingHoursStart} onChange={e => setOpeningHoursStart(e.target.value)} className="h-10 px-3 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-white/10 rounded-lg outline-none font-bold text-slate-900 dark:text-white" />
-                                        </label>
-                                        <label className="flex flex-col gap-1">
-                                            <span className="text-[10px] font-black uppercase text-slate-500">Fecha às</span>
-                                            <input type="time" value={openingHoursEnd} onChange={e => setOpeningHoursEnd(e.target.value)} className="h-10 px-3 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-white/10 rounded-lg outline-none font-bold text-slate-900 dark:text-white" />
-                                        </label>
-                                        <div className="col-span-2 text-center text-xs text-slate-400 mt-1">
-                                            <p>A loja abrirá e fechará automaticamente nestes horários de Segunda a Domingo.</p>
+                                    <div className="bg-slate-50 dark:bg-black/20 p-6 rounded-[32px] border border-slate-200 dark:border-white/5 space-y-4">
+                                        <div className="flex justify-between items-center mb-2">
+                                            <span className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Agenda Semanal</span>
+                                            <button
+                                                onClick={() => {
+                                                    const defaultHours = [0, 1, 2, 3, 4, 5, 6].map(d => ({ day: d, open: '08:00', close: '20:00', closed: d === 0 }));
+                                                    setOpeningHours(defaultHours);
+                                                }}
+                                                className="text-[9px] font-black uppercase text-primary hover:underline"
+                                            >
+                                                Redefinir Padrão
+                                            </button>
+                                        </div>
+
+                                        <div className="space-y-2 max-h-[300px] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-primary/20">
+                                            {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map((label, idx) => {
+                                                const dayData = openingHours.find(h => h.day === idx) || { day: idx, open: '08:00', close: '20:00', closed: false };
+                                                return (
+                                                    <div key={idx} className="flex items-center gap-3 p-3 bg-white dark:bg-zinc-900/50 rounded-2xl border border-slate-100 dark:border-white/5 transition-all hover:border-primary/20 group/day">
+                                                        <div className="w-10 text-[10px] font-black uppercase text-slate-400 group-hover/day:text-primary transition-colors">{label}</div>
+
+                                                        <button
+                                                            onClick={() => {
+                                                                const newHours = [...openingHours];
+                                                                const index = newHours.findIndex(h => h.day === idx);
+                                                                if (index >= 0) newHours[index].closed = !newHours[index].closed;
+                                                                else newHours.push({ day: idx, open: '08:00', close: '20:00', closed: true });
+                                                                setOpeningHours(newHours);
+                                                            }}
+                                                            className={`px-3 py-1 rounded-full text-[8px] font-black uppercase transition-all ${dayData.closed ? 'bg-red-500/10 text-red-500' : 'bg-green-500/10 text-green-500'}`}
+                                                        >
+                                                            {dayData.closed ? 'Fechado' : 'Aberto'}
+                                                        </button>
+
+                                                        {!dayData.closed && (
+                                                            <div className="flex-1 flex items-center gap-2 animate-in fade-in slide-in-from-left-2">
+                                                                <input
+                                                                    type="time"
+                                                                    value={dayData.open}
+                                                                    onChange={e => {
+                                                                        const newHours = [...openingHours];
+                                                                        const index = newHours.findIndex(h => h.day === idx);
+                                                                        if (index >= 0) newHours[index].open = e.target.value;
+                                                                        else newHours.push({ day: idx, open: e.target.value, close: '20:00', closed: false });
+                                                                        setOpeningHours(newHours);
+                                                                    }}
+                                                                    className="flex-1 h-8 bg-slate-50 dark:bg-black/40 border-none rounded-lg text-xs font-bold text-center outline-none focus:ring-1 focus:ring-primary/30"
+                                                                />
+                                                                <span className="text-[10px] font-black text-slate-300">às</span>
+                                                                <input
+                                                                    type="time"
+                                                                    value={dayData.close}
+                                                                    onChange={e => {
+                                                                        const newHours = [...openingHours];
+                                                                        const index = newHours.findIndex(h => h.day === idx);
+                                                                        if (index >= 0) newHours[index].close = e.target.value;
+                                                                        else newHours.push({ day: idx, open: '08:00', close: e.target.value, closed: false });
+                                                                        setOpeningHours(newHours);
+                                                                    }}
+                                                                    className="flex-1 h-8 bg-slate-50 dark:bg-black/40 border-none rounded-lg text-xs font-bold text-center outline-none focus:ring-1 focus:ring-primary/30"
+                                                                />
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })}
                                         </div>
                                     </div>
                                 ) : (
@@ -362,15 +450,207 @@ const StoreCustomization = () => {
                                 )}
                             </div>
                         </div>
+                    </div>
+                </div>
 
-                        <div className="mt-8 pt-8 border-t border-slate-100 dark:border-white/5 flex justify-end">
-                            <button
-                                onClick={handleSave}
-                                disabled={saving}
-                                className="bg-primary text-background-dark font-black h-12 px-8 rounded-2xl uppercase tracking-widest shadow-lg shadow-primary/20 hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                            >
-                                {saving ? 'Salvando...' : 'Salvar Alterações'}
-                            </button>
+                {/* DELIVERY CONFIGURATION SECTION */}
+                <div className="bg-white dark:bg-zinc-800 rounded-[32px] border border-slate-100 dark:border-white/5 overflow-hidden shadow-sm mb-8 p-8">
+                    <div className="flex items-center gap-3 mb-6">
+                        <div className="p-2 bg-primary/10 rounded-lg">
+                            <MaterialIcon name="delivery_dining" className="text-primary" />
+                        </div>
+                        <div>
+                            <h3 className="text-lg font-black italic text-slate-900 dark:text-white uppercase leading-none">Configurações de Entrega</h3>
+                            <p className="text-slate-500 font-bold text-[9px] uppercase tracking-widest mt-1">Defina como você cobra pela entrega e limites de distância</p>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-12 gap-12">
+                        {/* Seletor de Tipo - Asymmetric 4/12 Col */}
+                        <div className="md:col-span-12 lg:col-span-5 space-y-6">
+                            <div className="relative">
+                                <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 mb-4 block">Forma de Cobrança</span>
+                                <div className="grid grid-cols-2 gap-3 p-1 bg-slate-100 dark:bg-black/40 rounded-[20px] border border-slate-200 dark:border-white/5">
+                                    <button
+                                        onClick={() => setDeliveryFeeType('fixed')}
+                                        className={`flex flex-col items-center justify-center gap-2 p-6 rounded-[18px] transition-all duration-300 ${deliveryFeeType === 'fixed' ? 'bg-white dark:bg-zinc-800 text-primary shadow-xl shadow-black/10 scale-[1.02]' : 'text-slate-500 hover:text-slate-700'}`}
+                                    >
+                                        <MaterialIcon name="sell" className="text-2xl" />
+                                        <span className="font-black text-[10px] uppercase tracking-widest">Taxa Fixa</span>
+                                    </button>
+                                    <button
+                                        onClick={() => setDeliveryFeeType('km')}
+                                        className={`flex flex-col items-center justify-center gap-2 p-6 rounded-[18px] transition-all duration-300 ${deliveryFeeType === 'km' ? 'bg-white dark:bg-zinc-800 text-primary shadow-xl shadow-black/10 scale-[1.02]' : 'text-slate-500 hover:text-slate-700'}`}
+                                    >
+                                        <MaterialIcon name="map" className="text-2xl" />
+                                        <span className="font-black text-[10px] uppercase tracking-widest">Por KM</span>
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            setDeliveryFeeType('range');
+                                            if (deliveryRanges.length === 0) {
+                                                setDeliveryRanges([
+                                                    { max_km: 2, fee: 4.90 },
+                                                    { max_km: 5, fee: 7.90 },
+                                                    { max_km: 10, fee: 12.90 }
+                                                ]);
+                                            }
+                                        }}
+                                        className={`flex flex-col items-center justify-center gap-2 p-6 rounded-[18px] transition-all duration-300 ${deliveryFeeType === 'range' ? 'bg-white dark:bg-zinc-800 text-primary shadow-xl shadow-black/10 scale-[1.02]' : 'text-slate-500 hover:text-slate-700'}`}
+                                    >
+                                        <MaterialIcon name="rule" className="text-2xl" />
+                                        <span className="font-black text-[10px] uppercase tracking-widest">Faixas</span>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div className="relative overflow-hidden p-6 bg-slate-50 dark:bg-black/20 rounded-[24px] border border-slate-100 dark:border-white/5 group">
+                                <div className="absolute -right-4 -top-4 w-24 h-24 bg-primary/5 rounded-full blur-2xl group-hover:scale-150 transition-transform duration-700"></div>
+                                {deliveryFeeType === 'fixed' ? (
+                                    <label className="flex flex-col gap-2 relative z-10">
+                                        <span className="text-[10px] font-black uppercase text-slate-500">Valor da Taxa Fixa</span>
+                                        <div className="relative">
+                                            <span className="absolute left-4 top-1/2 -translate-y-1/2 font-black text-slate-400">R$</span>
+                                            <input
+                                                type="number"
+                                                value={deliveryFeeFixed}
+                                                onChange={e => setDeliveryFeeFixed(parseFloat(e.target.value))}
+                                                className="w-full h-14 pl-12 pr-4 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-white/10 rounded-xl outline-none font-black text-xl text-slate-900 dark:text-white focus:border-primary transition-all"
+                                            />
+                                        </div>
+                                    </label>
+                                ) : deliveryFeeType === 'km' ? (
+                                    <label className="flex flex-col gap-2 relative z-10">
+                                        <span className="text-[10px] font-black uppercase text-slate-500">Valor por KM</span>
+                                        <div className="relative">
+                                            <input
+                                                type="number"
+                                                value={deliveryFeePerKm}
+                                                onChange={e => setDeliveryFeePerKm(parseFloat(e.target.value))}
+                                                className="w-full h-14 pl-10 pr-4 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-white/10 rounded-xl outline-none font-black text-xl text-slate-900 dark:text-white focus:border-primary transition-all"
+                                            />
+                                            <span className="absolute left-4 top-1/2 -translate-y-1/2 font-black text-slate-400 text-xs">R$</span>
+                                        </div>
+                                    </label>
+                                ) : (
+                                    <div className="space-y-4 relative z-10">
+                                        <div className="flex justify-between items-center">
+                                            <div className="flex flex-col">
+                                                <span className="text-[10px] font-black uppercase text-slate-500">Faixas de Preço</span>
+                                                <span className="text-[8px] text-primary font-black uppercase tracking-tighter">Estilo iFood - Mais Atrativo</span>
+                                            </div>
+                                            <button
+                                                onClick={() => setDeliveryRanges([...deliveryRanges, { max_km: 0, fee: 0 }])}
+                                                className="text-[9px] font-black uppercase bg-primary/10 text-primary px-3 py-1.5 rounded-lg hover:bg-primary hover:text-white transition-all"
+                                            >
+                                                + Faixa
+                                            </button>
+                                        </div>
+
+                                        <p className="text-[9px] text-slate-400 font-bold leading-tight bg-white dark:bg-zinc-800/10 p-3 rounded-xl border border-slate-100 dark:border-white/5">
+                                            Dica: Defina preços menores para clientes próximos para incentivar pedidos rápidos.
+                                        </p>
+
+                                        <div className="max-h-[200px] overflow-y-auto space-y-2 pr-2 scrollbar-thin scrollbar-thumb-primary/20">
+                                            {deliveryRanges.length === 0 && (
+                                                <div className="text-center py-4 border-2 border-dashed border-slate-200 dark:border-white/5 rounded-xl">
+                                                    <span className="text-[10px] font-bold text-slate-400 uppercase">Nenhuma faixa definida</span>
+                                                </div>
+                                            )}
+                                            {deliveryRanges.map((range, idx) => (
+                                                <div key={idx} className="flex gap-2 items-center animate-in slide-in-from-right-4 duration-300" style={{ animationDelay: `${idx * 50}ms` }}>
+                                                    <div className="flex-1 grid grid-cols-2 gap-2">
+                                                        <div className="relative">
+                                                            <input
+                                                                type="number"
+                                                                placeholder="KM"
+                                                                value={range.max_km}
+                                                                onChange={e => {
+                                                                    const newRanges = [...deliveryRanges];
+                                                                    newRanges[idx].max_km = parseFloat(e.target.value);
+                                                                    setDeliveryRanges(newRanges);
+                                                                }}
+                                                                className="w-full h-10 bg-white dark:bg-zinc-800 border border-slate-200 dark:border-white/5 rounded-lg px-3 text-xs font-bold focus:border-primary outline-none"
+                                                            />
+                                                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[8px] font-black text-slate-400 uppercase">KM</span>
+                                                        </div>
+                                                        <div className="relative">
+                                                            <input
+                                                                type="number"
+                                                                placeholder="Valor"
+                                                                value={range.fee}
+                                                                onChange={e => {
+                                                                    const newRanges = [...deliveryRanges];
+                                                                    newRanges[idx].fee = parseFloat(e.target.value);
+                                                                    setDeliveryRanges(newRanges);
+                                                                }}
+                                                                className="w-full h-10 bg-white dark:bg-zinc-800 border border-slate-200 dark:border-white/5 rounded-lg pl-6 pr-3 text-xs font-bold focus:border-primary outline-none"
+                                                            />
+                                                            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[8px] font-black text-slate-400">R$</span>
+                                                        </div>
+                                                    </div>
+                                                    <button
+                                                        onClick={() => setDeliveryRanges(deliveryRanges.filter((_, i) => i !== idx))}
+                                                        className="size-10 flex items-center justify-center bg-red-500/10 text-red-500 rounded-lg hover:bg-red-500 hover:text-white transition-all"
+                                                    >
+                                                        <MaterialIcon name="delete" className="text-lg" />
+                                                    </button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Regras e Limites - Asymmetric 8/12 Col */}
+                        <div className="md:col-span-12 lg:col-span-7 grid md:grid-cols-2 gap-6 bg-slate-50/50 dark:bg-white/2 px-8 py-8 rounded-[40px] border border-slate-100 dark:border-white/5 relative">
+                            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-primary/20 to-transparent"></div>
+
+                            <label className="flex flex-col gap-2 group/field">
+                                <span className="text-[10px] font-black uppercase text-slate-500 tracking-wider">Raio Entrega Grátis (KM)</span>
+                                <input
+                                    type="number"
+                                    value={deliveryFreeMinKm}
+                                    onChange={e => setDeliveryFreeMinKm(parseFloat(e.target.value))}
+                                    placeholder="0 = Desativado"
+                                    className="h-14 px-4 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-white/10 rounded-2xl outline-none font-bold text-slate-900 dark:text-white focus:border-primary focus:ring-4 focus:ring-primary/5 transition-all"
+                                />
+                                <span className="text-[9px] text-slate-400 font-bold px-1 italic">Grátis para clientes próximos.</span>
+                            </label>
+
+                            <label className="flex flex-col gap-2 group/field">
+                                <span className="text-[10px] font-black uppercase text-slate-500 tracking-wider">Pedido Mín. Frete Grátis (R$)</span>
+                                <input
+                                    type="number"
+                                    value={deliveryFreeMinValue}
+                                    onChange={e => setDeliveryFreeMinValue(parseFloat(e.target.value))}
+                                    placeholder="0 = Desativado"
+                                    className="h-14 px-4 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-white/10 rounded-2xl outline-none font-bold text-slate-900 dark:text-white focus:border-primary focus:ring-4 focus:ring-primary/5 transition-all"
+                                />
+                                <span className="text-[9px] text-slate-400 font-bold px-1 italic">Incentivo para carrinhos maiores.</span>
+                            </label>
+
+                            <div className="md:col-span-2 pt-4 mt-2 border-t border-slate-200 dark:border-white/5">
+                                <label className="flex flex-col gap-2">
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-[10px] font-black uppercase text-slate-500 tracking-wider">Distância Máxima de Atendimento</span>
+                                        <span className="text-xs font-black text-primary italic">{deliveryMaxKm} KM</span>
+                                    </div>
+                                    <input
+                                        type="range"
+                                        min="1"
+                                        max="50"
+                                        value={deliveryMaxKm}
+                                        onChange={e => setDeliveryMaxKm(parseInt(e.target.value))}
+                                        className="w-full h-2 bg-slate-200 dark:bg-zinc-700 rounded-lg appearance-none cursor-pointer accent-primary"
+                                    />
+                                    <div className="flex justify-between text-[8px] font-black text-slate-400 uppercase tracking-widest mt-1">
+                                        <span>1 KM</span>
+                                        <span>50 KM</span>
+                                    </div>
+                                </label>
+                            </div>
                         </div>
                     </div>
                 </div>

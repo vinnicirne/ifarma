@@ -45,7 +45,8 @@ const Notifications = () => {
     };
 
     return (
-        <div className="flex flex-col min-h-screen w-full max-w-[480px] mx-auto bg-background-light dark:bg-background-dark shadow-2xl relative font-display text-slate-900 dark:text-slate-100 antialiased transition-colors duration-200">
+        <div className="flex flex-col min-h-screen w-full md:max-w-6xl mx-auto bg-background-light dark:bg-background-dark shadow-2xl md:shadow-none relative font-display text-slate-900 dark:text-slate-100 antialiased transition-colors duration-200">
+
             {/* Header */}
             <header className="sticky top-0 z-50 bg-background-light/80 dark:bg-background-dark/80 backdrop-blur-md pt-4 pb-4 px-4 border-b border-slate-200 dark:border-slate-800">
                 <div className="flex items-center justify-between">
@@ -83,75 +84,78 @@ const Notifications = () => {
             </div>
 
             {/* Notification List */}
-            <main className="flex-1 px-4 space-y-3 pb-24">
-                {loading && (
-                    <div className="flex flex-col items-center justify-center py-20 opacity-50 italic">
-                        <div className="animate-spin size-8 border-4 border-primary border-t-transparent rounded-full mb-4"></div>
-                        <p>Buscando alertas...</p>
-                    </div>
-                )}
-
-                {!loading && filteredNotifications.length === 0 && (
-                    <div className="flex flex-col items-center justify-center py-20 text-slate-400">
-                        <MaterialIcon name="notifications_off" className="text-6xl mb-4 opacity-20" />
-                        <p className="font-bold italic">Nenhuma notificação encontrada</p>
-                    </div>
-                )}
-
-                {filteredNotifications.map((notif) => {
-                    const style = getIcon(notif.type);
-                    return (
-                        <div
-                            key={notif.id}
-                            onClick={() => !notif.is_read && markAsRead(notif.id)}
-                            className={`flex items-start gap-4 p-4 rounded-xl border shadow-sm relative transition-all cursor-pointer ${notif.is_read ? 'bg-slate-50/50 dark:bg-[#1a2333]/40 border-transparent opacity-80' : 'bg-white dark:bg-[#1a2333] border-slate-100 dark:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-[#1a2333]/80'}`}
-                        >
-                            {!notif.is_read && (
-                                <div className="absolute right-4 top-4 w-2 h-2 rounded-full bg-primary animate-pulse"></div>
-                            )}
-                            <div className={`${style.bg} ${style.color} flex items-center justify-center rounded-lg shrink-0 size-12`}>
-                                <MaterialIcon name={style.icon} style={{ fontVariationSettings: "'FILL' 1" }} />
-                            </div>
-                            <div className="flex flex-col flex-1 pr-4">
-                                <p className="text-slate-900 dark:text-white text-base font-semibold leading-tight">{notif.title}</p>
-                                <p className="text-slate-600 dark:text-slate-400 text-sm mt-1 leading-snug">{notif.message}</p>
-                                <p className="text-slate-400 dark:text-slate-500 text-xs mt-2 font-medium">
-                                    {new Date(notif.created_at).toLocaleDateString()} {new Date(notif.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                </p>
-                            </div>
+            <main className="flex-1 px-4 pb-24">
+                <div className="flex flex-col gap-3 md:grid md:grid-cols-2 lg:grid-cols-3 md:gap-4">
+                    {loading && (
+                        <div className="flex flex-col items-center justify-center py-20 opacity-50 italic">
+                            <div className="animate-spin size-8 border-4 border-primary border-t-transparent rounded-full mb-4"></div>
+                            <p>Buscando alertas...</p>
                         </div>
-                    );
-                })}
+                    )}
+
+                    {!loading && filteredNotifications.length === 0 && (
+                        <div className="flex flex-col items-center justify-center py-20 text-slate-400">
+                            <MaterialIcon name="notifications_off" className="text-6xl mb-4 opacity-20" />
+                            <p className="font-bold italic">Nenhuma notificação encontrada</p>
+                        </div>
+                    )}
+
+                    {filteredNotifications.map((notif) => {
+                        const style = getIcon(notif.type);
+                        return (
+                            <div
+                                key={notif.id}
+                                onClick={() => !notif.is_read && markAsRead(notif.id)}
+                                className={`flex items-start gap-4 p-4 rounded-xl border shadow-sm relative transition-all cursor-pointer ${notif.is_read ? 'bg-slate-50/50 dark:bg-[#1a2333]/40 border-transparent opacity-80' : 'bg-white dark:bg-[#1a2333] border-slate-100 dark:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-[#1a2333]/80'}`}
+                            >
+                                {!notif.is_read && (
+                                    <div className="absolute right-4 top-4 w-2 h-2 rounded-full bg-primary animate-pulse"></div>
+                                )}
+                                <div className={`${style.bg} ${style.color} flex items-center justify-center rounded-lg shrink-0 size-12`}>
+                                    <MaterialIcon name={style.icon} style={{ fontVariationSettings: "'FILL' 1" }} />
+                                </div>
+                                <div className="flex flex-col flex-1 pr-4">
+                                    <p className="text-slate-900 dark:text-white text-base font-semibold leading-tight">{notif.title}</p>
+                                    <p className="text-slate-600 dark:text-slate-400 text-sm mt-1 leading-snug">{notif.message}</p>
+                                    <p className="text-slate-400 dark:text-slate-500 text-xs mt-2 font-medium">
+                                        {new Date(notif.created_at).toLocaleDateString()} {new Date(notif.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                    </p>
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
             </main>
 
-            {/* Navigation Bar */}
-            <nav className="fixed bottom-0 w-full max-w-[480px] bg-background-light/90 dark:bg-background-dark/90 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 px-6 py-3 flex justify-between items-center z-50">
-                <Link to="/" className="flex flex-col items-center gap-1 text-slate-400 dark:text-slate-500 hover:text-primary transition-colors">
-                    <MaterialIcon name="home" />
-                    <span className="text-[10px] font-medium">Início</span>
-                </Link>
-                <Link to="/pharmacies" className="flex flex-col items-center gap-1 text-slate-400 dark:text-slate-500 hover:text-primary transition-colors">
-                    <MaterialIcon name="search" />
-                    <span className="text-[10px] font-medium">Buscar</span>
-                </Link>
-                <button className="flex flex-col items-center gap-1 text-primary">
-                    <div className="relative">
-                        <MaterialIcon name="notifications" style={{ fontVariationSettings: "'FILL' 1" }} />
-                    </div>
-                    <span className="text-[10px] font-bold">Alertas</span>
-                </button>
-                <Link to="/cart" className="flex flex-col items-center gap-1 text-slate-400 dark:text-slate-500 hover:text-primary transition-colors">
-                    <MaterialIcon name="shopping_cart" />
-                    <span className="text-[10px] font-medium">Carrinho</span>
-                </Link>
-                <Link to="/profile" className="flex flex-col items-center gap-1 text-slate-400 dark:text-slate-500 hover:text-primary transition-colors">
-                    <MaterialIcon name="person" />
-                    <span className="text-[10px] font-medium">Perfil</span>
-                </Link>
-            </nav>
-
-            {/* Home Indicator (iOS) */}
-            <div className="fixed bottom-1.5 left-1/2 -translate-x-1/2 w-32 h-1 bg-slate-300 dark:bg-slate-700 rounded-full pointer-events-none z-[60]"></div>
+            {/* Navigation Bar - Mobile ONLY */}
+            <div className="md:hidden">
+                <nav className="fixed bottom-0 left-0 w-full bg-background-light/90 dark:bg-background-dark/90 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 px-6 py-3 flex justify-between items-center z-50">
+                    <Link to="/" className="flex flex-col items-center gap-1 text-slate-400 dark:text-slate-500 hover:text-primary transition-colors">
+                        <MaterialIcon name="home" />
+                        <span className="text-[10px] fon-medium">Início</span>
+                    </Link>
+                    <Link to="/pharmacies" className="flex flex-col items-center gap-1 text-slate-400 dark:text-slate-500 hover:text-primary transition-colors">
+                        <MaterialIcon name="search" />
+                        <span className="text-[10px] font-medium">Buscar</span>
+                    </Link>
+                    <button className="flex flex-col items-center gap-1 text-primary">
+                        <div className="relative">
+                            <MaterialIcon name="notifications" style={{ fontVariationSettings: "'FILL' 1" }} />
+                        </div>
+                        <span className="text-[10px] font-bold">Alertas</span>
+                    </button>
+                    <Link to="/cart" className="flex flex-col items-center gap-1 text-slate-400 dark:text-slate-500 hover:text-primary transition-colors">
+                        <MaterialIcon name="shopping_cart" />
+                        <span className="text-[10px] font-medium">Carrinho</span>
+                    </Link>
+                    <Link to="/profile" className="flex flex-col items-center gap-1 text-slate-400 dark:text-slate-500 hover:text-primary transition-colors">
+                        <MaterialIcon name="person" />
+                        <span className="text-[10px] font-medium">Perfil</span>
+                    </Link>
+                </nav>
+                {/* Home Indicator (iOS) */}
+                <div className="fixed bottom-1.5 left-1/2 -translate-x-1/2 w-32 h-1 bg-slate-300 dark:bg-slate-700 rounded-full pointer-events-none z-[60]"></div>
+            </div>
         </div>
     );
 };

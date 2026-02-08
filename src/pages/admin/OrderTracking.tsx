@@ -294,6 +294,7 @@ const OrderTracking = () => {
                 <AdminMap
                     type="tracking"
                     fleet={showMotoboys ? fleet : []}
+                    autoCenter={true}
                     markers={[
                         ...(showPharmacies && viewMode === 'global' ? allPharmacies : []),
                         ...(viewMode === 'active' ? activeOrders.filter(o => o.lat && o.lng).map(o => ({

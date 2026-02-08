@@ -1,6 +1,19 @@
 import { useState, useEffect } from 'react';
 import MerchantLayout from './MerchantLayout';
 import { supabase } from '../../lib/supabase';
+import { Toast } from '../../components/Toast';
+
+const formatCurrency = (value: string | number) => {
+    if (!value) return '';
+    const num = typeof value === 'string' ? parseFloat(value.replace(',', '.')) : value;
+    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(num);
+};
+
+const parseCurrency = (value: string) => {
+    return value.replace(/\D/g, '')
+        .replace(/(\d)(\d{2})$/, '$1,$2')
+        .replace(/(?=(\d{3})+(\D))\B/g, '.');
+};
 
 const MaterialIcon = ({ name, className = "" }: { name: string, className?: string }) => (
     <span className={`material-symbols-outlined ${className}`}>{name}</span>
@@ -57,6 +70,12 @@ const InventoryControl = () => {
     const [editingProduct, setEditingProduct] = useState<Product | null>(null);
 
     const [uploading, setUploading] = useState(false);
+    const [toast, setToast] = useState<{ message: string, type: 'success' | 'error' | 'info' | 'warning' } | null>(null);
+
+    const showToast = (message: string, type: 'success' | 'error' | 'info' | 'warning' = 'info') => {
+        setToast({ message, type });
+        setTimeout(() => setToast(null), 3000);
+    };
 
     useEffect(() => {
         fetchProducts();
@@ -143,8 +162,10 @@ const InventoryControl = () => {
                 .getPublicUrl(filePath);
 
             setFormData(prev => ({ ...prev, image_url: publicUrl }));
+            setFormData(prev => ({ ...prev, image_url: publicUrl }));
+            showToast('Imagem enviada com sucesso!', 'success');
         } catch (error: any) {
-            alert('Erro no upload: ' + error.message);
+            showToast('Erro no upload: ' + error.message, 'error');
         } finally {
             setUploading(false);
         }
@@ -198,8 +219,9 @@ const InventoryControl = () => {
                 setEditingProduct(null);
                 fetchProducts();
                 resetForm();
+                showToast('Produto salvo com sucesso!', 'success');
             } else {
-                alert("Erro ao salvar: " + error.message);
+                showToast("Erro ao salvar: " + error.message, 'error');
             }
         }
         setLoading(false);
@@ -238,8 +260,11 @@ const InventoryControl = () => {
         if (!window.confirm('Excluir este produto permanentemente?')) return;
 
         const { error } = await supabase.from('products').delete().eq('id', id);
-        if (!error) fetchProducts();
-        else alert('Erro ao excluir: ' + error.message);
+        if (!error) {
+            fetchProducts();
+            showToast('Produto excluído.', 'success');
+        }
+        else showToast('Erro ao excluir: ' + error.message, 'error');
     };
 
     const toggleProductStatus = async (product: Product) => {
@@ -254,8 +279,10 @@ const InventoryControl = () => {
             .eq('id', product.id);
 
         if (error) {
-            alert('Erro ao atualizar status: ' + error.message);
+            showToast('Erro ao atualizar status: ' + error.message, 'error');
             fetchProducts(); // Revert on error
+        } else {
+            showToast(`Produto ${newStatus ? 'ativado' : 'pausado'}.`, 'success');
         }
     };
 
@@ -436,11 +463,28 @@ const InventoryControl = () => {
 
                                         <div className="col-span-1">
                                             <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Preço Normal (R$)</label>
-                                            <input required placeholder="0,00" value={formData.original_price || formData.price} onChange={e => setFormData({ ...formData, original_price: e.target.value, price: e.target.value })} className="w-full h-12 px-4 rounded-xl bg-slate-50 dark:bg-black/20 border-none text-sm font-bold shadow-inner" />
+                                            <input
+                                                required
+                                                placeholder="0,00"
+                                                value={formData.original_price || formData.price}
+                                                onChange={e => {
+                                                    const formatted = parseCurrency(e.target.value);
+                                                    setFormData({ ...formData, original_price: formatted, price: formatted });
+                                                }}
+                                                className="w-full h-12 px-4 rounded-xl bg-slate-50 dark:bg-black/20 border-none text-sm font-bold shadow-inner"
+                                            />
                                         </div>
                                         <div className="col-span-1">
                                             <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 text-primary">Preço Promo</label>
-                                            <input placeholder="0,00" value={formData.promo_price} onChange={e => setFormData({ ...formData, promo_price: e.target.value })} className="w-full h-12 px-4 rounded-xl bg-slate-50 dark:bg-black/20 border-none text-sm font-bold shadow-inner text-primary" />
+                                            <input
+                                                placeholder="0,00"
+                                                value={formData.promo_price}
+                                                onChange={e => {
+                                                    const formatted = parseCurrency(e.target.value);
+                                                    setFormData({ ...formData, promo_price: formatted });
+                                                }}
+                                                className="w-full h-12 px-4 rounded-xl bg-slate-50 dark:bg-black/20 border-none text-sm font-bold shadow-inner text-primary"
+                                            />
                                         </div>
 
                                         <div className="col-span-2">
@@ -531,6 +575,7 @@ const InventoryControl = () => {
                     </div>
                 </div>
             )}
+            {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
         </MerchantLayout>
     );
 };

@@ -34,7 +34,7 @@ const PharmacyFinanceTab: React.FC<PharmacyFinanceTabProps> = ({ pharmacyId }) =
             // Se não encontrar regra específica, buscar regra global (visual apenas)
             if (feeError || !feeData || (!feeData.charge_per_order && !feeData.charge_percentage)) {
                 const { data: globalSettings } = await supabase.from('system_settings').select('*');
-                if (globalSettings) {
+                if (globalSettings && Array.isArray(globalSettings)) {
                     const gMap: any = {};
                     globalSettings.forEach(s => gMap[s.key] = s.value);
 

@@ -67,11 +67,11 @@ export const OrderReceipt = React.forwardRef<HTMLDivElement, OrderReceiptProps>(
             <div className="mb-4">
                 <div className="flex justify-between text-[10px]">
                     <span>Subtotal</span>
-                    <span>{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(order.total_price)}</span>
+                    <span>{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(order.total_price - (order.delivery_fee || 0))}</span>
                 </div>
                 <div className="flex justify-between text-[10px]">
                     <span>Taxa de Entrega</span>
-                    <span>GRÁTIS</span>
+                    <span>{order.delivery_fee > 0 ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(order.delivery_fee) : 'GRÁTIS'}</span>
                 </div>
 
                 <div className="flex justify-between font-bold text-lg mt-2 pt-2 border-t border-black border-dashed">
@@ -79,6 +79,14 @@ export const OrderReceipt = React.forwardRef<HTMLDivElement, OrderReceiptProps>(
                     <span>{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(order.total_price)}</span>
                 </div>
                 <p className="text-xs mt-1 uppercase">PAGAMENTO: {order.payment_method || 'NÃO INFORMADO'}</p>
+
+                {order.customer_notes && (
+                    <div className="mt-2 p-1 border border-black border-dashed">
+                        <p className="text-[10px] font-bold uppercase">OBSERVAÇÃO:</p>
+                        <p className="text-[10px]">{order.customer_notes}</p>
+                    </div>
+                )}
+
                 {order.change_for && order.payment_method === 'cash' && (
                     <div className="mt-1 border-t border-black border-dashed pt-1">
                         <p className="text-xs">TROCO PARA: {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(order.change_for)}</p>

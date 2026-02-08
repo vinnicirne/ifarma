@@ -1,4 +1,4 @@
-import React from 'react';
+
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { useNotifications } from '../../hooks/useNotifications';
@@ -141,7 +141,7 @@ const MerchantLayout = ({ children, activeTab, title }: { children: React.ReactN
 
                 <nav className="flex-1 space-y-2">
                     <Link
-                        to="/notifications"
+                        to="/gestor/notifications"
                         title={isCollapsed ? "Notificações" : ''}
                         className={`flex items-center gap-3 px-4 py-3.5 rounded-2xl transition-all group mb-4 ${activeTab === 'notifications'
                             ? 'bg-primary text-background-dark shadow-lg shadow-primary/20'
@@ -151,7 +151,7 @@ const MerchantLayout = ({ children, activeTab, title }: { children: React.ReactN
                         <div className="relative flex items-center justify-center">
                             <MaterialIcon name="notifications" className={activeTab === 'notifications' ? "" : "group-hover:scale-110 transition-transform"} />
                             {unreadCount > 0 && (
-                                <span className={`absolute -top-1.5 -right-1.5 size-4 bg-red-500 rounded-full flex items-center justify-center text-[9px] font-black border border-white dark:border-zinc-800 animate-pulse text-white`}>
+                                <span className="absolute -top-1.5 -right-1.5 size-4 bg-red-500 rounded-full flex items-center justify-center text-[9px] font-black border border-white dark:border-zinc-800 animate-pulse text-white">
                                     {unreadCount}
                                 </span>
                             )}

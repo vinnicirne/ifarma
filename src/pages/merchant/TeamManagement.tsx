@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
+import { Toast } from '../../components/Toast';
 
 const MaterialIcon = ({ name, className = "" }: { name: string, className?: string }) => (
     <span className={`material-symbols-outlined ${className}`}>{name}</span>
@@ -9,9 +10,16 @@ const TeamManagement = () => {
     const [team, setTeam] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
+    const [editingMember, setEditingMember] = useState<any | null>(null); // New state for editing
     const [saving, setSaving] = useState(false);
     const [pharmacyId, setPharmacyId] = useState<string | null>(null);
     const [myRole, setMyRole] = useState<string | null>(null);
+    const [toast, setToast] = useState<{ message: string, type: 'success' | 'error' | 'info' | 'warning' } | null>(null);
+
+    const showToast = (message: string, type: 'success' | 'error' | 'info' | 'warning' = 'info') => {
+        setToast({ message, type });
+        setTimeout(() => setToast(null), 3000);
+    };
 
     const [formData, setFormData] = useState({
         name: '',
@@ -69,106 +77,153 @@ const TeamManagement = () => {
         setLoading(false);
     };
 
+    const handleEditClick = (member: any) => {
+        setEditingMember(member);
+        setFormData({
+            name: member.full_name,
+            email: member.email,
+            phone: member.phone || '',
+            password: '', // Password not editable directly here usually, or keep blank to not change
+            role: member.role,
+            vehicle_plate: member.vehicle_plate || '',
+            vehicle_model: member.vehicle_model || ''
+        });
+        setShowModal(true);
+    };
+
+    const handleAddNewClick = () => {
+        setEditingMember(null);
+        setFormData({ name: '', email: '', phone: '', password: '', role: 'staff', vehicle_plate: '', vehicle_model: '' });
+        setShowModal(true);
+    };
+
     const handleSave = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!pharmacyId) return;
 
         setSaving(true);
         try {
-            let loginEmail = formData.email;
-            let loginPassword = formData.password;
-            let displayMessage = '';
-
-            // Lógica específica para Motoboy
-            if (formData.role === 'motoboy') {
-                const { allMet } = getPasswordStrength(formData.password);
-                if (!formData.phone || !formData.password) {
-                    throw new Error("Telefone e Senha são obrigatórios para Motoboy.");
-                }
-                if (!allMet) {
-                    throw new Error("A senha não atende aos requisitos mínimos de segurança.");
-                }
-                // Gerar email de login baseado no telefone
-                loginEmail = `${formData.phone.replace(/\D/g, '')}@motoboy.ifarma.com`;
-                displayMessage = `Motoboy cadastrado!\nLogin: ${formData.phone.replace(/\D/g, '')}\nSenha: ${formData.password}`;
-            } else {
-                // Lógica para outros membros (Gerente, Caixa)
-                if (!formData.email) {
-                    throw new Error("E-mail é obrigatório.");
-                }
-                // Gerar senha aleatória se não for motoboy
-                loginPassword = Math.random().toString(36).slice(-8) + 'Aa1!';
-                displayMessage = `Membro cadastrado!\nEmail: ${loginEmail}\nSenha Temporária: ${loginPassword}`;
-            }
-
-            // Manual Fetch to bypass potential Supabase Client invoke issues
-            const { data: { session: freshSession } } = await supabase.auth.getSession();
-            if (!freshSession) throw new Error("Sessão expirada. Por favor, faça login novamente.");
-
-            const baseUrl = import.meta.env.VITE_SUPABASE_URL;
-            const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-
-            console.log("🚀 Custom Invoke Start");
-
-            const response = await fetch(`${baseUrl}/functions/v1/create-user-admin`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${freshSession.access_token}`, // Restricted: Real user session token
-                    'apikey': anonKey
-                },
-                body: JSON.stringify({
-                    email: loginEmail,
-                    password: loginPassword,
-                    metadata: {
-                        full_name: formData.name,
-                        role: formData.role,
-                        pharmacy_id: pharmacyId,
-                        phone: formData.phone,
-                        vehicle_plate: formData.role === 'motoboy' ? formData.vehicle_plate : undefined,
-                        vehicle_model: formData.role === 'motoboy' ? formData.vehicle_model : undefined,
-                    }
-                })
-            });
-
-            console.log("📡 Response Status:", response.status);
-
-            const result = await response.json().catch(() => ({}));
-
-            if (!response.ok) {
-                console.error("❌ Edge Function Error Detail:", result);
-                const errorMsg = result.error || result.message || "Erro desconhecido na Edge Function";
-                const error = new Error(errorMsg);
-                (error as any).status = response.status;
-                (error as any).code = result.code;
-                throw error;
-            }
-
-            const authData = result;
-
-            // Criar perfil com dados adicionais (Backup/Confirmação)
-            const { error: profileError } = await supabase
-                .from('profiles')
-                .upsert({
-                    id: authData.user.id,
-                    email: loginEmail,
-                    full_name: formData.name,
-                    phone: formData.phone,
+            if (editingMember) {
+                // UPDATE MODE
+                const updates: any = {
                     role: formData.role,
-                    pharmacy_id: pharmacyId,
-                    is_active: true,
+                    phone: formData.phone,
+                    // Typically name/email are not changed by manager easily, but let's allow basic info
+                    full_name: formData.name,
+                };
+
+                if (formData.role === 'motoboy') {
+                    updates.vehicle_plate = formData.vehicle_plate;
+                    updates.vehicle_model = formData.vehicle_model;
+                }
+
+                // If password provided for update (optional feature, be careful) - simplifying to NOT update password here for now unless critical
+
+                const { error } = await supabase
+                    .from('profiles')
+                    .update(updates)
+                    .eq('id', editingMember.id);
+
+                if (error) throw error;
+                showToast("Membro atualizado com sucesso!", 'success');
+            } else {
+                // CREATE MODE (Existing Logic)
+                let loginEmail = formData.email;
+                let loginPassword = formData.password;
+                let displayMessage = '';
+
+                // Lógica específica para Motoboy
+                if (formData.role === 'motoboy') {
+                    const { allMet } = getPasswordStrength(formData.password);
+                    if (!formData.phone || !formData.password) {
+                        throw new Error("Telefone e Senha são obrigatórios para Motoboy.");
+                    }
+                    if (!allMet) {
+                        throw new Error("A senha não atende aos requisitos mínimos de segurança.");
+                    }
+                    // Gerar email de login baseado no telefone
+                    loginEmail = `${formData.phone.replace(/\D/g, '')}@motoboy.ifarma.com`;
+                    displayMessage = `Motoboy cadastrado!\nLogin: ${formData.phone.replace(/\D/g, '')}\nSenha: ${formData.password}`;
+                } else {
+                    // Lógica para outros membros (Gerente, Caixa)
+                    if (!formData.email) {
+                        throw new Error("E-mail é obrigatório.");
+                    }
+                    // Gerar senha aleatória se não for motoboy
+                    loginPassword = Math.random().toString(36).slice(-8) + 'Aa1!';
+                    displayMessage = `Membro cadastrado!\nEmail: ${loginEmail}\nSenha Temporária: ${loginPassword}`;
+                }
+
+                // Manual Fetch to bypass potential Supabase Client invoke issues
+                const { data: { session: freshSession } } = await supabase.auth.getSession();
+                if (!freshSession) throw new Error("Sessão expirada. Por favor, faça login novamente.");
+
+                const baseUrl = import.meta.env.VITE_SUPABASE_URL;
+                const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+                console.log("🚀 Custom Invoke Start");
+
+                const response = await fetch(`${baseUrl}/functions/v1/create-user-admin`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${freshSession.access_token}`, // Restricted: Real user session token
+                        'apikey': anonKey
+                    },
+                    body: JSON.stringify({
+                        email: loginEmail,
+                        password: loginPassword,
+                        metadata: {
+                            full_name: formData.name,
+                            role: formData.role,
+                            pharmacy_id: pharmacyId,
+                            phone: formData.phone,
+                            vehicle_plate: formData.role === 'motoboy' ? formData.vehicle_plate : undefined,
+                            vehicle_model: formData.role === 'motoboy' ? formData.vehicle_model : undefined,
+                        }
+                    })
                 });
 
-            if (profileError) {
-                console.error("Erro ao atualizar perfil local:", profileError);
+                console.log("📡 Response Status:", response.status);
+
+                const result = await response.json().catch(() => ({}));
+
+                if (!response.ok) {
+                    console.error("❌ Edge Function Error Detail:", result);
+                    const errorMsg = result.error || result.message || "Erro desconhecido na Edge Function";
+                    const error = new Error(errorMsg);
+                    (error as any).status = response.status;
+                    (error as any).code = result.code;
+                    throw error;
+                }
+
+                const authData = result;
+
+                // Criar perfil com dados adicionais (Backup/Confirmação)
+                const { error: profileError } = await supabase
+                    .from('profiles')
+                    .upsert({
+                        id: authData.user.id,
+                        email: loginEmail,
+                        full_name: formData.name,
+                        phone: formData.phone,
+                        role: formData.role,
+                        pharmacy_id: pharmacyId,
+                        is_active: true,
+                    });
+
+                if (profileError) {
+                    console.error("Erro ao atualizar perfil local:", profileError);
+                }
+
+                showToast(displayMessage, 'success');
             }
 
-            alert(displayMessage);
             setShowModal(false);
             setFormData({ name: '', email: '', phone: '', password: '', role: 'staff', vehicle_plate: '', vehicle_model: '' });
             fetchTeam();
         } catch (error: any) {
-            console.error("Erro cadastro:", error);
+            console.error("Erro operação:", error);
             let msg = error.message;
 
             // Handle Supabase Function error object (FunctionsHttpError)
@@ -196,7 +251,7 @@ const TeamManagement = () => {
                 msg = "A senha é muito fraca. Certifique-se de seguir os requisitos: 6+ caracteres, números e símbolos.";
             }
 
-            alert("Erro: " + msg);
+            showToast("Erro: " + msg, 'error');
         } finally {
             setSaving(false);
         }
@@ -221,7 +276,7 @@ const TeamManagement = () => {
                 </div>
                 {['merchant', 'manager', 'admin'].includes(myRole || '') && (
                     <button
-                        onClick={() => setShowModal(true)}
+                        onClick={handleAddNewClick}
                         className="bg-primary hover:bg-primary/90 text-background-dark flex h-10 px-4 items-center justify-center rounded-2xl shadow-lg shadow-primary/20 transition-all active:scale-90 gap-2 text-xs font-black uppercase tracking-widest"
                     >
                         <MaterialIcon name="person_add" />
@@ -233,42 +288,82 @@ const TeamManagement = () => {
             {loading ? (
                 <div className="py-20 flex justify-center"><div className="animate-spin size-8 border-4 border-primary border-t-transparent rounded-full"></div></div>
             ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {team.map(member => (
-                        <div key={member.id} className="bg-white dark:bg-[#1a2e23] p-5 rounded-[28px] border border-slate-200 dark:border-white/5 shadow-sm hover:shadow-md transition-all group">
-                            <div className="flex items-start justify-between mb-4">
-                                <div className={`size-12 rounded-2xl flex items-center justify-center border border-slate-100 dark:border-white/5 ${member.role === 'manager' ? 'bg-amber-500/10 text-amber-500' :
-                                    member.role === 'staff' ? 'bg-blue-500/10 text-blue-500' :
-                                        member.role === 'motoboy' ? 'bg-green-500/10 text-green-500' : 'bg-slate-100 dark:bg-black/20 text-slate-400'
-                                    }`}>
-                                    <MaterialIcon name={
-                                        member.role === 'manager' ? 'admin_panel_settings' :
-                                            member.role === 'staff' ? 'point_of_sale' :
-                                                member.role === 'motoboy' ? 'sports_motorsports' : 'person'
-                                    } />
-                                </div>
-                                <span className="px-2 py-1 bg-slate-100 dark:bg-black/20 rounded-lg text-[9px] font-black uppercase tracking-widest text-slate-500">
-                                    {getRoleLabel(member.role)}
-                                </span>
-                            </div>
+                <div className="bg-white dark:bg-zinc-800 rounded-[32px] border border-slate-100 dark:border-white/5 shadow-sm overflow-hidden">
+                    <div className="grid grid-cols-12 gap-4 p-5 border-b border-slate-100 dark:border-white/5 bg-slate-50/50 dark:bg-black/20">
+                        <div className="col-span-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Nome / Email</div>
+                        <div className="col-span-3 text-[10px] font-black uppercase tracking-widest text-slate-400">Cargo</div>
+                        <div className="col-span-3 text-[10px] font-black uppercase tracking-widest text-slate-400">Contato</div>
+                        <div className="col-span-2 text-center text-[10px] font-black uppercase tracking-widest text-slate-400">Status</div>
+                        <div className="col-span-0 opacity-0 w-0 h-0 overflow-hidden">Actions</div>
+                    </div>
 
-                            <h3 className="text-lg font-black italic text-slate-900 dark:text-white leading-tight">{member.full_name}</h3>
-                            <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest mt-0.5">{member.email}</p>
-
-                            <div className="flex flex-col gap-2 pt-3 mt-3 border-t border-slate-50 dark:border-white/5">
-                                <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400">
-                                    <MaterialIcon name="call" className="text-[14px]" />
-                                    <span className="text-xs font-medium">{member.phone || 'Sem telefone'}</span>
-                                </div>
-                                {member.role === 'motoboy' && (
-                                    <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400">
-                                        <MaterialIcon name="two_wheeler" className="text-[14px]" />
-                                        <span className="text-xs font-medium">Motoboy Ativo</span>
+                    <div className="divide-y divide-slate-100 dark:divide-white/5">
+                        {team.length === 0 ? (
+                            <div className="p-10 text-center text-slate-400 font-bold uppercase tracking-widest text-xs">Nenhum membro na equipe.</div>
+                        ) : (
+                            team.map(member => (
+                                <div key={member.id} className="grid grid-cols-12 gap-4 p-5 items-center hover:bg-slate-50 dark:hover:bg-white/5 transition-colors group">
+                                    <div className="col-span-4 flex items-center gap-4">
+                                        <div className={`size-10 rounded-xl flex items-center justify-center border border-slate-200 dark:border-white/5 ${member.role === 'manager' ? 'bg-amber-500/10 text-amber-500' :
+                                            member.role === 'staff' ? 'bg-blue-500/10 text-blue-500' :
+                                                member.role === 'motoboy' ? 'bg-green-500/10 text-green-500' : 'bg-slate-100 dark:bg-black/20 text-slate-400'
+                                            }`}>
+                                            <MaterialIcon name={
+                                                member.role === 'manager' ? 'admin_panel_settings' :
+                                                    member.role === 'staff' ? 'point_of_sale' :
+                                                        member.role === 'motoboy' ? 'sports_motorsports' : 'person'
+                                            } className="text-xl" />
+                                        </div>
+                                        <div>
+                                            <h3 className="text-sm font-bold text-slate-900 dark:text-white leading-tight">{member.full_name}</h3>
+                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">{member.email}</p>
+                                        </div>
                                     </div>
-                                )}
-                            </div>
-                        </div>
-                    ))}
+
+                                    <div className="col-span-3">
+                                        <span className={`px-3 py-1 rounded-xl text-[10px] font-black uppercase tracking-widest ${member.role === 'manager' ? 'bg-amber-100 text-amber-600' :
+                                            member.role === 'staff' ? 'bg-blue-100 text-blue-600' :
+                                                member.role === 'motoboy' ? 'bg-green-100 text-green-600' : 'bg-slate-100 text-slate-500'
+                                            }`}>
+                                            {getRoleLabel(member.role)}
+                                        </span>
+                                    </div>
+
+                                    <div className="col-span-3">
+                                        <div className="flex flex-col gap-1">
+                                            <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400">
+                                                <MaterialIcon name="call" className="text-[14px]" />
+                                                <span className="text-xs font-medium">{member.phone || '-'}</span>
+                                            </div>
+                                            {member.role === 'motoboy' && (
+                                                <div className="flex items-center gap-2 text-slate-400">
+                                                    <MaterialIcon name="two_wheeler" className="text-[14px]" />
+                                                    <span className="text-[10px] font-bold uppercase">Motoboy</span>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    <div className="col-span-2 flex justify-center items-center gap-2">
+                                        <div className="px-3 py-1 rounded-full bg-green-500/10 text-green-500 border border-green-500/20 flex items-center gap-2">
+                                            <div className="size-1.5 rounded-full bg-green-500 animate-pulse"></div>
+                                            <span className="text-[9px] font-black uppercase tracking-widest">Ativo</span>
+                                        </div>
+
+                                        {['merchant', 'manager'].includes(myRole || '') && (
+                                            <button
+                                                onClick={() => handleEditClick(member)}
+                                                className="size-8 rounded-full bg-slate-100 dark:bg-white/5 text-slate-400 hover:text-primary hover:bg-white hover:shadow-lg transition-all flex items-center justify-center opacity-0 group-hover:opacity-100 transform translate-x-2 group-hover:translate-x-0"
+                                                title="Editar acesso"
+                                            >
+                                                <MaterialIcon name="edit" className="text-[16px]" />
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+                            ))
+                        )}
+                    </div>
                 </div>
             )}
 
@@ -278,18 +373,37 @@ const TeamManagement = () => {
                     <div className="relative w-full max-w-md bg-white dark:bg-[#1a2e22] rounded-[32px] shadow-2xl overflow-hidden border border-white/10">
                         <form onSubmit={handleSave} className="p-8 max-h-[90vh] overflow-y-auto">
                             <div className="flex justify-between items-center mb-6">
-                                <h2 className="text-2xl font-black italic tracking-tighter text-slate-900 dark:text-white">Novo Colaborador</h2>
+                                <div>
+                                    <h2 className="text-2xl font-black italic tracking-tighter text-slate-900 dark:text-white">
+                                        {editingMember ? 'Editar Acesso' : 'Novo Colaborador'}
+                                    </h2>
+                                    {editingMember && <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Atualizando permissões</p>}
+                                </div>
                                 <button type="button" onClick={() => setShowModal(false)} className="size-10 rounded-full bg-slate-100 dark:bg-black/20 flex items-center justify-center hover:rotate-90 transition-transform"><MaterialIcon name="close" /></button>
                             </div>
 
                             <div className="space-y-4">
+                                {editingMember && (
+                                    <div className="p-4 bg-slate-50 dark:bg-black/20 rounded-2xl border border-slate-100 dark:border-white/5 mb-4">
+                                        <div className="flex items-center gap-3">
+                                            <div className="size-8 rounded-full bg-slate-200 dark:bg-white/10 flex items-center justify-center">
+                                                <MaterialIcon name="person" className="text-slate-400" />
+                                            </div>
+                                            <div>
+                                                <p className="text-xs font-bold text-slate-900 dark:text-white">{editingMember.full_name}</p>
+                                                <p className="text-[10px] text-slate-400">{editingMember.email}</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
                                 <div>
                                     <label className="text-[10px] font-black uppercase text-slate-500 pl-1 block mb-1">Cargo / Função</label>
                                     <select
                                         required
                                         value={formData.role}
                                         onChange={e => setFormData({ ...formData, role: e.target.value })}
-                                        className="w-full h-12 px-4 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 rounded-xl outline-none font-bold italic"
+                                        className="w-full h-12 px-4 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 rounded-xl outline-none font-bold italic focus:border-primary transition-colors"
                                     >
                                         <option value="staff">Caixa / Atendente</option>
                                         <option value="manager">Gerente de Equipe</option>
@@ -297,70 +411,76 @@ const TeamManagement = () => {
                                     </select>
                                 </div>
 
-                                <div>
-                                    <label className="text-[10px] font-black uppercase text-slate-500 pl-1 block mb-1">Nome Completo</label>
-                                    <input
-                                        required
-                                        value={formData.name}
-                                        onChange={e => setFormData({ ...formData, name: e.target.value })}
-                                        className="w-full h-12 px-4 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 rounded-xl outline-none font-bold italic"
-                                        placeholder="Ex: Ana Souza"
-                                    />
-                                </div>
+                                {!editingMember && (
+                                    <div>
+                                        <label className="text-[10px] font-black uppercase text-slate-500 pl-1 block mb-1">Nome Completo</label>
+                                        <input
+                                            required
+                                            value={formData.name}
+                                            onChange={e => setFormData({ ...formData, name: e.target.value })}
+                                            className="w-full h-12 px-4 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 rounded-xl outline-none font-bold italic"
+                                            placeholder="Ex: Ana Souza"
+                                        />
+                                    </div>
+                                )}
 
                                 {/* Campos dinâmicos baseados no cargo */}
                                 {formData.role !== 'motoboy' ? (
-                                    <div>
-                                        <label className="text-[10px] font-black uppercase text-slate-500 pl-1 block mb-1">Email de Acesso</label>
-                                        <input
-                                            required
-                                            type="email"
-                                            value={formData.email}
-                                            onChange={e => setFormData({ ...formData, email: e.target.value })}
-                                            className="w-full h-12 px-4 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 rounded-xl outline-none font-bold italic"
-                                            placeholder="ana@suafarma.com"
-                                        />
-                                    </div>
+                                    !editingMember && (
+                                        <div>
+                                            <label className="text-[10px] font-black uppercase text-slate-500 pl-1 block mb-1">Email de Acesso</label>
+                                            <input
+                                                required
+                                                type="email"
+                                                value={formData.email}
+                                                onChange={e => setFormData({ ...formData, email: e.target.value })}
+                                                className="w-full h-12 px-4 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 rounded-xl outline-none font-bold italic"
+                                                placeholder="ana@suafarma.com"
+                                            />
+                                        </div>
+                                    )
                                 ) : (
                                     <>
                                         {/* Campos específicos de Motoboy */}
-                                        <div>
-                                            <label className="text-[10px] font-black uppercase text-slate-500 pl-1 block mb-1">Senha de Acesso</label>
-                                            <input
-                                                required
-                                                type="text"
-                                                value={formData.password}
-                                                onChange={e => setFormData({ ...formData, password: e.target.value })}
-                                                className="w-full h-12 px-4 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 rounded-xl outline-none font-bold italic"
-                                                placeholder="Crie uma senha forte"
-                                            />
+                                        {!editingMember && (
+                                            <div>
+                                                <label className="text-[10px] font-black uppercase text-slate-500 pl-1 block mb-1">Senha de Acesso</label>
+                                                <input
+                                                    required={!editingMember}
+                                                    type="text"
+                                                    value={formData.password}
+                                                    onChange={e => setFormData({ ...formData, password: e.target.value })}
+                                                    className="w-full h-12 px-4 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 rounded-xl outline-none font-bold italic"
+                                                    placeholder="Crie uma senha forte"
+                                                />
 
-                                            {/* Password Requirements Guidance - Enhanced for Visibility */}
-                                            <div className="mt-3 p-4 bg-slate-50 dark:bg-black/20 rounded-[20px] border border-slate-100 dark:border-white/10 shadow-inner">
-                                                <p className="text-[10px] font-black uppercase text-slate-500 mb-3 tracking-widest flex items-center gap-2">
-                                                    <MaterialIcon name="security" className="text-[14px]" />
-                                                    Requisitos de Segurança
-                                                </p>
-                                                <div className="space-y-2">
-                                                    {getPasswordStrength(formData.password).requirements.map(req => (
-                                                        <div key={req.id} className="flex items-center gap-3">
-                                                            <div className={`size-5 rounded-lg flex items-center justify-center transition-all ${req.met ? 'bg-green-500 shadow-lg shadow-green-500/20' : 'bg-slate-200 dark:bg-white/5'}`}>
-                                                                {req.met ? (
-                                                                    <MaterialIcon name="check" className="text-[12px] text-white" />
-                                                                ) : (
-                                                                    <div className="size-1 bg-slate-400 rounded-full" />
-                                                                )}
+                                                {/* Password Requirements Guidance - Enhanced for Visibility */}
+                                                <div className="mt-3 p-4 bg-slate-50 dark:bg-black/20 rounded-[20px] border border-slate-100 dark:border-white/10 shadow-inner">
+                                                    <p className="text-[10px] font-black uppercase text-slate-500 mb-3 tracking-widest flex items-center gap-2">
+                                                        <MaterialIcon name="security" className="text-[14px]" />
+                                                        Requisitos de Segurança
+                                                    </p>
+                                                    <div className="space-y-2">
+                                                        {getPasswordStrength(formData.password).requirements.map(req => (
+                                                            <div key={req.id} className="flex items-center gap-3">
+                                                                <div className={`size-5 rounded-lg flex items-center justify-center transition-all ${req.met ? 'bg-green-500 shadow-lg shadow-green-500/20' : 'bg-slate-200 dark:bg-white/5'}`}>
+                                                                    {req.met ? (
+                                                                        <MaterialIcon name="check" className="text-[12px] text-white" />
+                                                                    ) : (
+                                                                        <div className="size-1 bg-slate-400 rounded-full" />
+                                                                    )}
+                                                                </div>
+                                                                <span className={`text-[11px] font-bold tracking-tight transition-colors ${req.met ? 'text-green-500' : 'text-slate-400'}`}>
+                                                                    {req.text}
+                                                                </span>
                                                             </div>
-                                                            <span className={`text-[11px] font-bold tracking-tight transition-colors ${req.met ? 'text-green-500' : 'text-slate-400'}`}>
-                                                                {req.text}
-                                                            </span>
-                                                        </div>
-                                                    ))}
+                                                        ))}
+                                                    </div>
                                                 </div>
-                                            </div>
 
-                                            <p className="text-[10px] text-slate-400 mt-2 pl-1 leading-relaxed">Esta senha será necessária para o primeiro acesso no aplicativo do motoboy.</p>
-                                        </div>
+                                                <p className="text-[10px] text-slate-400 mt-2 pl-1 leading-relaxed">Esta senha será necessária para o primeiro acesso no aplicativo do motoboy.</p>
+                                            </div>
+                                        )}
 
                                         <div className="grid grid-cols-2 gap-4">
                                             <div>
@@ -409,13 +529,14 @@ const TeamManagement = () => {
                                 disabled={saving}
                                 className="w-full mt-8 h-12 bg-primary text-background-dark rounded-xl font-black uppercase tracking-widest hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
                             >
-                                {saving ? <div className="animate-spin size-4 border-2 border-background-dark border-t-transparent rounded-full"></div> : <MaterialIcon name="how_to_reg" />}
-                                Cadastrar na Equipe
+                                {saving ? <div className="animate-spin size-4 border-2 border-background-dark border-t-transparent rounded-full"></div> : <MaterialIcon name={editingMember ? "save" : "how_to_reg"} />}
+                                {editingMember ? 'Salvar Alterações' : 'Cadastrar na Equipe'}
                             </button>
                         </form>
                     </div>
                 </div>
             )}
+            {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
         </div>
     );
 };

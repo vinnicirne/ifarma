@@ -54,9 +54,10 @@ interface AdminMapProps {
     theme?: 'dark' | 'light';     // New prop
     autoCenter?: boolean;         // New prop
     googleMapsApiKey?: string;    // Dynamic API Key from DB
+    isLoaded?: boolean;          // Optional external loading state
 }
 
-const libraries: ("visualization")[] = ["visualization"];
+const libraries: ("places" | "visualization")[] = ["places", "visualization"];
 
 const AdminMap = ({
     type,
@@ -66,19 +67,24 @@ const AdminMap = ({
     polylines = [],
     onMarkerClick,
     onMotoboyClick,
-    theme = 'dark', // Default to dark mainly for admin dashboard
+    onMapClick, // New prop
+    theme = 'dark',
     autoCenter = false,
-    googleMapsApiKey
-}: AdminMapProps) => {
-    const { isLoaded } = useJsApiLoader({
+    center: customCenter, // New prop
+    googleMapsApiKey,
+    isLoaded: externalIsLoaded // Destructure here
+}: AdminMapProps & { onMapClick?: (e: google.maps.MapMouseEvent) => void, center?: { lat: number; lng: number } }) => {
+    const { isLoaded: internalIsLoaded } = useJsApiLoader({
         id: 'google-map-script',
         googleMapsApiKey: googleMapsApiKey || import.meta.env.VITE_GOOGLE_MAPS_API_KEY || "",
         libraries: libraries
     });
 
+    const isLoaded = externalIsLoaded !== undefined ? externalIsLoaded : internalIsLoaded;
+
     const [mapInstance, setMapInstance] = useState<google.maps.Map | null>(null);
 
-    // 2.0: Melhores Bounds para o Painel Administrativo
+    // 2.0: Melhores Bounds
     useEffect(() => {
         if (!mapInstance || !autoCenter || !(window as any).google) return;
 
@@ -86,7 +92,7 @@ const AdminMap = ({
         const bounds = new google.maps.LatLngBounds();
         let hasContent = false;
 
-        // Adicionar motoboys aos limites
+        // Adicionar motoboys
         if (fleet.length > 0) {
             fleet.forEach(mob => {
                 if (mob.lat && mob.lng) {
@@ -96,7 +102,7 @@ const AdminMap = ({
             });
         }
 
-        // Adicionar marcadores aos limites
+        // Adicionar marcadores
         if (markers.length > 0) {
             markers.forEach(m => {
                 if (m.lat && m.lng) {
@@ -107,10 +113,9 @@ const AdminMap = ({
         }
 
         if (hasContent) {
-            // Ajusta o mapa para ver tudo com um padding confortável
             mapInstance.fitBounds(bounds, { top: 50, bottom: 50, left: 50, right: 50 });
 
-            // Evita zoom exagerado se houver apenas um ponto
+            // Adjust zoom if too close (e.g. single point)
             const listener = google.maps.event.addListener(mapInstance, 'idle', () => {
                 if (mapInstance.getZoom()! > 16) mapInstance.setZoom(16);
                 google.maps.event.removeListener(listener);
@@ -121,6 +126,7 @@ const AdminMap = ({
     const heatmapData = useMemo(() => {
         if (!isLoaded || !data || type !== 'heatmap') return [];
         return data.map(point => {
+            const google = (window as any).google;
             const latLng = new google.maps.LatLng(point.lat, point.lng);
             return point.weight ? { location: latLng, weight: point.weight } : latLng;
         }) as any;
@@ -145,10 +151,11 @@ const AdminMap = ({
     return (
         <GoogleMap
             mapContainerStyle={mapContainerStyle}
-            center={center}
+            center={customCenter || center} // Use custom center if provided
             zoom={12}
             options={mapOptions}
             onLoad={onLoad}
+            onClick={onMapClick} // Handle map clicks
         >
             {type === 'heatmap' && heatmapData.length > 0 && (
                 <HeatmapLayer
@@ -203,7 +210,9 @@ const AdminMap = ({
                             : m.type === 'user'
                                 ? 'https://img.icons8.com/3d-fluency/94/home-address.png'
                                 : 'https://img.icons8.com/3d-fluency/94/pill.png',
-                        scaledSize: new google.maps.Size(32, 32) // Reduced size 40 -> 32
+                        scaledSize: (window as any).google?.maps?.Size
+                            ? new (window as any).google.maps.Size(32, 32)
+                            : undefined
                     }}
                 />
             ))}
@@ -258,8 +267,12 @@ const SmoothedMarker = ({ mob, onClick }: { mob: any, onClick: () => void }) => 
             onClick={onClick}
             icon={{
                 url: 'https://img.icons8.com/3d-fluency/94/motorcycle.png',
-                scaledSize: new google.maps.Size(42, 42), // Reduced size 55 -> 42
-                anchor: new google.maps.Point(21, 21)
+                scaledSize: (window as any).google?.maps?.Size
+                    ? new (window as any).google.maps.Size(42, 42)
+                    : undefined,
+                anchor: (window as any).google?.maps?.Point
+                    ? new (window as any).google.maps.Point(21, 21)
+                    : undefined
             }}
             zIndex={200}
             options={{ optimized: false }}

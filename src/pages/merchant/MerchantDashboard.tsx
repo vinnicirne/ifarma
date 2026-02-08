@@ -10,6 +10,50 @@ const MaterialIcon = ({ name, className = "" }: { name: string, className?: stri
     <span className={`material-symbols-outlined ${className}`}>{name}</span>
 );
 
+const GeminiAssistant = () => {
+    const tips = [
+        "Mantenha seu painel aberto para ouvir as notificações de novos pedidos em tempo real.",
+        "Produtos com boas fotos vendem 3x mais. Verifique seu catálogo.",
+        "Promoções de fim de semana atraem novos clientes. Crie uma oferta relâmpago.",
+        "Sempre atualize o status do pedido rapidamente para manter o cliente informado.",
+        "Ofereça entrega grátis acima de um certo valor para aumentar o ticket médio.",
+        "Revise seu estoque semanalmente para não perder vendas por falta de produtos.",
+        "Use o chat para tirar dúvidas dos clientes e fechar mais vendas.",
+        "Fidelize clientes com um atendimento personalizado e ágil.",
+        "Datas comemorativas são ótimas para kits e presentes.",
+        "Garanta que seu horário de funcionamento esteja correto no app."
+    ];
+    const [tip, setTip] = useState(tips[0]);
+
+    useEffect(() => {
+        setTip(tips[Math.floor(Math.random() * tips.length)]);
+        const interval = setInterval(() => {
+            setTip(tips[Math.floor(Math.random() * tips.length)]);
+        }, 30000); // Rotate every 30s
+        return () => clearInterval(interval);
+    }, []);
+
+    return (
+        <div className="bg-gradient-to-br from-indigo-600 to-purple-700 p-6 rounded-[32px] border border-white/10 relative overflow-hidden group shadow-lg shadow-indigo-500/20">
+            <div className="absolute top-0 right-0 p-24 bg-white/10 rounded-full blur-3xl -mr-12 -mt-12 group-hover:bg-white/20 transition-all duration-1000"></div>
+            <div className="relative z-10">
+                <div className="flex items-center gap-3 mb-3">
+                    <span className="material-symbols-outlined text-white text-2xl bg-white/20 p-2 rounded-xl">smart_toy</span>
+                    <h3 className="text-white font-black italic tracking-tighter text-lg">Gemini Assistente</h3>
+                </div>
+                <p className="text-sm text-indigo-100 leading-relaxed font-medium min-h-[60px]">
+                    "{tip}"
+                </p>
+                <div className="mt-4 flex gap-1">
+                    <div className="h-1 w-8 bg-white/40 rounded-full animate-pulse"></div>
+                    <div className="h-1 w-2 bg-white/20 rounded-full"></div>
+                    <div className="h-1 w-2 bg-white/20 rounded-full"></div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 const MerchantDashboard = () => {
     const navigate = useNavigate();
     const [loading, setLoading] = useState(true);
@@ -57,7 +101,8 @@ const MerchantDashboard = () => {
                         .from('orders')
                         .select('*')
                         .eq('pharmacy_id', currentProfile.pharmacy_id)
-                        .order('created_at', { ascending: false });
+                        .order('created_at', { ascending: false })
+                        .limit(50);
 
                     if (ordersData) setOrders(ordersData);
                 }
@@ -172,7 +217,7 @@ const MerchantDashboard = () => {
                     <div className="space-y-8 animate-fade-in">
 
                         {/* Realtime Metrics Widget (Replaces Static KPI Grid) */}
-                        <RealtimeMetrics orders={orders} />
+                        <RealtimeMetrics orders={orders} userRole={profile?.role} />
 
                         <div className="grid lg:grid-cols-3 gap-8">
                             {/* Recent Orders List */}
@@ -229,12 +274,7 @@ const MerchantDashboard = () => {
 
                             {/* Quick Actions / Tips */}
                             <div className="space-y-6">
-                                <div className="bg-primary/10 p-6 rounded-[32px] border border-primary/20">
-                                    <h3 className="text-primary font-black italic mb-2">Dica do Dia</h3>
-                                    <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
-                                        Mantenha seu painel aberto para ouvir as notificações de novos pedidos em tempo real.
-                                    </p>
-                                </div>
+                                <GeminiAssistant />
                             </div>
                         </div>
                     </div>
