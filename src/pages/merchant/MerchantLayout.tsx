@@ -131,10 +131,46 @@ const MerchantLayout = ({ children, activeTab, title }: { children: React.ReactN
                     {!isCollapsed && (
                         <div className="overflow-hidden whitespace-nowrap">
                             <h1 className="text-xl font-black italic tracking-tighter text-slate-900 dark:text-white leading-none">ifarma</h1>
-                            <div className="flex items-center gap-2">
-                                <span className="text-[10px] font-bold uppercase tracking-widest text-primary">Portal Gestor</span>
-                                {/* Status Dot */}
-                                <div className={`size-2 rounded-full animate-pulse ${storeStatus ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]' : 'bg-red-500 opacity-50'}`} title={storeStatus ? "Abriremos automaticamente" : "Loja Fechada"} />
+                            <div className="flex items-center gap-3 mt-1">
+                                <div className="flex flex-col">
+                                    <span className="text-[10px] font-bold uppercase tracking-widest text-[#92c9a9]">Gestor</span>
+                                    <div className="flex items-center gap-1.5 mt-0.5">
+                                        <div className={`size-1.5 rounded-full ${storeStatus ? 'bg-green-500' : 'bg-red-500'} animate-pulse`} />
+                                        <span className={`text-[9px] font-black uppercase tracking-widest ${storeStatus ? 'text-green-500' : 'text-red-500'}`}>
+                                            {storeStatus ? 'Loja Aberta' : 'Loja Fechada'}
+                                        </span>
+                                    </div>
+                                </div>
+
+                                {/* Manual Toggle */}
+                                <button
+                                    onClick={async () => {
+                                        const newStatus = !storeStatus;
+                                        const previousStatus = storeStatus;
+                                        setStoreStatus(newStatus);
+
+                                        try {
+                                            const { data: { user } } = await supabase.auth.getUser();
+                                            if (!user) throw new Error("Não autenticado");
+
+                                            const { data: profile } = await supabase.from('profiles').select('pharmacy_id').eq('id', user.id).single();
+                                            if (!profile?.pharmacy_id) throw new Error("Farmácia não encontrada");
+
+                                            const { error } = await supabase.from('pharmacies')
+                                                .update({ is_open: newStatus, auto_open_status: false })
+                                                .eq('id', profile.pharmacy_id);
+
+                                            if (error) throw error;
+                                        } catch (err) {
+                                            console.error("Erro ao atualizar status:", err);
+                                            setStoreStatus(previousStatus);
+                                            alert("Erro ao atualizar status da loja.");
+                                        }
+                                    }}
+                                    className={`ml-2 w-8 h-4 rounded-full transition-colors relative border border-white/10 ${storeStatus ? 'bg-green-500/20' : 'bg-red-500/20'}`}
+                                >
+                                    <div className={`absolute top-0.5 size-2.5 rounded-full transition-all ${storeStatus ? 'left-4.5 bg-green-500' : 'left-0.5 bg-red-500'}`} />
+                                </button>
                             </div>
                         </div>
                     )}

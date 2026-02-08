@@ -49,10 +49,26 @@ export const PharmacyList = ({ pharmacies, session }: { pharmacies: any[], sessi
                     <div className="text-center py-20 opacity-50 font-bold italic">Nenhuma farmácia encontrada</div>
                 ) : (
                     pharmacies.map((pharma, i) => {
-                        const isOpen = pharma.is_open || pharma.auto_open_status;
+                        const isOpen = (() => {
+                            if (pharma.is_open) return true;
+                            if (!pharma.auto_open_status) return false;
+                            if (Array.isArray(pharma.opening_hours) && pharma.opening_hours.length > 0) {
+                                const now = new Date();
+                                const currentDay = now.getDay();
+                                const currentTime = now.getHours() * 60 + now.getMinutes();
+                                const todayRule = pharma.opening_hours.find((h: any) => h.day === currentDay);
+                                if (todayRule && !todayRule.closed && todayRule.open && todayRule.close) {
+                                    const [hOpen, mOpen] = todayRule.open.split(':').map(Number);
+                                    const [hClose, mClose] = todayRule.close.split(':').map(Number);
+                                    return currentTime >= (hOpen * 60 + mOpen) && currentTime < (hClose * 60 + mClose);
+                                }
+                            }
+                            return false;
+                        })();
+
                         return (
                             <div key={i} className={`group flex items-stretch justify-between gap-4 rounded-xl p-4 transition-all ${!isOpen
-                                ? 'bg-slate-50/50 grayscale opacity-60 border-slate-100 dark:border-zinc-800'
+                                ? 'bg-slate-50/50 grayscale opacity-80 border-slate-100 dark:border-zinc-800'
                                 : 'bg-white dark:bg-zinc-900 shadow-sm border border-gray-50 dark:border-zinc-800'
                                 }`}>
                                 <div className="flex flex-[2_2_0px] flex-col justify-between gap-3">
@@ -76,8 +92,6 @@ export const PharmacyList = ({ pharmacies, session }: { pharmacies: any[], sessi
                                             <span className="inline-flex items-center rounded-md bg-primary/10 px-2 py-0.5 text-xs font-semibold text-green-700 dark:text-primary">Entrega Grátis</span>
 
                                             {(() => {
-                                                if (!pharma.is_open && !pharma.auto_open_status) return <span className="text-[10px] font-black uppercase text-red-500 bg-red-500/10 px-2 py-0.5 rounded-md">Fechado</span>;
-
                                                 if (pharma.auto_open_status && Array.isArray(pharma.opening_hours) && pharma.opening_hours.length > 0) {
                                                     const now = new Date();
                                                     const currentDay = now.getDay();
@@ -112,10 +126,7 @@ export const PharmacyList = ({ pharmacies, session }: { pharmacies: any[], sessi
                                                         }
                                                     }
                                                 }
-
-                                                return pharma.is_open
-                                                    ? null
-                                                    : <span className="text-[10px] font-black uppercase text-red-500 bg-red-500/10 px-2 py-0.5 rounded-md">Fechado</span>;
+                                                return null;
                                             })()}
                                         </div>
                                     </div>

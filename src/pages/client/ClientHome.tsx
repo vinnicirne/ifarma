@@ -91,9 +91,25 @@ const FeaturedPharmacies = ({ pharmacies }: { pharmacies: any[] }) => (
         <div className="flex overflow-x-auto hide-scrollbar">
             <div className="flex items-stretch p-4 gap-4">
                 {pharmacies.filter(p => p.is_featured).map(pharma => {
-                    const isOpen = pharma.is_open || pharma.auto_open_status;
+                    const isOpen = (() => {
+                        if (pharma.is_open) return true;
+                        if (!pharma.auto_open_status) return false;
+                        if (Array.isArray(pharma.opening_hours) && pharma.opening_hours.length > 0) {
+                            const now = new Date();
+                            const currentDay = now.getDay();
+                            const currentTime = now.getHours() * 60 + now.getMinutes();
+                            const todayRule = pharma.opening_hours.find((h: any) => h.day === currentDay);
+                            if (todayRule && !todayRule.closed && todayRule.open && todayRule.close) {
+                                const [hOpen, mOpen] = todayRule.open.split(':').map(Number);
+                                const [hClose, mClose] = todayRule.close.split(':').map(Number);
+                                return currentTime >= (hOpen * 60 + mOpen) && currentTime < (hClose * 60 + mClose);
+                            }
+                        }
+                        return false;
+                    })();
+
                     return (
-                        <Link to={`/pharmacy/${pharma.id}`} key={pharma.id} className={`min-w-[160px] flex flex-col gap-2 transition-all ${!isOpen ? 'opacity-50 grayscale' : 'opacity-100'}`}>
+                        <Link to={`/pharmacy/${pharma.id}`} key={pharma.id} className={`min-w-[160px] flex flex-col gap-2 transition-all ${!isOpen ? 'grayscale' : ''}`}>
                             <div className="w-full aspect-square rounded-2xl bg-slate-100 flex items-center justify-center p-4 border border-slate-100 dark:border-slate-800 dark:bg-slate-900 overflow-hidden relative shadow-sm">
                                 {pharma.logo_url ? (
                                     <img src={pharma.logo_url} alt={pharma.name} className="w-full h-full object-cover" />
@@ -103,8 +119,6 @@ const FeaturedPharmacies = ({ pharmacies }: { pharmacies: any[] }) => (
                                     </div>
                                 )}
                                 {(() => {
-                                    if (!pharma.is_open && !pharma.auto_open_status) return null;
-
                                     if (pharma.auto_open_status && Array.isArray(pharma.opening_hours) && pharma.opening_hours.length > 0) {
                                         const now = new Date();
                                         const currentDay = now.getDay();
@@ -122,12 +136,9 @@ const FeaturedPharmacies = ({ pharmacies }: { pharmacies: any[] }) => (
                                                 if (diff <= 60) {
                                                     return <div className="absolute bottom-2 right-2 bg-orange-500 text-white text-[8px] px-2 py-0.5 rounded-full font-black animate-pulse shadow-lg">FECHA EM {diff} MIN</div>;
                                                 }
-                                                return null;
                                             }
                                         }
                                     }
-
-                                    if (pharma.is_open) return null;
                                     return null;
                                 })()}
                                 {pharma.isNew && (
@@ -156,10 +167,26 @@ const NearbyPharmacies = ({ pharmacies }: { pharmacies: any[] }) => (
         </div>
         <div className="px-4 flex flex-col gap-4 pb-20">
             {pharmacies.map(pharma => {
-                const isOpen = pharma.is_open || pharma.auto_open_status;
+                const isOpen = (() => {
+                    if (pharma.is_open) return true;
+                    if (!pharma.auto_open_status) return false;
+                    if (Array.isArray(pharma.opening_hours) && pharma.opening_hours.length > 0) {
+                        const now = new Date();
+                        const currentDay = now.getDay();
+                        const currentTime = now.getHours() * 60 + now.getMinutes();
+                        const todayRule = pharma.opening_hours.find((h: any) => h.day === currentDay);
+                        if (todayRule && !todayRule.closed && todayRule.open && todayRule.close) {
+                            const [hOpen, mOpen] = todayRule.open.split(':').map(Number);
+                            const [hClose, mClose] = todayRule.close.split(':').map(Number);
+                            return currentTime >= (hOpen * 60 + mOpen) && currentTime < (hClose * 60 + mClose);
+                        }
+                    }
+                    return false;
+                })();
+
                 return (
                     <Link to={`/pharmacy/${pharma.id}`} key={pharma.id} className={`flex gap-4 p-4 rounded-xl border transition-all ${!isOpen
-                        ? 'bg-slate-50/50 grayscale opacity-60 border-slate-100 dark:border-slate-800'
+                        ? 'bg-slate-50/50 grayscale opacity-80 border-slate-100 dark:border-slate-800'
                         : 'bg-white dark:bg-slate-900/30 border-slate-100 dark:border-slate-800 shadow-sm hover:border-primary/30'
                         } items-start`}>
                         <div className="size-16 rounded-lg bg-slate-50 dark:bg-slate-800 flex items-center justify-center shrink-0 border border-slate-100 dark:border-slate-700 overflow-hidden">
@@ -175,8 +202,6 @@ const NearbyPharmacies = ({ pharmacies }: { pharmacies: any[] }) => (
                                     {pharma.name}
                                     {pharma.isNew && <span className="text-[8px] bg-blue-500 text-white px-1.5 py-0.5 rounded-md font-black uppercase tracking-widest">NOVO</span>}
                                     {(() => {
-                                        if (!pharma.is_open && !pharma.auto_open_status) return <span className="text-[8px] bg-red-500/10 text-red-500 px-1.5 py-0.5 rounded-md font-black uppercase tracking-widest">Fechado</span>;
-
                                         if (pharma.auto_open_status && Array.isArray(pharma.opening_hours) && pharma.opening_hours.length > 0) {
                                             const now = new Date();
                                             const currentDay = now.getDay();
@@ -211,10 +236,7 @@ const NearbyPharmacies = ({ pharmacies }: { pharmacies: any[] }) => (
                                                 }
                                             }
                                         }
-
-                                        return pharma.is_open
-                                            ? null
-                                            : <span className="text-[8px] bg-red-500/10 text-red-500 px-1.5 py-0.5 rounded-md font-black uppercase tracking-widest">Fechado</span>;
+                                        return null;
                                     })()}
                                 </h4>
                                 <div className="flex items-center gap-1 text-xs font-bold bg-yellow-50 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 px-1.5 py-0.5 rounded">
