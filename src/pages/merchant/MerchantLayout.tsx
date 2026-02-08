@@ -1,4 +1,5 @@
 
+import React from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { useNotifications } from '../../hooks/useNotifications';
