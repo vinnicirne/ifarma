@@ -46,7 +46,7 @@ export default defineConfig(({ mode }) => {
           manualChunks: {
             'react-vendor': ['react', 'react-dom', 'react-router-dom'],
             'charts-vendor': ['recharts'],
-            'maps-vendor': ['leaflet', 'react-leaflet', '@react-google-maps/api'],
+            'maps-vendor': ['@react-google-maps/api'],
             'db-vendor': ['@supabase/supabase-js'],
           }
         }
