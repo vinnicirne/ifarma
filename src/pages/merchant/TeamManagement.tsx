@@ -149,9 +149,14 @@ const TeamManagement = () => {
                     if (!formData.email) {
                         throw new Error("E-mail é obrigatório.");
                     }
-                    // Gerar senha aleatória se não for motoboy
-                    loginPassword = Math.random().toString(36).slice(-8) + 'Aa1!';
-                    displayMessage = `Membro cadastrado!\nEmail: ${loginEmail}\nSenha Temporária: ${loginPassword}`;
+                    if (!formData.password) {
+                        throw new Error("Senha é obrigatória.");
+                    }
+                    const { allMet } = getPasswordStrength(formData.password);
+                    if (!allMet) {
+                        throw new Error("A senha não atende aos requisitos mínimos de segurança.");
+                    }
+                    displayMessage = `Membro cadastrado!\nEmail: ${loginEmail}\nSenha: ${formData.password}`;
                 }
 
                 // Manual Fetch to bypass potential Supabase Client invoke issues
@@ -427,17 +432,57 @@ const TeamManagement = () => {
                                 {/* Campos dinâmicos baseados no cargo */}
                                 {formData.role !== 'motoboy' ? (
                                     !editingMember && (
-                                        <div>
-                                            <label className="text-[10px] font-black uppercase text-slate-500 pl-1 block mb-1">Email de Acesso</label>
-                                            <input
-                                                required
-                                                type="email"
-                                                value={formData.email}
-                                                onChange={e => setFormData({ ...formData, email: e.target.value })}
-                                                className="w-full h-12 px-4 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 rounded-xl outline-none font-bold italic"
-                                                placeholder="ana@suafarma.com"
-                                            />
-                                        </div>
+                                        <>
+                                            <div>
+                                                <label className="text-[10px] font-black uppercase text-slate-500 pl-1 block mb-1">Email de Acesso</label>
+                                                <input
+                                                    required
+                                                    type="email"
+                                                    value={formData.email}
+                                                    onChange={e => setFormData({ ...formData, email: e.target.value })}
+                                                    className="w-full h-12 px-4 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 rounded-xl outline-none font-bold italic"
+                                                    placeholder="ana@suafarma.com"
+                                                />
+                                            </div>
+
+                                            <div>
+                                                <label className="text-[10px] font-black uppercase text-slate-500 pl-1 block mb-1">Senha de Acesso</label>
+                                                <input
+                                                    required
+                                                    type="text"
+                                                    value={formData.password}
+                                                    onChange={e => setFormData({ ...formData, password: e.target.value })}
+                                                    className="w-full h-12 px-4 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 rounded-xl outline-none font-bold italic"
+                                                    placeholder="Crie uma senha forte"
+                                                />
+
+                                                {/* Password Requirements Guidance */}
+                                                <div className="mt-3 p-4 bg-slate-50 dark:bg-black/20 rounded-[20px] border border-slate-100 dark:border-white/10 shadow-inner">
+                                                    <p className="text-[10px] font-black uppercase text-slate-500 mb-3 tracking-widest flex items-center gap-2">
+                                                        <MaterialIcon name="security" className="text-[14px]" />
+                                                        Requisitos de Segurança
+                                                    </p>
+                                                    <div className="space-y-2">
+                                                        {getPasswordStrength(formData.password).requirements.map(req => (
+                                                            <div key={req.id} className="flex items-center gap-3">
+                                                                <div className={`size-5 rounded-lg flex items-center justify-center transition-all ${req.met ? 'bg-green-500 shadow-lg shadow-green-500/20' : 'bg-slate-200 dark:bg-white/5'}`}>
+                                                                    {req.met ? (
+                                                                        <MaterialIcon name="check" className="text-[12px] text-white" />
+                                                                    ) : (
+                                                                        <div className="size-1 bg-slate-400 rounded-full" />
+                                                                    )}
+                                                                </div>
+                                                                <span className={`text-[11px] font-bold tracking-tight transition-colors ${req.met ? 'text-green-500' : 'text-slate-400'}`}>
+                                                                    {req.text}
+                                                                </span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+
+                                                <p className="text-[10px] text-slate-400 mt-2 pl-1 leading-relaxed">Esta senha será necessária para o primeiro acesso no sistema.</p>
+                                            </div>
+                                        </>
                                     )
                                 ) : (
                                     <>
