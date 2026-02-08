@@ -22,7 +22,7 @@ serve(async (req) => {
         const supabase = createClient(supabaseUrl, supabaseKey);
 
         const body = await req.json().catch(() => ({}));
-        const { motoboyId, latitude, longitude, orderId } = body;
+        const { motoboyId, latitude, longitude, orderId, batteryLevel, isCharging } = body;
 
         if (!motoboyId || !latitude || !longitude) {
             return new Response(JSON.stringify({ error: 'Motoboy ID e coordenadas são obrigatórios' }), {
@@ -31,29 +31,35 @@ serve(async (req) => {
             });
         }
 
-        console.log(`Recebido tracking para motoboy ${motoboyId} Lat: ${latitude} Lng: ${longitude}`);
+        console.log(`Recebido tracking para motoboy ${motoboyId} Lat: ${latitude} Lng: ${longitude} Bat: ${batteryLevel}%`);
 
-        // 1. Atualizar localização atual e histórico
-        const { error: historyError } = await supabase.from('location_history').insert({
+        // 1. Atualizar localização atual no perfil e telemetria (CRÍTICO)
+        const updatePayload: any = {
+            last_lat: latitude,
+            last_lng: longitude,
+            updated_at: new Date().toISOString()
+        };
+
+        if (batteryLevel !== undefined) updatePayload.battery_level = batteryLevel;
+        if (isCharging !== undefined) updatePayload.is_charging = isCharging;
+
+        const { error: profileError } = await supabase.from('profiles').update(updatePayload).eq('id', motoboyId);
+
+        if (profileError) console.error('Erro ao atualizar perfil:', profileError);
+
+        // 2. Inserir no histórico de rota (CRÍTICO: Isso permite o Admin ver o RASTRO depois)
+        // Usando route_history que é a tabela oficial do sistema
+        const { error: historyError } = await supabase.from('route_history').insert({
             motoboy_id: motoboyId,
-            order_id: orderId,
-            latitude: latitude, // Fixed field name
-            longitude: longitude, // Fixed field name
-            accuracy: body.accuracy || 0
+            order_id: orderId || null,
+            latitude: latitude,
+            longitude: longitude,
+            // timestamp: new Date().toISOString() // O banco já deve ter default now()
         });
 
         if (historyError) {
-            console.error('Erro ao inserir histórico:', historyError);
+            console.error('Erro ao inserir histórico de rota:', historyError);
         }
-
-        // 2. Atualizar localização atual no perfil para tempo real
-        const { error: profileError } = await supabase.from('profiles').update({
-            last_lat: latitude,
-            last_lng: longitude,
-            last_online: new Date().toISOString() // Fixed: using last_online from schema
-        }).eq('id', motoboyId);
-
-        if (profileError) console.error('Erro ao atualizar perfil:', profileError);
 
         // 3. Lógica de Geofencing (Exemplo simplificado)
         if (orderId) {

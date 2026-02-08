@@ -83,19 +83,71 @@ export const useNotifications = (userId: string | null) => {
     }, [userId, fetchNotifications]);
 
     useEffect(() => {
+        const createNotificationChannel = async () => {
+            try {
+                const { Device } = await import('@capacitor/device');
+                const info = await Device.getInfo();
+
+                if (info.platform === 'android') {
+                    const { LocalNotifications } = await import('@capacitor/local-notifications');
+                    console.log('Criando canal de notificação nativo...');
+                    await LocalNotifications.createChannel({
+                        id: 'chat_bibi_channel',
+                        name: 'Chat - Alertas BI BI',
+                        description: 'Notificações do chat com som BI BI',
+                        importance: 5,
+                        visibility: 1,
+                        sound: 'bi_bi.mp3',
+                        vibration: true
+                    });
+                    console.log('Canal de notificação criado com sucesso');
+                }
+            } catch (error) {
+                console.error('Erro ao criar canal de notificação:', error);
+            }
+        };
+
         const registerToken = async () => {
             try {
-                const token = await requestNotificationPermission();
-                if (token && userId) {
-                    await supabase
-                        .from('device_tokens')
-                        .upsert({
-                            user_id: userId,
-                            token,
-                            device_type: 'web'
-                        }, {
-                            onConflict: 'user_id,token'
+                const { Device } = await import('@capacitor/device');
+                const info = await Device.getInfo();
+
+                if (info.platform === 'android' || info.platform === 'ios') {
+                    const { PushNotifications } = await import('@capacitor/push-notifications');
+
+                    const perm = await PushNotifications.requestPermissions();
+                    if (perm.receive === 'granted') {
+                        await PushNotifications.register();
+
+                        PushNotifications.addListener('registration', async (regToken) => {
+                            console.log('Native FCM token:', regToken.value);
+                            localStorage.setItem('ifarma_fcm_token', regToken.value);
+                            await supabase
+                                .from('device_tokens')
+                                .upsert({
+                                    user_id: userId!,
+                                    token: regToken.value,
+                                    device_type: info.platform === 'android' ? 'android' : 'ios'
+                                }, {
+                                    onConflict: 'user_id,token'
+                                });
                         });
+                    }
+                } else {
+                    // Web browser - Using Firebase SDK
+                    const token = await requestNotificationPermission() || '';
+                    if (token && userId) {
+                        localStorage.setItem('ifarma_fcm_token', token);
+                        await supabase
+                            .from('device_tokens')
+                            .upsert({
+                                user_id: userId,
+                                token,
+                                device_type: 'web'
+                            }, {
+                                onConflict: 'user_id,token'
+                            });
+                    }
                 }
             } catch (error) {
                 console.error('Erro ao registrar token:', error);
@@ -103,23 +155,47 @@ export const useNotifications = (userId: string | null) => {
         };
 
         const setupPush = async () => {
+            const { Device } = await import('@capacitor/device');
+            const info = await Device.getInfo();
+            const isNative = info.platform === 'android' || info.platform === 'ios';
+
+            if (isNative) {
+                await createNotificationChannel();
+            }
+
             await registerToken();
+
             try {
-                // Em foreground
-                onMessageListener()
-                    .then((payload: any) => {
-                        console.log('Push received:', payload);
-                        if (Notification.permission === 'granted') {
-                            new Notification(payload.notification?.title || 'Nova Notificação', {
-                                body: payload.notification?.body || '',
-                                icon: '/icon.png',
-                            });
-                        }
+                // Foreground listener (Web only)
+                if (!isNative) {
+                    onMessageListener()
+                        .then((payload: any) => {
+                            console.log('Push received via Web listener:', payload);
+                            if (Notification.permission === 'granted') {
+                                new Notification(payload.notification?.title || 'Nova Notificação', {
+                                    body: payload.notification?.body || '',
+                                    icon: '/icon.png',
+                                });
+                            }
+
+                            const hornSound = 'https://assets.mixkit.co/active_storage/sfx/2855/2855-preview.mp3';
+                            const audio = new Audio(hornSound);
+                            audio.play().catch(e => console.warn("Audio foreground blocked:", e));
+
+                            fetchNotifications();
+                        })
+                        .catch((err) => {
+                            console.debug('Push listener error:', err);
+                        });
+                } else {
+                    // Native Foreground listener
+                    const { PushNotifications } = await import('@capacitor/push-notifications');
+                    PushNotifications.addListener('pushNotificationReceived', (notification) => {
+                        console.log('Push nativo recebido em foreground:', notification);
                         fetchNotifications();
-                    })
-                    .catch((err) => {
-                        console.debug('Push listener error:', err);
                     });
+                }
+
             } catch (error) {
                 console.debug('Push not available:', error);
             }

@@ -29,7 +29,7 @@ const MotoboyEarnings = () => {
             // Buscar entregas concluídas
             const { data, error } = await supabase
                 .from('orders')
-                .select('*, pharmacies(name)')
+                .select('*, pharmacies!pharmacy_id(name)')
                 .eq('motoboy_id', user.id)
                 .eq('status', 'entregue')
                 .order('created_at', { ascending: false });
@@ -138,7 +138,7 @@ const MotoboyEarnings = () => {
                                             <MaterialIcon name="check_circle" />
                                         </div>
                                         <div>
-                                            <p className="font-bold text-sm truncate max-w-[150px]">{delivery.pharmacies?.name || 'Entrega Concluída'}</p>
+                                            <p className="font-bold text-sm truncate max-w-[150px]">{(delivery.pharmacies as any)?.name || 'Entrega Concluída'}</p>
                                             <p className="text-[10px] text-slate-500">
                                                 {new Date(delivery.created_at).toLocaleDateString('pt-BR')} às {new Date(delivery.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                                             </p>

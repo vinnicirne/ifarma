@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase';
 import { MaterialIcon } from '../../components/Shared';
 import { BottomNav } from '../../components/layout/BottomNav';
 import { useCart } from '../../hooks/useCart';
+import { useNotifications } from '../../hooks/useNotifications';
 
 export const PharmacyPage = ({ session }: { session: any }) => {
     const { id } = useParams();
@@ -14,6 +15,7 @@ export const PharmacyPage = ({ session }: { session: any }) => {
     const [searchQuery, setSearchQuery] = useState('');
     const [activeCategory, setActiveCategory] = useState('Todos');
 
+    const { unreadCount: notificationCount } = useNotifications(session?.user?.id);
     const { addToCart } = useCart();
 
     const handleAddToCart = async (productId: string) => {
@@ -90,11 +92,16 @@ export const PharmacyPage = ({ session }: { session: any }) => {
                         <MaterialIcon name="arrow_back" className="text-[#0d1b13] dark:text-white" />
                     </button>
                     <div className="flex gap-2">
+                        <Link to="/notifications" className="relative flex items-center justify-center size-10 rounded-full bg-white dark:bg-zinc-800 shadow-sm border border-zinc-100 dark:border-zinc-700">
+                            <MaterialIcon name="notifications" className="text-[#0d1b13] dark:text-white" />
+                            {notificationCount > 0 && (
+                                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[8px] font-black rounded-full w-4 h-4 flex items-center justify-center border border-white dark:border-background-dark animate-pulse">
+                                    {notificationCount}
+                                </span>
+                            )}
+                        </Link>
                         <button className="flex items-center justify-center size-10 rounded-full bg-white dark:bg-zinc-800 shadow-sm border border-zinc-100 dark:border-zinc-700">
                             <MaterialIcon name="share" className="text-[#0d1b13] dark:text-white" />
-                        </button>
-                        <button className="flex items-center justify-center size-10 rounded-full bg-white dark:bg-zinc-800 shadow-sm border border-zinc-100 dark:border-zinc-700">
-                            <MaterialIcon name="favorite" className="text-[#0d1b13] dark:text-white" />
                         </button>
                     </div>
                 </div>

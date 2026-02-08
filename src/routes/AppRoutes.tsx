@@ -32,7 +32,7 @@ const PharmacyChat = lazy(() => import('../pages/client/PharmacyChat').then(m =>
 const PartnerRegistration = lazy(() => import('../pages/PartnerRegistration'));
 const ForgotPassword = lazy(() => import('../pages/ForgotPassword'));
 const ResetPassword = lazy(() => import('../pages/ResetPassword'));
-const DiagnosticPage = lazy(() => import('../pages/DiagnosticPage'));
+const DiagnosticPage = null; // Removed for hygiene
 const HelpSupport = lazy(() => import('../pages/HelpSupport'));
 const PrivacyData = lazy(() => import('../pages/PrivacyData'));
 const LandingPage = lazy(() => import('../pages/client/LandingPage').then(m => ({ default: m.LandingPage })));
@@ -68,6 +68,7 @@ const MotoboyEarnings = lazy(() => import('../pages/MotoboyEarnings'));
 const MotoboyRouteStatus = lazy(() => import('../pages/MotoboyRouteStatus'));
 const MotoboyHistory = lazy(() => import('../pages/MotoboyHistory'));
 const MotoboyChat = lazy(() => import('../pages/MotoboyChat'));
+const MotoboyNotifications = lazy(() => import('../pages/MotoboyNotifications'));
 
 // Route Guards
 import { ProtectedRoute, AdminRoute, GestorRoute } from './RouteGuards';
@@ -96,8 +97,7 @@ export const AppRoutes = ({ session, profile, userLocation, sortedPharmacies, re
             <Route path="/forgot-password" element={<Suspense fallback={<LoadingScreen />}><ForgotPassword /></Suspense>} />
             <Route path="/reset-password" element={<Suspense fallback={<LoadingScreen />}><ResetPassword /></Suspense>} />
 
-            {/* Diagnostic Route - Public */}
-            <Route path="/diagnostic" element={<Suspense fallback={<LoadingScreen />}><DiagnosticPage /></Suspense>} />
+            {/* Diagnostic Route - Removed */}
             <Route path="/welcome" element={<Suspense fallback={<LoadingScreen />}><LandingPage /></Suspense>} />
 
             {/* Protected Client Routes */}
@@ -140,12 +140,13 @@ export const AppRoutes = ({ session, profile, userLocation, sortedPharmacies, re
             <Route path="/motoboy-dashboard" element={<Suspense fallback={<LoadingScreen />}><MotoboyDashboard session={session} profile={profile} /></Suspense>} />
             <Route path="/motoboy-orders" element={<Suspense fallback={<LoadingScreen />}><MotoboyOrders /></Suspense>} />
             <Route path="/motoboy-delivery/:id" element={<Suspense fallback={<LoadingScreen />}><MotoboyDeliveryDetailWithETA /></Suspense>} />
-            <Route path="/motoboy-route-status" element={<Suspense fallback={<LoadingScreen />}><MotoboyRouteStatus /></Suspense>} />
+            <Route path="/motoboy-route-status/:orderId" element={<Suspense fallback={<LoadingScreen />}><MotoboyRouteStatus /></Suspense>} />
             <Route path="/motoboy-history" element={<Suspense fallback={<LoadingScreen />}><MotoboyHistory /></Suspense>} />
             <Route path="/motoboy-earnings" element={<Suspense fallback={<LoadingScreen />}><MotoboyEarnings /></Suspense>} />
 
             <Route path="/motoboy-confirm/:orderId" element={<Suspense fallback={<LoadingScreen />}><MotoboyDeliveryConfirm /></Suspense>} />
             <Route path="/motoboy-chat/:orderId" element={<Suspense fallback={<LoadingScreen />}><MotoboyChat /></Suspense>} />
+            <Route path="/motoboy-notifications" element={<Suspense fallback={<LoadingScreen />}><MotoboyNotifications /></Suspense>} />
 
             {/* Fallback Route */}
             <Route path="*" element={<Navigate to="/" replace />} />

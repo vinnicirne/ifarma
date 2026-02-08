@@ -2,7 +2,6 @@ import React from 'react';
 import { Navigate } from 'react-router-dom';
 import { getAppContext } from '../../lib/appContext';
 import { ClientHome } from '../../pages/client/ClientHome';
-import { LandingPage } from '../../pages/client/LandingPage';
 
 interface RootRedirectProps {
     userLocation: { lat: number; lng: number } | null;
@@ -24,7 +23,5 @@ export const RootRedirect = ({ userLocation, sortedPharmacies, session }: RootRe
     }
 
     // Default: Cliente
-    if (!session) return <LandingPage />;
-
     return <ClientHome userLocation={userLocation} sortedPharmacies={sortedPharmacies} session={session} />;
 };

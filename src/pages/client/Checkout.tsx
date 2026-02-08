@@ -143,8 +143,8 @@ const Checkout = () => {
                 payment_method: selectedPayment,
                 installments: selectedPayment === 'credit' ? installments : 1,
                 address: address,
-                latitude: selectedAddrObj?.latitude || null,
-                longitude: selectedAddrObj?.longitude || null,
+                latitude: selectedAddrObj?.latitude || 0,
+                longitude: selectedAddrObj?.longitude || 0,
                 status: 'pendente'
             };
 

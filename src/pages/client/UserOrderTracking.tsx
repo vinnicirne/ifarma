@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, Link } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { MaterialIcon } from '../../components/Shared';
 import AdminMap from '../../components/admin/AdminMap';
 import { OrderCancellationModal } from '../../components/OrderCancellationModal';
+import { useNotifications } from '../../hooks/useNotifications';
 
 export const UserOrderTracking = () => {
     const navigate = useNavigate();
@@ -14,16 +15,18 @@ export const UserOrderTracking = () => {
     const [googleKey, setGoogleKey] = useState<string | null>(null);
     const [realTimeRoute, setRealTimeRoute] = useState<{ distance: string, duration: string } | null>(null);
     const [routePath, setRoutePath] = useState<{ lat: number, lng: number }[]>([]);
-    const [unreadCount, setUnreadCount] = useState(0);
-    const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
+    const [unreadChatCount, setUnreadChatCount] = useState(0);
     const [error, setError] = useState<string | null>(null);
+    const [userId, setUserId] = useState<string | null>(null);
+    const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
 
-    // Função para decodificar Polyline do Google
+    const { unreadCount: notificationCount } = useNotifications(userId);
+
+    // Decoding Google Polyline
     const decodePolyline = (encoded: string) => {
         const points = [];
         let index = 0, len = encoded.length;
         let lat = 0, lng = 0;
-
         while (index < len) {
             let b, shift = 0, result = 0;
             do {
@@ -33,9 +36,7 @@ export const UserOrderTracking = () => {
             } while (b >= 0x20);
             const dlat = ((result & 1) ? ~(result >> 1) : (result >> 1));
             lat += dlat;
-
-            shift = 0;
-            result = 0;
+            shift = 0; result = 0;
             do {
                 b = encoded.charCodeAt(index++) - 63;
                 result |= (b & 0x1f) << shift;
@@ -43,88 +44,78 @@ export const UserOrderTracking = () => {
             } while (b >= 0x20);
             const dlng = ((result & 1) ? ~(result >> 1) : (result >> 1));
             lng += dlng;
-
             points.push({ lat: lat / 1e5, lng: lng / 1e5 });
         }
         return points;
     };
 
-    // Função para calcular o ângulo (bearing) entre dois pontos
     const calculateBearing = (start: { lat: number, lng: number }, end: { lat: number, lng: number }) => {
         const lat1 = start.lat * Math.PI / 180;
         const lon1 = start.lng * Math.PI / 180;
         const lat2 = end.lat * Math.PI / 180;
         const lon2 = end.lng * Math.PI / 180;
-
         const y = Math.sin(lon2 - lon1) * Math.cos(lat2);
-        const x = Math.cos(lat1) * Math.sin(lat2) -
-            Math.sin(lat1) * Math.cos(lat2) * Math.cos(lon2 - lon1);
-        const θ = Math.atan2(y, x);
-        const brng = (θ * 180 / Math.PI + 360) % 360;
-        return brng;
-    };
-
-    // Função para calcular distância em KM
-    const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
-        const R = 6371; // km
-        const dLat = (lat2 - lat1) * Math.PI / 180;
-        const dLon = (lon2 - lon1) * Math.PI / 180;
-        const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-            Math.sin(dLon / 2) * Math.sin(dLon / 2);
-        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        return R * c;
+        const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(lon2 - lon1);
+        return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
     };
 
     const hasNotifiedProximity = useRef(false);
-
-    // Função para enviar notificação de proximidade
     const notifyProximity = async () => {
         const { data: { session } } = await supabase.auth.getSession();
         if (hasNotifiedProximity.current || !order || !session) return;
-
         hasNotifiedProximity.current = true;
-
-        // Play horn sound
         const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2855/2855-preview.mp3');
         audio.play().catch(e => console.warn("Audio play blocked:", e));
-
         await supabase.from('notifications').insert({
             user_id: session.user.id,
             title: '🛵 Seu pedido está chegando!',
             message: 'O entregador está a menos de 1km de distância. Prepare-se!',
-            type: 'order'
+            type: 'order',
+            is_read: false
         });
     };
 
-    // Função para calcular distância e ETA
     const fetchGoogleKey = async () => {
         const envKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
-        if (envKey) {
-            setGoogleKey(envKey);
-            return;
-        }
-        const { data: settings } = await supabase
-            .from('system_settings')
-            .select('value')
-            .eq('key', 'google_maps_api_key')
-            .single();
-
-        if (settings?.value) {
-            setGoogleKey(settings.value);
-        }
+        if (envKey) { setGoogleKey(envKey); return; }
+        const { data: settings } = await supabase.from('system_settings').select('value').eq('key', 'google_maps_api_key').single();
+        if (settings?.value) setGoogleKey(settings.value);
     };
 
     const fetchRoute = async (mbLat: number, mbLng: number) => {
         if (!order || typeof google === 'undefined') return;
-        const destLat = order.latitude || order.pharmacies?.latitude;
-        const destLng = order.longitude || order.pharmacies?.longitude;
-        if (!destLat || !destLng) return;
 
+        let dLat = order.latitude;
+        let dLng = order.longitude;
+
+        if (!dLat || !dLng) {
+            dLat = order.profiles?.last_lat || order.profiles?.latitude;
+            dLng = order.profiles?.last_lng || order.profiles?.longitude;
+        }
+
+        if (!dLat || !dLng) {
+            const address = order.address || order.delivery_address;
+            if (address) {
+                const geocoder = new google.maps.Geocoder();
+                geocoder.geocode({ address }, (results, status) => {
+                    if (status === 'OK' && results?.[0]) {
+                        const loc = results[0].geometry.location;
+                        executeRouteFetch(mbLat, mbLng, loc.lat(), loc.lng());
+                    }
+                });
+                return;
+            }
+        }
+
+        if (dLat && dLng) executeRouteFetch(mbLat, mbLng, dLat, dLng);
+    };
+
+    const executeRouteFetch = (startLat: number, startLng: number, destLat: number, destLng: number) => {
+        if (typeof google === 'undefined') return;
         try {
             const service = new google.maps.DirectionsService();
             service.route({
-                origin: { lat: mbLat, lng: mbLng },
+                origin: { lat: startLat, lng: startLng },
                 destination: { lat: destLat, lng: destLng },
                 travelMode: google.maps.TravelMode.DRIVING,
             }, (result, status) => {
@@ -137,46 +128,47 @@ export const UserOrderTracking = () => {
                             distance: leg.distance?.text || '',
                             duration: leg.duration?.text || ''
                         });
-                        if (leg.distance && leg.distance.value < 1000) {
-                            notifyProximity();
-                        }
+                        if (leg.distance && leg.distance.value < 1000) notifyProximity();
                     }
                 }
             });
-        } catch (e) {
-            console.error("Error using DirectionsService:", e);
-        }
+        } catch (e) { console.error("Error DirectionsService:", e); }
     };
 
-    const fetchOsrmEta = async (startLat: number, startLng: number, destLat: number, destLng: number) => {
+    const fetchOsrmEta = async (sLat: number, sLng: number, dLat: number, dLng: number) => {
         try {
-            const url = `https://router.project-osrm.org/route/v1/driving/${startLng},${startLat};${destLng},${destLat}?overview=false`;
+            const url = `https://router.project-osrm.org/route/v1/driving/${sLng},${sLat};${dLng},${dLat}?overview=false`;
             const res = await fetch(url);
             const data = await res.json();
-            if (data.code === 'Ok' && data.routes && data.routes.length > 0) {
-                const durationSeconds = data.routes[0].duration;
-                const minutes = Math.ceil(durationSeconds / 60);
+            if (data.code === 'Ok' && data.routes?.length > 0) {
                 setRealTimeRoute({
                     distance: `${(data.routes[0].distance / 1000).toFixed(1)} km`,
-                    duration: `${minutes} min`
+                    duration: `${Math.ceil(data.routes[0].duration / 60)} min`
                 });
             }
-        } catch (err) {
-            console.warn("OSRM ETA Error:", err);
-        }
+        } catch (err) { console.warn("OSRM ETA Error:", err); }
     };
 
     const updateRealTimeETA = async (mbLat: number, mbLng: number) => {
         if (!order) return;
-        const destLat = order.latitude || order.pharmacies?.latitude;
-        const destLng = order.longitude || order.pharmacies?.longitude;
-        if (!destLat || !destLng) return;
 
-        if (googleKey) {
-            fetchRoute(mbLat, mbLng);
-        } else {
-            fetchOsrmEta(mbLat, mbLng, destLat, destLng);
+        // PRIORIDADE: Rota Cacheada no Banco (Economia de API)
+        if (order.route_polyline) {
+            console.log("📍 Usando rota cacheada do servidor...");
+            const decodedPath = decodePolyline(order.route_polyline);
+            setRoutePath(decodedPath);
+            setRealTimeRoute({
+                distance: order.route_distance_text || '',
+                duration: order.route_duration_text || ''
+            });
+            return;
         }
+
+        const dLat = order.latitude || order.profiles?.last_lat || order.pharmacies?.latitude;
+        const dLng = order.longitude || order.profiles?.last_lng || order.pharmacies?.longitude;
+        if (!dLat || !dLng) return;
+        if (googleKey) fetchRoute(mbLat, mbLng);
+        else fetchOsrmEta(mbLat, mbLng, dLat, dLng);
     };
 
     const calculateETA = () => {
@@ -184,349 +176,217 @@ export const UserOrderTracking = () => {
         if (order?.status === 'cancelado') return 'Cancelado';
         if (realTimeRoute) return realTimeRoute.duration;
         if (!motoboy && !order?.motoboy_id) return 'Aguardando entregador...';
-        if (!motoboy || !order?.pharmacies) return 'Calculando...';
-
-        const destLat = order.latitude || order.pharmacies.latitude;
-        const destLng = order.longitude || order.pharmacies.longitude;
-        if (!destLat || !destLng) return 'Calculando...';
-
-        const R = 6371;
-        const dLat = (destLat - motoboy.lat) * Math.PI / 180;
-        const dLon = (destLng - motoboy.lng) * Math.PI / 180;
-        const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(motoboy.lat * Math.PI / 180) * Math.cos(destLat * Math.PI / 180) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
-        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        const distance = R * c;
-        const baseSpeed = 22;
-        let trafficFactor = 1.0;
-        const hour = new Date().getHours();
-        if ((hour >= 17 && hour <= 19) || (hour >= 11 && hour <= 13)) trafficFactor = 0.7;
-        const effectiveSpeed = baseSpeed * trafficFactor;
-        const travelTime = (distance / effectiveSpeed) * 60;
-        let additionalTime = 2;
-        if (order.status === 'aguardando_motoboy') additionalTime += 5;
-        if (order.status === 'preparando') additionalTime += 10;
-        if (order.status === 'pendente') additionalTime += 15;
-        const totalMinutes = Math.round(travelTime + additionalTime);
-        return `${totalMinutes} min (est.)`;
+        if (order?.status === 'em_rota') return 'A caminho...';
+        return 'Calculando...';
     };
 
     useEffect(() => {
-        if (motoboy && googleKey && order) {
-            updateRealTimeETA(motoboy.lat, motoboy.lng);
-        }
+        if (motoboy && googleKey && order) updateRealTimeETA(motoboy.lat, motoboy.lng);
     }, [motoboy?.lat, motoboy?.lng, googleKey, order?.id]);
 
     useEffect(() => {
         if (!orderId) return;
         fetchGoogleKey();
 
+        supabase.auth.getSession().then(({ data: { session } }) => {
+            if (session) setUserId(session.user.id);
+        });
+
         const hasBuzzered = { current: false };
 
         const fetchOrder = async () => {
-            try {
-                const { data, error: supabaseError } = await supabase
-                    .from('orders')
-                    .select('*, pharmacies(*), order_items(*, products(*))')
-                    .eq('id', orderId)
-                    .maybeSingle();
+            const { data, error } = await supabase.from('orders').select('*, pharmacies(*), order_items(*, products(*)), profiles:customer_id(*)').eq('id', orderId).maybeSingle();
+            if (error || !data) { setError("Pedido não encontrado."); return; }
+            setOrder(data);
 
-                if (supabaseError) throw supabaseError;
-                if (!data) {
-                    setError("Pedido não encontrado ou ID inválido.");
-                    return;
-                }
+            // Carregar rota cacheada se existir
+            if (data.route_polyline) {
+                const path = decodePolyline(data.route_polyline);
+                setRoutePath(path);
+                setRealTimeRoute({
+                    distance: data.route_distance_text || '',
+                    duration: data.route_duration_text || ''
+                });
+            }
 
-                setOrder(data);
-                if (data.order_items) {
-                    const mappedItems = data.order_items.map((it: any) => ({
-                        name: it.products?.name || it.product_name || 'Produto',
-                        qty: `${it.quantity}x`,
-                        price: new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format((it.price || it.unit_price || 0) * it.quantity),
-                        icon: 'medication'
-                    }));
-                    setItems(mappedItems);
-                }
-
-                if (data.motoboy_id) {
-                    const { data: mbData } = await supabase
-                        .from('profiles')
-                        .select('id, last_lat, last_lng')
-                        .eq('id', data.motoboy_id)
-                        .single();
-
-                    if (mbData && mbData.last_lat && mbData.last_lng) {
-                        setMotoboy({ id: mbData.id, lat: mbData.last_lat, lng: mbData.last_lng });
-                    }
-                }
-            } catch (err: any) {
-                console.error("Error fetching order:", err);
-                setError("Erro ao carregar pedido. Verifique sua conexão.");
+            if (data.order_items) {
+                setItems(data.order_items.map((it: any) => ({
+                    name: it.products?.name || 'Produto',
+                    qty: `${it.quantity}x`,
+                    price: new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(it.price * it.quantity),
+                    icon: 'medication'
+                })));
+            }
+            if (data.motoboy_id) {
+                const { data: mbData } = await supabase.from('profiles').select('id, last_lat, last_lng').eq('id', data.motoboy_id).single();
+                if (mbData?.last_lat) setMotoboy({ id: mbData.id, lat: mbData.last_lat, lng: mbData.last_lng });
             }
         };
 
         fetchOrder();
 
-        const orderSubscription = supabase
-            .channel(`order_tracking_${orderId}`)
+        const orderSub = supabase.channel(`order_tracking_${orderId}`)
             .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders', filter: `id=eq.${orderId}` }, (payload) => {
                 const newArrived = payload.new.motoboy_arrived_at;
                 const oldArrived = order?.motoboy_arrived_at;
                 setOrder(prev => ({ ...prev, ...payload.new }));
 
+                // Atualizar rota se o cache mudar (ex: recaptulado pelo motoboy)
+                if (payload.new.route_polyline) {
+                    const path = decodePolyline(payload.new.route_polyline);
+                    setRoutePath(path);
+                    setRealTimeRoute({
+                        distance: payload.new.route_distance_text || '',
+                        duration: payload.new.route_duration_text || ''
+                    });
+                }
+
                 if (newArrived && !oldArrived && !hasBuzzered.current) {
                     hasBuzzered.current = true;
-                    console.log("📢 Motoboy chegou! Disparando buzina...");
                     const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2855/2855-preview.mp3');
-                    audio.volume = 1.0;
-                    audio.play().catch(e => {
-                        console.warn("Erro ao tocar buzina de chegada:", e);
-                        window.addEventListener('click', () => audio.play(), { once: true });
-                    });
+                    audio.play().catch(() => window.addEventListener('click', () => audio.play(), { once: true }));
                 }
-            }).subscribe();
+            })
+            .subscribe();
 
-        const messageSubscription = supabase
-            .channel(`order_messages_${orderId}`)
-            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'order_messages', filter: `order_id=eq.${orderId}` }, async (payload) => {
+        // Chat Realtime Badge
+        const chatSub = supabase.channel(`chat_tracking_${orderId}`)
+            .on('postgres_changes', {
+                event: 'INSERT',
+                schema: 'public',
+                table: 'order_messages',
+                filter: `order_id=eq.${orderId}`
+            }, async (payload) => {
                 const { data: { session } } = await supabase.auth.getSession();
-                if (payload.new.message_type === 'horn') {
-                    const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2855/2855-preview.mp3');
-                    audio.volume = 1.0;
-                    audio.play().catch(e => {
-                        console.warn("Erro ao tocar buzina (bloqueado):", e);
-                        window.addEventListener('click', () => audio.play(), { once: true });
-                    });
+                if (payload.new.sender_id !== session?.user?.id) {
+                    setUnreadChatCount(prev => prev + 1);
+                    // Som de notificação
+                    const chimeSound = 'https://assets.mixkit.co/active_storage/sfx/2571/2571-preview.mp3';
+                    new Audio(chimeSound).play().catch(() => { });
                 }
-                if (payload.new.sender_id !== session?.user.id) {
-                    setUnreadCount(prev => prev + 1);
-                }
-            }).subscribe();
+            })
+            .subscribe();
 
-        let motoboySubscription: any = null;
+        // Subscribe to motoboy location updates
+        let motoboySub: any = null;
         if (order?.motoboy_id) {
-            motoboySubscription = supabase
-                .channel(`motoboy_loc_${orderId}`)
+            motoboySub = supabase.channel(`motoboy_loc_${orderId}`)
                 .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'profiles', filter: `id=eq.${order.motoboy_id}` }, (payload) => {
-                    const newLoc = { id: payload.new.id, lat: payload.new.last_lat, lng: payload.new.last_lng };
-                    setMotoboy(newLoc);
-                    if (googleKey) updateRealTimeETA(newLoc.lat, newLoc.lng);
-                }).subscribe();
+                    if (payload.new.last_lat && payload.new.last_lng) {
+                        setMotoboy({ id: payload.new.id, lat: payload.new.last_lat, lng: payload.new.last_lng });
+                    }
+                })
+                .subscribe();
         }
 
         return () => {
-            orderSubscription.unsubscribe();
-            messageSubscription.unsubscribe();
-            if (motoboySubscription) motoboySubscription.unsubscribe();
+            supabase.removeChannel(orderSub);
+            supabase.removeChannel(chatSub);
+            if (motoboySub) supabase.removeChannel(motoboySub);
         };
-    }, [orderId, order?.motoboy_id, googleKey]);
+    }, [orderId, order?.motoboy_id]);
 
     useEffect(() => {
         if (order?.status === 'entregue') {
             const timer = setTimeout(() => navigate('/'), 4000);
             return () => clearTimeout(timer);
         }
-    }, [order?.status, navigate]);
+    }, [order?.status]);
 
-    if (error) return (
-        <div className="flex h-screen flex-col items-center justify-center p-6 bg-background-dark text-white text-center">
-            <MaterialIcon name="error_outline" className="text-6xl text-red-500 mb-4" />
-            <h2 className="text-xl font-black mb-2">{error}</h2>
-            <button onClick={() => navigate('/')} className="mt-4 bg-primary text-black px-6 py-2 rounded-full font-bold">Voltar ao Início</button>
-        </div>
-    );
-
-    if (!order) return (
-        <div className="flex h-screen flex-col items-center justify-center bg-background-dark text-white">
-            <div className="relative">
-                <div className="size-16 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
-                <MaterialIcon name="local_shipping" className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-primary" />
-            </div>
-            <p className="mt-4 font-black tracking-widest uppercase text-xs animate-pulse">Buscando seu pedido...</p>
-        </div>
-    );
+    if (error) return <div className="p-6 bg-background-dark text-white text-center"><h2>{error}</h2></div>;
+    if (!order) return <div className="p-6 bg-background-dark text-white text-center">Carregando...</div>;
 
     const steps = [
-        {
-            status: 'pendente',
-            label: order.status === 'cancelado' ? 'Pedido Cancelado' : (order.status === 'pendente' ? 'Aguardando Confirmação' : 'Pedido Aceito'),
-            sub: order.status === 'cancelado' ? 'Este pedido foi cancelado pela loja' : (order.status === 'pendente' ? 'Aguardando a loja aceitar...' : `Confirmado às ${new Date(order.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`),
-            icon: order.status === 'cancelado' ? 'cancel' : (order.status === 'pendente' ? 'hourglass_top' : 'check')
-        },
-        { status: 'preparando', label: 'Preparando seu pedido', sub: 'Em andamento', icon: 'pill' },
-        { status: 'aguardando_motoboy', label: 'Aguardando entregador', sub: order.motoboy_id ? 'Entregador à caminho da farmácia' : 'Procurando entregador...', icon: 'person_search' },
-        { status: 'retirado', label: 'Pedido retirado', sub: 'O entregador já está com seu pedido', icon: 'inventory' },
-        { status: 'em_rota', label: 'Em rota de entrega', sub: 'O entregador está a caminho do seu endereço', icon: 'local_shipping' },
-        { status: 'entregue', label: 'Entregue', sub: 'Pedido finalizado', icon: 'home' }
+        { status: 'pendente', label: 'Pedido Recebido', icon: 'check' },
+        { status: 'preparando', label: 'Em Preparo', icon: 'pill' },
+        { status: 'aguardando_motoboy', label: 'Aguardando Entregador', icon: 'person_search' },
+        { status: 'retirado', label: 'Pedido Retirado', icon: 'inventory' },
+        { status: 'em_rota', label: 'Em rota para seu endereço', icon: 'local_shipping' },
+        { status: 'entregue', label: 'Entregue', icon: 'home' }
     ];
-
-    let currentStepIndex = 0;
-    const statusIdxMap: any = { 'pendente': 0, 'preparando': 1, 'aguardando_motoboy': 2, 'pronto_entrega': 2, 'retirado': 3, 'em_rota': 4, 'entregue': 5, 'cancelado': 0 };
-    currentStepIndex = statusIdxMap[order.status] || 0;
+    const statusIdxMap: any = {
+        'pendente': 0,
+        'preparando': 1,
+        'aguardando_motoboy': 2,
+        'pronto_entrega': 2,
+        'aceito': 2,
+        'aguardando_retirada': 2,
+        'retirado': 3,
+        'em_rota': 4,
+        'entregue': 5
+    };
+    const currentStepIndex = statusIdxMap[order.status] ?? -1;
 
     return (
-        <div className="relative mx-auto flex h-auto min-h-screen max-w-[480px] flex-col overflow-x-hidden shadow-2xl bg-white dark:bg-background-dark pb-10">
-            <header className="sticky top-0 z-20 flex items-center bg-white/80 dark:bg-background-dark/80 backdrop-blur-md p-4 pb-2 justify-between">
-                <button onClick={() => navigate(-1)} className="text-[#0d1b13] dark:text-white flex size-12 shrink-0 items-center justify-start cursor-pointer hover:bg-black/5 dark:hover:bg-white/5 rounded-full transition-colors">
-                    <MaterialIcon name="arrow_back_ios" className="ml-2" />
-                </button>
-                <h2 className="text-[#0d1b13] dark:text-white text-lg font-bold leading-tight tracking-[-0.015em] flex-1 text-center pr-12 font-sans">Acompanhamento</h2>
+        <div className="relative mx-auto flex min-h-screen max-w-[480px] flex-col bg-white dark:bg-background-dark">
+            <header className="p-4 flex items-center justify-between border-b dark:border-gray-800">
+                <button onClick={() => navigate(-1)}><MaterialIcon name="arrow_back_ios" /></button>
+                <h2 className="font-bold">Acompanhamento</h2>
+                <Link to="/notifications" className="relative size-10 flex items-center justify-center bg-slate-100 dark:bg-white/5 rounded-full">
+                    <MaterialIcon name="notifications" />
+                    {notificationCount > 0 && (
+                        <span className="absolute -top-1 -right-1 size-5 bg-red-500 rounded-full flex items-center justify-center text-[10px] font-black border-2 border-white dark:border-background-dark animate-pulse text-white">
+                            {notificationCount}
+                        </span>
+                    )}
+                </Link>
             </header>
 
-            <div className="px-4 py-3">
-                <div className="relative w-full aspect-[16/10] bg-slate-100 dark:bg-zinc-800 rounded-[32px] border border-gray-100 dark:border-gray-800 shadow-sm overflow-hidden">
-                    {order && (order.latitude || order.pharmacies?.latitude) ? (
-                        <AdminMap
-                            type="tracking"
-                            googleMapsApiKey={googleKey || ""}
-                            fleet={motoboy ? [{ id: motoboy.id, lat: motoboy.lat, lng: motoboy.lng, bearing: calculateBearing(motoboy, { lat: order.latitude || order.pharmacies?.latitude || 0, lng: order.longitude || order.pharmacies?.longitude || 0 }) }] : []}
-                            markers={[
-                                { id: order.pharmacies?.id || 'pharmacy', lat: order.pharmacies?.latitude || 0, lng: order.pharmacies?.longitude || 0, type: 'pharmacy' },
-                                { id: 'destination', lat: order.latitude || order.pharmacies?.latitude || 0, lng: order.longitude || order.pharmacies?.longitude || 0, type: 'user' }
-                            ]}
-                            polylines={[{ path: routePath.length > 0 ? routePath : (motoboy ? [{ lat: motoboy.lat, lng: motoboy.lng }, { lat: order.latitude || order.pharmacies.latitude, lng: order.longitude || order.pharmacies.longitude }] : []), color: "#13ec6d" }]}
-                            theme="light"
-                            autoCenter={true}
-                        />
-                    ) : (
-                        <div className="flex flex-col items-center justify-center h-full gap-2">
-                            <MaterialIcon name="pending_actions" className="text-4xl text-primary/20" />
-                            <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Aguardando Motoboy</p>
-                        </div>
-                    )}
-                    {order.status !== 'cancelado' && (
-                        <div className="absolute bottom-4 left-4 right-4 bg-white/95 dark:bg-zinc-900/95 backdrop-blur-md rounded-2xl p-4 shadow-lg flex items-center justify-between border-l-4 border-primary border border-white/20 z-10">
-                            <div className="flex items-center gap-3">
-                                <div className="bg-primary/20 p-2.5 rounded-2xl shadow-inner"><MaterialIcon name="moped" className="text-primary" /></div>
-                                <div>
-                                    <p className="text-[10px] text-gray-400 uppercase font-black tracking-widest">Chegada estimada</p>
-                                    <p className="text-lg font-black leading-tight">{calculateETA()}</p>
-                                </div>
-                            </div>
-                            <MaterialIcon name="info" className="text-gray-300" />
-                        </div>
-                    )}
+            <div className="p-4">
+                <div className="aspect-video bg-gray-100 rounded-3xl overflow-hidden mb-4">
+                    <AdminMap
+                        type="tracking"
+                        googleMapsApiKey={googleKey || ""}
+                        fleet={motoboy ? [{ id: motoboy.id, lat: motoboy.lat, lng: motoboy.lng, bearing: 0 }] : []}
+                        markers={[
+                            { id: 'pharmacy', lat: order.pharmacies?.latitude || 0, lng: order.pharmacies?.longitude || 0, type: 'pharmacy' },
+                            {
+                                id: 'destination',
+                                lat: order.latitude || order.profiles?.last_lat || order.profiles?.latitude || order.pharmacies?.latitude || 0,
+                                lng: order.longitude || order.profiles?.last_lng || order.profiles?.longitude || order.pharmacies?.longitude || 0,
+                                type: 'user'
+                            }
+                        ]}
+                        polylines={[{ path: routePath, color: "#13ec6d" }]}
+                        autoCenter={true}
+                    />
                 </div>
-            </div>
 
-            {order.status === 'cancelado' && (
-                <div className="px-6 py-2">
-                    <div className="bg-red-500 text-white p-5 rounded-3xl flex items-start gap-4 shadow-xl shadow-red-500/20 border border-red-400">
-                        <div className="size-12 bg-white/20 rounded-2xl flex items-center justify-center shrink-0 mt-1">
-                            <MaterialIcon name="block" className="text-2xl" />
-                        </div>
-                        <div>
-                            <p className="font-black italic text-xl leading-tight uppercase tracking-tighter">Pedido Cancelado</p>
-                            <p className="text-sm font-bold opacity-90 mt-1">
-                                Motivo: {order.cancellation_reason || 'Não informado'}
-                            </p>
-                            <p className="text-[10px] font-medium opacity-70 uppercase tracking-widest mt-2">
-                                Entre em contato com a loja via chat para mais detalhes.
-                            </p>
-                        </div>
+                <div className="bg-primary/10 p-4 rounded-2xl flex justify-between items-center mb-6">
+                    <div>
+                        <p className="text-[10px] uppercase font-bold text-primary">Previsão</p>
+                        <p className="text-xl font-bold">{calculateETA()}</p>
                     </div>
                 </div>
-            )}
 
-            {order.motoboy_arrived_at && order.status !== 'cancelado' && (
-                <div className="px-6 py-2">
-                    <div className="bg-green-500 text-white p-4 rounded-3xl flex items-center gap-4 animate-bounce shadow-lg shadow-green-500/20">
-                        <div className="size-12 bg-white/20 rounded-2xl flex items-center justify-center"><MaterialIcon name="notifications_active" className="text-2xl" /></div>
-                        <div>
-                            <p className="font-black italic text-lg leading-tight uppercase">O entregador chegou!</p>
-                            <p className="text-[10px] font-bold opacity-80 uppercase tracking-widest">Ele está na sua porta agora</p>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            <div className="flex items-center justify-between px-6 pt-4 pb-2">
-                <h3 className="text-[#0d1b13] dark:text-white text-xl font-black leading-tight tracking-[-0.015em]">Status do Pedido</h3>
-                <span className="text-[10px] font-black text-primary bg-primary/10 px-3 py-1.5 rounded-full uppercase tracking-widest shadow-sm ring-1 ring-primary/5">Pedido #{orderId?.substring(0, 8)}</span>
-            </div>
-
-            <div className="grid grid-cols-[48px_1fr] gap-x-2 px-8 py-4">
-                {steps.map((step, index) => {
-                    const isActive = index === currentStepIndex;
-                    const isCompleted = index < currentStepIndex;
-                    const isPending = index > currentStepIndex;
-                    return (
-                        <React.Fragment key={index}>
-                            <div className="flex flex-col items-center gap-1">
-                                <div className={`rounded-full p-2 shadow-sm z-10 ${isActive ? 'bg-primary ring-8 ring-primary/10 scale-110 text-slate-900' : isCompleted ? 'bg-primary text-slate-900' : 'bg-gray-100 dark:bg-zinc-800 text-gray-300 grayscale opacity-50'}`}>
-                                    <MaterialIcon name={step.icon} className="text-[18px]" fill={isActive} />
-                                </div>
-                                {index < steps.length - 1 && <div className={`w-[3px] h-12 ${isCompleted ? 'bg-primary opacity-50' : 'bg-gray-100 dark:bg-zinc-800'}`}></div>}
+                <div className="space-y-6 px-4">
+                    {steps.map((step, idx) => (
+                        <div key={idx} className={`flex gap-4 items-start ${idx > currentStepIndex ? 'opacity-30' : ''}`}>
+                            <div className={`mt-1 size-8 rounded-full flex items-center justify-center ${idx <= currentStepIndex ? 'bg-primary text-white' : 'bg-gray-200'}`}>
+                                <MaterialIcon name={step.icon} className="text-sm" />
                             </div>
-                            <div className="flex flex-1 flex-col pb-8">
-                                <p className={`text-base font-black leading-normal italic ${isPending ? 'text-gray-400 dark:text-gray-600 opacity-60' : 'text-[#0d1b13] dark:text-white'}`}>{step.label}</p>
-                                <p className={`text-[10px] font-black uppercase tracking-widest mt-1 ${isActive ? 'text-primary pulse' : 'text-gray-400 opacity-80'}`}>{isActive ? step.sub : isCompleted ? 'Concluído' : 'Pendente'}</p>
+                            <div>
+                                <p className="font-bold">{step.label}</p>
+                                <p className="text-xs text-gray-500">{idx === currentStepIndex ? 'Status atual' : idx < currentStepIndex ? 'Concluído' : ''}</p>
                             </div>
-                        </React.Fragment>
-                    );
-                })}
-            </div>
-
-            <div className="flex flex-col gap-3 px-6 py-4">
-                <button
-                    onClick={() => { setUnreadCount(0); navigate(`/chat/${orderId}`); }}
-                    className="relative flex min-w-[84px] w-full cursor-pointer items-center justify-center overflow-hidden rounded-[28px] h-14 px-5 bg-primary text-slate-900 gap-3 shadow-xl shadow-primary/20 hover:scale-[1.02] transition-transform active:scale-[0.98] uppercase tracking-tighter ring-1 ring-primary/5"
-                >
-                    <MaterialIcon name="chat" className="text-2xl font-bold" fill />
-                    <span className="truncate text-base font-black leading-normal">Chat com a Farmácia</span>
-                    {unreadCount > 0 && <div className="absolute right-6 top-3 bg-red-600 text-white text-[10px] font-black w-6 h-6 rounded-full flex items-center justify-center animate-bounce shadow-lg ring-2 ring-white dark:ring-zinc-900">{unreadCount}</div>}
-                </button>
-
-                {/* Botão Cancelar Pedido (Apenas se não saiu para entrega) */}
-                {['pendente', 'preparando', 'aguardando_motoboy', 'pronto_entrega'].includes(order.status) && (
-                    <button
-                        onClick={() => setIsCancelModalOpen(true)}
-                        className="w-full py-4 text-xs font-black text-red-500 hover:bg-red-500/5 rounded-[28px] transition-colors uppercase tracking-[0.2em]"
-                    >
-                        Cancelar Pedido
-                    </button>
-                )}
-
-                <OrderCancellationModal
-                    isOpen={isCancelModalOpen}
-                    onClose={() => setIsCancelModalOpen(false)}
-                    userRole="customer"
-                    onConfirm={async (reason) => {
-                        try {
-                            const { error: updateError } = await supabase
-                                .from('orders')
-                                .update({ status: 'cancelado', cancellation_reason: reason })
-                                .eq('id', orderId);
-
-                            if (updateError) throw updateError;
-
-                            // Notificar Farmácia (Opcional, mas bom)
-                            setIsCancelModalOpen(false);
-                            navigate('/');
-                        } catch (err) {
-                            console.error("Erro ao cancelar:", err);
-                            alert("Não foi possível cancelar o pedido. Tente novamente.");
-                        }
-                    }}
-                />
-            </div>
-
-            <div className="px-6 pb-12 mt-4">
-                <h3 className="text-[#0d1b13] dark:text-white text-lg font-black leading-tight tracking-[-0.015em] pb-6 font-sans">Itens do Pedido</h3>
-                <div className="space-y-4">
-                    {items.map((item, i) => (
-                        <div key={i} className="flex items-center gap-4 bg-gray-50 dark:bg-zinc-900/50 p-4 rounded-3xl border border-gray-100 dark:border-gray-800 group shadow-sm">
-                            <div className="w-14 h-14 bg-white dark:bg-zinc-800 rounded-2xl flex items-center justify-center p-2 border border-gray-100 dark:border-white/5 transition-transform group-hover:scale-110"><MaterialIcon name={item.icon} className="text-primary/30 text-2xl" /></div>
-                            <div className="flex-1">
-                                <p className="text-sm font-black line-clamp-1">{item.name}</p>
-                                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mt-0.5">{item.qty}</p>
-                            </div>
-                            <p className="text-sm font-black text-slate-800 dark:text-white">{item.price}</p>
                         </div>
                     ))}
                 </div>
-                <div className="mt-8 pt-6 border-t border-dashed border-gray-100 dark:border-gray-800 flex justify-between items-center px-2">
-                    <span className="text-gray-400 text-[10px] font-black uppercase tracking-widest">Total com entrega</span>
-                    <span className="text-2xl font-black text-primary tracking-tighter">R$ {(order?.total_price || order?.total_amount || 0).toFixed(2)}</span>
+            </div>
+
+            <div className="px-6 py-4 fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[480px]">
+                <div className="relative">
+                    <button
+                        onClick={() => navigate(`/chat/${orderId}`)}
+                        className="w-full bg-primary py-4 rounded-full font-bold shadow-lg transition-transform active:scale-95"
+                    >
+                        Chat com a Farmácia
+                    </button>
+                    {unreadChatCount > 0 && (
+                        <div className="absolute -top-1 -right-1 bg-red-600 text-white text-[10px] font-bold w-6 h-6 rounded-full flex items-center justify-center border-2 border-white animate-bounce">
+                            {unreadChatCount}
+                        </div>
+                    )}
                 </div>
             </div>
         </div>

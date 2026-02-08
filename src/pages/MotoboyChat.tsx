@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { MaterialIcon } from '../components/Shared';
+import { MaterialIcon } from '../components/MaterialIcon';
 
 export const MotoboyChat = () => {
     const navigate = useNavigate();
@@ -55,14 +55,26 @@ export const MotoboyChat = () => {
                 table: 'order_messages',
                 filter: `order_id=eq.${orderId}`
             }, (payload) => {
-                const hornSound = 'https://assets.mixkit.co/active_storage/sfx/2855/2855-preview.mp3';
-                if (payload.new.message_type === 'horn' && payload.new.sender_id !== session?.user?.id) {
-                    const audio = new Audio(hornSound);
+                // Audio para Chat (Vários tipos)
+                const isFromMe = payload.new.sender_id === session?.user?.id;
+
+                if (!isFromMe) {
+                    const hornSound = 'https://assets.mixkit.co/active_storage/sfx/2855/2855-preview.mp3';
+                    const msgSound = 'https://assets.mixkit.co/active_storage/sfx/2571/2571-preview.mp3';
+
+                    const src = payload.new.message_type === 'horn' ? hornSound : msgSound;
+                    const audio = new Audio(src);
+
                     audio.play().catch(e => {
                         console.warn("Chat audio blocked:", e);
+                        // Tentar tocar no próximo clique se bloqueado
                         window.addEventListener('click', () => audio.play(), { once: true });
                     });
+
+                    // Vibrar se disponível
+                    if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
                 }
+
                 setMessages(prev => [...prev, payload.new]);
             })
             .subscribe();

@@ -11,6 +11,47 @@ const MaterialIcon = ({ name, className = "" }: { name: string, className?: stri
     <span className={`material-symbols-outlined ${className}`}>{name}</span>
 );
 
+// --- Subcomponent: Audio Activation Overlay ---
+const AudioActivationOverlay = ({ onActivate }: { onActivate: () => void }) => (
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+        {/* Backdrop with extreme blur */}
+        <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-[8px] animate-fade-in" />
+
+        {/* Premium Card */}
+        <div className="relative bg-white dark:bg-zinc-900 w-full max-w-md rounded-[32px] p-8 shadow-[0_20px_50px_rgba(0,0,0,0.3)] border border-slate-100 dark:border-white/10 overflow-hidden animate-scale-up">
+            {/* Decoration */}
+            <div className="absolute -top-24 -right-24 size-48 bg-primary/20 rounded-full blur-[60px]" />
+            <div className="absolute -bottom-24 -left-24 size-48 bg-blue-500/20 rounded-full blur-[60px]" />
+
+            <div className="relative flex flex-col items-center text-center">
+                <div className="size-20 rounded-3xl bg-primary/10 flex items-center justify-center mb-6 animate-pulse">
+                    <MaterialIcon name="notifications_active" className="text-4xl text-primary" />
+                </div>
+
+                <h2 className="text-2xl font-black italic text-slate-900 dark:text-white mb-3 tracking-tighter">
+                    Ative os Alertas Sonoros
+                </h2>
+
+                <p className="text-slate-500 dark:text-slate-400 text-sm mb-8 leading-relaxed font-medium">
+                    Para garantir que você ouça cada novo pedido, precisamos da sua permissão para ativar o som neste navegador. Clique abaixo para começar.
+                </p>
+
+                <button
+                    onClick={onActivate}
+                    className="w-full py-4 rounded-2xl bg-primary text-slate-900 font-black italic uppercase tracking-tighter hover:scale-[1.02] active:scale-[0.98] transition-all shadow-lg flex items-center justify-center gap-2 group"
+                >
+                    <MaterialIcon name="volume_up" className="group-hover:animate-bounce" />
+                    Ativar Alertas Agora
+                </button>
+
+                <p className="mt-6 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">
+                    Segurança • Operação • Alertas em Tempo Real
+                </p>
+            </div>
+        </div>
+    </div>
+);
+
 // --- Subcomponent: Driver Assignment Modal ---
 const AssignDriverModal = ({ isOpen, onClose, onAssign, pharmacyId }: any) => {
     const [drivers, setDrivers] = useState<any[]>([]);
@@ -240,6 +281,10 @@ const MerchantOrderManagement = () => {
     // New State for Vertical Tabs (default to 'pendente')
     const [activeTabId, setActiveTabId] = useState('pendente');
 
+    // CHAT NOTIFICATIONS STATE
+    const [unreadChatCounts, setUnreadChatCounts] = useState<Record<string, number>>({});
+    const chatChannelRef = useRef<any>(null);
+
     // Realtime Status State
     const [realtimeStatus, setRealtimeStatus] = useState<'connecting' | 'connected' | 'error'>('connecting');
     const [notificationSound, setNotificationSound] = useState<'voice' | 'bell' | 'cash'>(() => {
@@ -412,11 +457,25 @@ const MerchantOrderManagement = () => {
                 if (pId) {
                     fetchOrders(pId);
                     subscribeToOrders(pId);
+                    subscribeToChat(pId, user.id);
                 } else {
                     console.warn("⚠️ Nenhuma farmácia encontrada para este usuário:", user.id, "Role:", profile?.role);
-                    setRealtimeStatus('error'); // Stop connecting state
-                    setLoading(false);
+                    setRealtimeStatus('error');
                 }
+
+                // --- DETECÇÃO PROATIVA DE BLOQUEIO DE SOM ---
+                // Tenta dar um "play" silencioso para ver se o navegador bloqueia
+                const testAudio = new Audio('https://assets.mixkit.co/active_storage/sfx/2571/2571-preview.mp3');
+                testAudio.volume = 0;
+                testAudio.play().then(() => {
+                    console.log("🔊 Áudio já autorizado pelo navegador.");
+                    setIsSoundBlocked(false);
+                }).catch(() => {
+                    console.warn("🔇 Áudio bloqueado pelo navegador. Exibindo overlay de ativação.");
+                    setIsSoundBlocked(true);
+                });
+
+                setLoading(false);
             } catch (error) {
                 console.error("💥 Erro fatal na inicialização do painel:", error);
                 setRealtimeStatus('error');
@@ -431,6 +490,10 @@ const MerchantOrderManagement = () => {
             if (activeChannelRef.current) {
                 supabase.removeChannel(activeChannelRef.current);
                 activeChannelRef.current = null;
+            }
+            if (chatChannelRef.current) {
+                supabase.removeChannel(chatChannelRef.current);
+                chatChannelRef.current = null;
             }
         };
     }, []);
@@ -491,6 +554,42 @@ const MerchantOrderManagement = () => {
             });
 
         activeChannelRef.current = channel;
+    }
+
+    const subscribeToChat = (pId: string, currentUserId: string) => {
+        if (chatChannelRef.current) supabase.removeChannel(chatChannelRef.current);
+
+        const chatChannel = supabase
+            .channel(`merchant-chat-ops-${pId}`)
+            .on('postgres_changes', {
+                event: 'INSERT',
+                schema: 'public',
+                table: 'order_messages'
+            }, (payload: any) => {
+                console.log("💬 Nova mensagem detectada no Gestor:", payload.new);
+                if (payload.new.sender_id === currentUserId) {
+                    console.log("🚫 Ignorando mensagem enviada por mim mesmo.");
+                    return;
+                }
+
+                // Play message sound
+                const chimeSound = 'https://assets.mixkit.co/active_storage/sfx/2571/2571-preview.mp3';
+                const audio = new Audio(chimeSound);
+                audio.play().catch(e => console.warn("🔇 Audio play blocked by browser:", e));
+
+                // Increment count directly
+                setUnreadChatCounts(prev => {
+                    const newCounts = {
+                        ...prev,
+                        [payload.new.order_id]: (prev[payload.new.order_id] || 0) + 1
+                    };
+                    console.log("🔴 Atualizando badges de chat:", newCounts);
+                    return newCounts;
+                });
+            })
+            .subscribe();
+
+        chatChannelRef.current = chatChannel;
     }
 
     const fetchOrders = async (pId: string) => {
@@ -659,30 +758,24 @@ const MerchantOrderManagement = () => {
 
             if (targets.length === 0) return;
 
-            // Iterate and update all
+            // Iterate and update all using the new RPC function
             for (const oId of targets) {
-                // Update Order Status - Reverted to 'pronto_entrega' so Motoboy can confirm pickup
-                const { error: orderError } = await supabase
-                    .from('orders')
-                    .update({
-                        motoboy_id: driverId,
-                        status: 'pronto_entrega' // Aguardando o motoboy confirmar retirada
-                    })
-                    .eq('id', oId);
+                // Call the RPC function for atomic assignment and status update
+                const { data, error } = await supabase.rpc('assign_order_to_motoboy', {
+                    p_order_id: oId,
+                    p_motoboy_id: driverId
+                });
 
-                if (orderError) throw orderError;
+                if (error) throw error;
+                if (!data) console.warn(`Falha ao atribuir pedido ${oId} (possivelmente cancelado/entregue)`);
 
-                // CRITICAL FIX: Update Motoboy's Profile to see the order
+                // CRITICAL FIX: Update Motoboy's Profile to see the order (Keep this for now as redundancy, though RLS might handle it)
                 const { error: profileError } = await supabase
                     .from('profiles')
                     .update({ current_order_id: oId })
                     .eq('id', driverId);
 
                 if (profileError) console.error("Error updating motoboy profile:", profileError);
-
-                // Notify Customer (Optional: maybe wait for actual Start Route)
-                // const order = orders.find(o => o.id === oId);
-                // if (order) sendWhatsAppNotification(order, 'em_rota');
             }
 
             setIsDriverModalOpen(false);
@@ -691,11 +784,11 @@ const MerchantOrderManagement = () => {
 
             // Refresh
             if (pharmacy?.id) fetchOrders(pharmacy.id);
-            alert(`Motoboy atribuído a ${targets.length} pedido(s) com sucesso! Status atualizado para 'Saiu para Entrega'.`);
+            alert(`Motoboy atribuído a ${targets.length} pedido(s) com sucesso! Status atualizado.`);
 
         } catch (err) {
             console.error('Error assigning driver:', err);
-            alert('Erro ao atribuir motoboy. Verifique o console para mais detalhes.');
+            alert('Erro ao atribuir motoboy. Verifique se o pedido não foi cancelado ou entregue.');
         }
     };
 
@@ -872,7 +965,7 @@ const MerchantOrderManagement = () => {
                             // SPECIAL LOGIC: 'preparando' includes all intermediate states
                             const count = orders.filter(o => {
                                 if (col.id === 'preparando') {
-                                    return ['preparando', 'aguardando_motoboy', 'pronto_entrega'].includes(o.status);
+                                    return ['preparando', 'aguardando_motoboy', 'pronto_entrega', 'aceito', 'aguardando_retirada'].includes(o.status);
                                 }
                                 if (col.id === 'em_rota') {
                                     return ['em_rota', 'retirado'].includes(o.status);
@@ -935,23 +1028,15 @@ const MerchantOrderManagement = () => {
                         })}
                     </div>
 
-                    {/* SOUND BLOCKED ALERT */}
+                    {/* SOUND BLOCKED ALERT - PREMIUM OVERLAY */}
                     {isSoundBlocked && (
-                        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-500/30 p-3 rounded-xl flex items-center justify-between animate-pulse">
-                            <div className="flex items-center gap-2 text-red-600 dark:text-red-400">
-                                <MaterialIcon name="volume_off" />
-                                <span className="text-sm font-bold">O navegador bloqueou o som automático.</span>
-                            </div>
-                            <button
-                                onClick={() => {
-                                    setIsSoundBlocked(false);
-                                    playNotificationSound(); // Force interaction
-                                }}
-                                className="px-3 py-1 bg-red-100 dark:bg-red-800 hover:bg-red-200 dark:hover:bg-red-700 text-red-700 dark:text-red-200 rounded-lg text-xs font-black uppercase transition-colors"
-                            >
-                                Ativar Som
-                            </button>
-                        </div>
+                        <AudioActivationOverlay
+                            onActivate={() => {
+                                setIsSoundBlocked(false);
+                                // Play a real sound to confirm activation/unlock
+                                playNotificationSound(1);
+                            }}
+                        />
                     )}
 
 
@@ -964,7 +1049,7 @@ const MerchantOrderManagement = () => {
                         <div className="flex flex-col gap-4">
                             {orders.filter(o => {
                                 if (activeTabId === 'preparando') {
-                                    return ['preparando', 'aguardando_motoboy', 'pronto_entrega'].includes(o.status);
+                                    return ['preparando', 'aguardando_motoboy', 'pronto_entrega', 'aceito', 'aguardando_retirada'].includes(o.status);
                                 }
                                 if (activeTabId === 'em_rota') {
                                     return ['em_rota', 'retirado'].includes(o.status);
@@ -972,7 +1057,7 @@ const MerchantOrderManagement = () => {
                                 return o.status?.toLowerCase() === activeTabId;
                             }).map((order) => {
                                 const late = isLate(order);
-                                const isWaitingDriver = ['aguardando_motoboy', 'pronto_entrega'].includes(order.status);
+                                const isWaitingDriver = ['aguardando_motoboy', 'pronto_entrega', 'aceito', 'aguardando_retirada'].includes(order.status);
 
                                 return (
                                     <div key={order.id} className={`bg-white dark:bg-zinc-800 p-5 rounded-2xl shadow-sm hover:shadow-md transition-all duration-300 group relative border-l-4 ${late ? 'border-l-red-500' : isWaitingDriver ? 'border-l-yellow-400' : 'border-l-primary'
@@ -1067,12 +1152,21 @@ const MerchantOrderManagement = () => {
 
                                                 {/* Chat Button */}
                                                 <button
-                                                    onClick={(e) => { e.stopPropagation(); openChat(order); }}
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        openChat(order);
+                                                        // Reset count when opening chat
+                                                        setUnreadChatCounts(prev => ({ ...prev, [order.id]: 0 }));
+                                                    }}
                                                     className="size-10 rounded-xl hover:bg-blue-50 dark:hover:bg-blue-900/20 text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 flex items-center justify-center transition-colors relative"
                                                     title="Chat do Pedido"
                                                 >
                                                     <MaterialIcon name="chat" className="text-xl" />
-                                                    {/* Notification dot functionality can be added here later */}
+                                                    {unreadChatCounts[order.id] > 0 && (
+                                                        <div className="absolute -top-1.5 -right-1.5 bg-red-600 text-white text-[10px] font-black w-5 h-5 rounded-full flex items-center justify-center border-2 border-white shadow-sm z-30 animate-bounce">
+                                                            {unreadChatCounts[order.id]}
+                                                        </div>
+                                                    )}
                                                 </button>
 
                                                 <button
@@ -1169,7 +1263,7 @@ const MerchantOrderManagement = () => {
 
                             {orders.filter(o => {
                                 if (activeTabId === 'preparando') {
-                                    return ['preparando', 'aguardando_motoboy', 'pronto_entrega'].includes(o.status);
+                                    return ['preparando', 'aguardando_motoboy', 'pronto_entrega', 'aceito', 'aguardando_retirada'].includes(o.status);
                                 }
                                 return o.status?.toLowerCase() === activeTabId;
                             }).length === 0 && (

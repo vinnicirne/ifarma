@@ -1,0 +1,110 @@
+{
+    "project_info": {
+        "project_number": "377871429826",
+        "project_id": "ifarma-89896",
+        "storage_bucket": "ifarma-89896.firebasestorage.app"
+    },
+    "client": [
+        {
+            "client_info": {
+                "mobilesdk_app_id": "1:377871429826:android:32e2d2724c9bc29781cb5b",
+                "android_client_info": {
+                    "package_name": "com.ifarma.app"
+                }
+            },
+            "oauth_client": [],
+            "api_key": [
+                {
+                    "current_key": "AIzaSyCwEixtnqQSl_rWDn8Zocy1bvBY9_Wpu6s"
+                }
+            ],
+            "services": {
+                "analytics_service": {
+                    "status": 1
+                },
+                "appinvite_service": {
+                    "status": 1
+                },
+                "ads_service": {
+                    "status": 1
+                }
+            }
+        },
+        {
+            "client_info": {
+                "mobilesdk_app_id": "1:377871429826:android:32e2d2724c9bc29781cb5b",
+                "android_client_info": {
+                    "package_name": "com.ifarma.motoboy"
+                }
+            },
+            "oauth_client": [],
+            "api_key": [
+                {
+                    "current_key": "AIzaSyCwEixtnqQSl_rWDn8Zocy1bvBY9_Wpu6s"
+                }
+            ],
+            "services": {
+                "analytics_service": {
+                    "status": 1
+                },
+                "appinvite_service": {
+                    "status": 1
+                },
+                "ads_service": {
+                    "status": 1
+                }
+            }
+        },
+        {
+            "client_info": {
+                "mobilesdk_app_id": "1:377871429826:android:32e2d2724c9bc29781cb5b",
+                "android_client_info": {
+                    "package_name": "com.ifarma.farmacia"
+                }
+            },
+            "oauth_client": [],
+            "api_key": [
+                {
+                    "current_key": "AIzaSyCwEixtnqQSl_rWDn8Zocy1bvBY9_Wpu6s"
+                }
+            ],
+            "services": {
+                "analytics_service": {
+                    "status": 1
+                },
+                "appinvite_service": {
+                    "status": 1
+                },
+                "ads_service": {
+                    "status": 1
+                }
+            }
+        },
+        {
+            "client_info": {
+                "mobilesdk_app_id": "1:377871429826:android:32e2d2724c9bc29781cb5b",
+                "android_client_info": {
+                    "package_name": "com.ifarma.cliente"
+                }
+            },
+            "oauth_client": [],
+            "api_key": [
+                {
+                    "current_key": "AIzaSyCwEixtnqQSl_rWDn8Zocy1bvBY9_Wpu6s"
+                }
+            ],
+            "services": {
+                "analytics_service": {
+                    "status": 1
+                },
+                "appinvite_service": {
+                    "status": 1
+                },
+                "ads_service": {
+                    "status": 1
+                }
+            }
+        }
+    ],
+    "configuration_version": "1"
+}

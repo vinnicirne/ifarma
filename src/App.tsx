@@ -1,13 +1,10 @@
 ﻿import React, { useState, useEffect, useMemo } from 'react';
 import { BrowserRouter as Router } from 'react-router-dom';
-import { Provider as RollbarProvider, ErrorBoundary as RollbarErrorBoundary } from '@rollbar/react';
 import { supabase } from './lib/supabase';
 import { useNotifications } from './hooks/useNotifications';
 import { initAppContext } from './lib/appContext';
 import { calculateDistance } from './lib/geoUtils';
 import { AppRoutes } from './routes/AppRoutes';
-import { rollbarConfig } from './lib/rollbar';
-import { RollbarTestPanel } from './components/RollbarTestPanel';
 
 function App() {
   const [session, setSession] = useState<any>(null);
@@ -283,7 +280,7 @@ function App() {
 
   if (loading || !contextLoaded) {
     return (
-      <div className="min-h-screen bg-background-dark flex items-center justify-center">
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
           <div className="animate-spin size-12 border-4 border-primary border-t-transparent rounded-full"></div>
           <p className="text-primary text-[10px] font-black uppercase tracking-widest animate-pulse">
@@ -295,24 +292,17 @@ function App() {
   }
 
   return (
-    <RollbarProvider config={rollbarConfig}>
-      <RollbarErrorBoundary>
-        <Router>
-          <div className="font-display">
-            <AppRoutes
-              session={session}
-              profile={profile}
-              userLocation={userLocation}
-              sortedPharmacies={sortedPharmacies}
-              refreshProfile={() => session && fetchProfile(session.user.id)}
-            />
-          </div>
-
-          {/* Painel de teste Rollbar - apenas em desenvolvimento */}
-          {/* {import.meta.env.DEV && <RollbarTestPanel />} */}
-        </Router>
-      </RollbarErrorBoundary>
-    </RollbarProvider>
+    <Router>
+      <div className="font-display">
+        <AppRoutes
+          session={session}
+          profile={profile}
+          userLocation={userLocation}
+          sortedPharmacies={sortedPharmacies}
+          refreshProfile={() => session && fetchProfile(session.user.id)}
+        />
+      </div>
+    </Router>
   );
 }
 

@@ -75,31 +75,48 @@ export const requestNotificationPermission = async (): Promise<string | null> =>
         }
 
         if (!messaging) {
-            console.warn('Firebase Messaging não está disponível');
+            console.warn('Firebase Messaging não está disponível ou não é suportado');
+            return null;
+        }
+
+        // Verificar se estamos no navegador e temos a API de Notificação
+        if (typeof window === 'undefined' || !('Notification' in window)) {
+            console.warn('Este ambiente não suporta notificações');
             return null;
         }
 
         const permission = await Notification.requestPermission();
 
         if (permission === 'granted') {
-            console.log('Permissão de notificação concedida');
-
             const vapidKey = import.meta.env.VITE_FIREBASE_VAPID_KEY;
+
             if (!vapidKey) {
-                console.error('VAPID Key não configurada');
+                console.error('ERRO CRÍTICO: VAPID Key não encontrada no arquivo .env (VITE_FIREBASE_VAPID_KEY)');
                 return null;
             }
 
+            console.log('Obtendo token FCM para Web com VAPID Key...');
             const token = await getToken(messaging, { vapidKey });
 
-            console.log('Token FCM obtido:', token);
+            if (token) {
+                console.log('✅ Token FCM obtido com sucesso:', token);
+            } else {
+                console.warn('⚠️ Token FCM retornado vazio');
+            }
             return token;
         } else {
-            console.log('Permissão de notificação negada');
+            console.warn('Permissão de notificação negada pelo usuário');
             return null;
         }
-    } catch (error) {
-        console.error('Erro ao obter token FCM:', error);
+    } catch (error: any) {
+        console.error('❌ ERRO FCM:', error);
+
+        if (error?.code === 'messaging/token-subscribe-failed') {
+            console.error('DICA: Isso geralmente indica que a VAPID Key está incorreta ou o projeto Firebase não está configurado para Web Push.');
+        } else if (error?.code === 'messaging/permission-blocked') {
+            console.error('DICA: O usuário bloqueou as notificações.');
+        }
+
         return null;
     }
 };

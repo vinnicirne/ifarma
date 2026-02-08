@@ -116,36 +116,17 @@ export const useGeolocation = (userId: string | null, shouldTrack: boolean = fal
 
                                 // --- ELITE 2.0: Telemetria ---
                                 let batteryLevel: number | undefined;
-                                let connectionType: string = 'Desconhecido';
+                                let isCharging: boolean | undefined;
 
                                 try {
                                     const info = await Device.getBatteryInfo();
                                     batteryLevel = Math.round((info.batteryLevel || 0) * 100);
-
-                                    const status = await Network.getStatus();
-                                    connectionType = status.connectionType.toUpperCase();
+                                    isCharging = info.isCharging;
                                 } catch (e) {
                                     console.warn('Falha ao obter telemetria:', e);
                                 }
 
-                                // Atualizar perfil com última localização e telemetria
-                                const { error: updateError } = await supabase
-                                    .from('profiles')
-                                    .update({
-                                        last_lat: latitude,
-                                        last_lng: longitude,
-                                        latitude: latitude,
-                                        longitude: longitude,
-                                        battery_level: batteryLevel,
-                                        signal_status: connectionType,
-                                        last_online: new Date().toISOString(),
-                                        updated_at: new Date().toISOString()
-                                    })
-                                    .eq('id', userId);
-
-                                if (updateError) console.error('Erro ao atualizar location:', updateError);
-
-                                // Invocar tracking-engine
+                                // 1. Tentar via Edge Function (Ideal para performance e logica server-side)
                                 let invokeSuccess = false;
                                 try {
                                     const { data: { session } } = await supabase.auth.getSession();
@@ -155,7 +136,9 @@ export const useGeolocation = (userId: string | null, shouldTrack: boolean = fal
                                                 motoboyId: userId,
                                                 latitude,
                                                 longitude,
-                                                orderId: orderId || null
+                                                orderId: orderId || null,
+                                                batteryLevel,
+                                                isCharging
                                             },
                                             headers: { Authorization: `Bearer ${session.access_token}` }
                                         });
@@ -167,13 +150,25 @@ export const useGeolocation = (userId: string | null, shouldTrack: boolean = fal
                                     console.warn('Exceção tracking-engine:', e);
                                 }
 
-                                // Fallback
-                                await supabase.from('route_history').insert({
-                                    motoboy_id: userId,
-                                    order_id: orderId || null,
-                                    latitude,
-                                    longitude
-                                });
+                                // 2. Fallback APENAS se falhar (Economia de ~50% de escritas)
+                                if (!invokeSuccess) {
+                                    console.warn('Edge falhou, usando fallback direto via DB');
+
+                                    // Fallback: Atualizar perfil diretamente
+                                    await supabase.from('profiles').update({
+                                        last_lat: latitude,
+                                        last_lng: longitude,
+                                        updated_at: new Date().toISOString()
+                                    }).eq('id', userId);
+
+                                    // Fallback: Inserir rota
+                                    await supabase.from('route_history').insert({
+                                        motoboy_id: userId,
+                                        order_id: orderId || null,
+                                        latitude,
+                                        longitude
+                                    });
+                                }
                             }
                         }
                     }

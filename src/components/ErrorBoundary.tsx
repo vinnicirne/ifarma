@@ -1,5 +1,4 @@
 import React, { Component, type ErrorInfo, type ReactNode } from "react";
-import rollbar from "../lib/rollbar";
 
 interface Props {
     children?: ReactNode;
@@ -23,15 +22,6 @@ export class ErrorBoundary extends Component<Props, State> {
 
     public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
         console.error(`Uncaught error in ${this.props.name || 'Component'}:`, error, errorInfo);
-
-        // Enviar erro para Rollbar (apenas em produção)
-        if (import.meta.env.PROD) {
-            rollbar.error(error, {
-                componentName: this.props.name || 'Unknown Component',
-                errorInfo: errorInfo,
-                componentStack: errorInfo.componentStack,
-            });
-        }
     }
 
     public render() {

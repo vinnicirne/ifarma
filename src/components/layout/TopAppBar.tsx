@@ -3,11 +3,13 @@ import { Link } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { useCartCount } from '../../hooks/useCartCount';
 import { MaterialIcon } from '../Shared';
+import { useNotifications } from '../../hooks/useNotifications';
 
 export const TopAppBar = ({ onSearch, userLocation, session }: { onSearch: (query: string) => void, userLocation: { lat: number, lng: number } | null, session?: any }) => {
     const [query, setQuery] = useState('');
     const [address, setAddress] = useState('Localização Atual');
     const cartCount = useCartCount(session?.user?.id);
+    const { unreadCount: notificationCount } = useNotifications(session?.user?.id);
 
     useEffect(() => {
         const fetchAddress = async () => {
@@ -68,9 +70,14 @@ export const TopAppBar = ({ onSearch, userLocation, session }: { onSearch: (quer
                             </span>
                         )}
                     </Link>
-                    <button className="flex items-center justify-center rounded-full w-10 h-10 bg-slate-100 dark:bg-slate-800">
+                    <Link to="/notifications" className="relative flex items-center justify-center rounded-full w-10 h-10 bg-slate-100 dark:bg-slate-800">
                         <MaterialIcon name="notifications" className="text-[#0d161b] dark:text-white" />
-                    </button>
+                        {notificationCount > 0 && (
+                            <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[8px] font-black rounded-full w-4 h-4 flex items-center justify-center border border-white dark:border-background-dark animate-pulse">
+                                {notificationCount}
+                            </span>
+                        )}
+                    </Link>
                 </div>
             </div>
             <div className="px-4 py-3">

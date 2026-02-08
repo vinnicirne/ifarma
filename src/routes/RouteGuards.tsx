@@ -2,7 +2,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { Auth } from '../components/auth/Auth';
 import MerchantLogin from '../pages/merchant/MerchantLogin';
-import { MaterialIcon } from '../components/Shared';
+import { MaterialIcon } from '../components/MaterialIcon';
 import { supabase } from '../lib/supabase';
 
 export const AdminRoute = ({ children, session, profile }: { children: React.ReactNode, session: any, profile: any }) => {

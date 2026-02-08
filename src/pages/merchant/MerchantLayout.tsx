@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
+import { useNotifications } from '../../hooks/useNotifications';
 
 const MaterialIcon = ({ name, className = "" }: { name: string, className?: string }) => (
     <span className={`material-symbols-outlined ${className}`}>{name}</span>
@@ -11,6 +12,15 @@ const MerchantLayout = ({ children, activeTab, title }: { children: React.ReactN
     const location = useLocation();
     const [isCollapsed, setIsCollapsed] = React.useState(false);
     const [storeStatus, setStoreStatus] = React.useState(false);
+    const [userId, setUserId] = React.useState<string | null>(null);
+
+    React.useEffect(() => {
+        supabase.auth.getSession().then(({ data: { session } }) => {
+            if (session) setUserId(session.user.id);
+        });
+    }, []);
+
+    const { unreadCount } = useNotifications(userId);
 
     const handleLogout = async () => {
         await supabase.auth.signOut();
@@ -130,6 +140,25 @@ const MerchantLayout = ({ children, activeTab, title }: { children: React.ReactN
                 </div>
 
                 <nav className="flex-1 space-y-2">
+                    <Link
+                        to="/notifications"
+                        title={isCollapsed ? "Notificações" : ''}
+                        className={`flex items-center gap-3 px-4 py-3.5 rounded-2xl transition-all group mb-4 ${activeTab === 'notifications'
+                            ? 'bg-primary text-background-dark shadow-lg shadow-primary/20'
+                            : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-white/5 hover:text-slate-900 dark:hover:text-white'
+                            } ${isCollapsed ? 'justify-center px-0' : ''}`}
+                    >
+                        <div className="relative flex items-center justify-center">
+                            <MaterialIcon name="notifications" className={activeTab === 'notifications' ? "" : "group-hover:scale-110 transition-transform"} />
+                            {unreadCount > 0 && (
+                                <span className={`absolute -top-1.5 -right-1.5 size-4 bg-red-500 rounded-full flex items-center justify-center text-[9px] font-black border border-white dark:border-zinc-800 animate-pulse text-white`}>
+                                    {unreadCount}
+                                </span>
+                            )}
+                        </div>
+                        {!isCollapsed && <span className="font-bold text-sm tracking-wide whitespace-nowrap overflow-hidden">Notificações</span>}
+                    </Link>
+
                     {navItems.map((item) => (
                         <Link
                             key={item.id}
@@ -176,9 +205,19 @@ const MerchantLayout = ({ children, activeTab, title }: { children: React.ReactN
                         </div>
                         <span className="font-black italic text-slate-900 dark:text-white">{title || 'Painel'}</span>
                     </div>
-                    <button className="size-10 flex items-center justify-center bg-slate-100 dark:bg-white/5 rounded-full">
-                        <MaterialIcon name="menu" />
-                    </button>
+                    <div className="flex items-center gap-3">
+                        <Link to="/notifications" className="relative size-10 flex items-center justify-center bg-slate-100 dark:bg-white/5 rounded-full">
+                            <MaterialIcon name="notifications" />
+                            {unreadCount > 0 && (
+                                <span className="absolute -top-1 -right-1 size-5 bg-red-500 rounded-full flex items-center justify-center text-[10px] font-black border-2 border-white dark:border-zinc-800 animate-pulse text-white">
+                                    {unreadCount}
+                                </span>
+                            )}
+                        </Link>
+                        <button className="size-10 flex items-center justify-center bg-slate-100 dark:bg-white/5 rounded-full">
+                            <MaterialIcon name="menu" />
+                        </button>
+                    </div>
                 </header>
 
                 <main className="flex-1 p-4 md:p-8 pb-32 md:pb-8 overflow-hidden">

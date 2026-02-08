@@ -1,6 +1,6 @@
 import { useRef, useCallback, useEffect } from 'react';
 
-type SoundType = 'new_order' | 'horn' | 'success' | 'voice';
+type SoundType = 'new_order' | 'horn' | 'success' | 'voice' | 'message';
 
 export const useAudio = () => {
     const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -71,6 +71,9 @@ export const useAudio = () => {
                         break;
                     case 'horn':
                         src = 'https://assets.mixkit.co/active_storage/sfx/1271/1271-preview.mp3';
+                        break;
+                    case 'message':
+                        src = 'https://assets.mixkit.co/active_storage/sfx/2571/2571-preview.mp3';
                         break;
                     case 'success':
                         src = 'https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3'; // Default pleasant ding

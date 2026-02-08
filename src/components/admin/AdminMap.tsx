@@ -78,18 +78,43 @@ const AdminMap = ({
 
     const [mapInstance, setMapInstance] = useState<google.maps.Map | null>(null);
 
-    // Auto-center logic
+    // 2.0: Melhores Bounds para o Painel Administrativo
     useEffect(() => {
-        if (!mapInstance || !autoCenter) return;
+        if (!mapInstance || !autoCenter || !(window as any).google) return;
 
-        // Prioritize centering on the first fleet item (motoboy)
+        const google = (window as any).google;
+        const bounds = new google.maps.LatLngBounds();
+        let hasContent = false;
+
+        // Adicionar motoboys aos limites
         if (fleet.length > 0) {
-            const mob = fleet[0];
-            mapInstance.panTo({ lat: mob.lat, lng: mob.lng });
+            fleet.forEach(mob => {
+                if (mob.lat && mob.lng) {
+                    bounds.extend({ lat: mob.lat, lng: mob.lng });
+                    hasContent = true;
+                }
+            });
         }
-        // Fallback: Center on first marker if no fleet
-        else if (markers.length > 0) {
-            mapInstance.panTo({ lat: markers[0].lat, lng: markers[0].lng });
+
+        // Adicionar marcadores aos limites
+        if (markers.length > 0) {
+            markers.forEach(m => {
+                if (m.lat && m.lng) {
+                    bounds.extend({ lat: m.lat, lng: m.lng });
+                    hasContent = true;
+                }
+            });
+        }
+
+        if (hasContent) {
+            // Ajusta o mapa para ver tudo com um padding confortável
+            mapInstance.fitBounds(bounds, { top: 50, bottom: 50, left: 50, right: 50 });
+
+            // Evita zoom exagerado se houver apenas um ponto
+            const listener = google.maps.event.addListener(mapInstance, 'idle', () => {
+                if (mapInstance.getZoom()! > 16) mapInstance.setZoom(16);
+                google.maps.event.removeListener(listener);
+            });
         }
     }, [mapInstance, autoCenter, fleet, markers]);
 
@@ -102,7 +127,7 @@ const AdminMap = ({
     }, [data, type, isLoaded]);
 
     const mapOptions = useMemo(() => ({
-        styles: theme === 'dark' ? darkMapStyle : [], // Use empty array for default Google Maps (Light)
+        styles: theme === 'dark' ? darkMapStyle : [],
         disableDefaultUI: true,
         zoomControl: true,
     }), [theme]);
@@ -158,9 +183,10 @@ const AdminMap = ({
                     path={p.path}
                     options={{
                         strokeColor: p.color || "#13ec6d",
-                        strokeOpacity: 0.8,
-                        strokeWeight: 4,
-                        geodesic: true
+                        strokeOpacity: 0.9,
+                        strokeWeight: 6,
+                        geodesic: true,
+                        zIndex: 100
                     }}
                 />
             ))}
@@ -173,11 +199,11 @@ const AdminMap = ({
                     onClick={() => onMarkerClick?.(m.id, m.type, m.orderId)}
                     icon={{
                         url: m.type === 'pharmacy'
-                            ? 'https://cdn-icons-png.flaticon.com/512/3063/3063822.png'
+                            ? 'https://img.icons8.com/3d-fluency/94/pharmacy-shop.png'
                             : m.type === 'user'
-                                ? 'https://cdn-icons-png.flaticon.com/512/1144/1144760.png'
-                                : 'https://cdn-icons-png.flaticon.com/512/1047/1047711.png',
-                        scaledSize: new google.maps.Size(30, 30)
+                                ? 'https://img.icons8.com/3d-fluency/94/home-address.png'
+                                : 'https://img.icons8.com/3d-fluency/94/pill.png',
+                        scaledSize: new google.maps.Size(32, 32) // Reduced size 40 -> 32
                     }}
                 />
             ))}
@@ -197,7 +223,6 @@ const AdminMap = ({
 // Componente interno para gerenciar a suavização de um único motoboy
 const SmoothedMarker = ({ mob, onClick }: { mob: any, onClick: () => void }) => {
     const [pos, setPos] = useState({ lat: mob.lat, lng: mob.lng });
-    const prevPos = useRef({ lat: mob.lat, lng: mob.lng });
     const targetPos = useRef({ lat: mob.lat, lng: mob.lng });
     const requestRef = useRef<number>(null as any);
 
@@ -211,7 +236,6 @@ const SmoothedMarker = ({ mob, onClick }: { mob: any, onClick: () => void }) => 
             const newLat = lerp(current.lat, targetPos.current.lat, 0.1);
             const newLng = lerp(current.lng, targetPos.current.lng, 0.1);
 
-            // Para a animação se estiver muito perto do alvo
             if (Math.abs(newLat - targetPos.current.lat) < 0.00001 && Math.abs(newLng - targetPos.current.lng) < 0.00001) {
                 return targetPos.current;
             }
@@ -233,14 +257,11 @@ const SmoothedMarker = ({ mob, onClick }: { mob: any, onClick: () => void }) => 
             position={pos}
             onClick={onClick}
             icon={{
-                path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW,
-                scale: 6,
-                fillColor: "#13ec6d",
-                fillOpacity: 1,
-                strokeWeight: 2,
-                strokeColor: "#ffffff",
-                rotation: mob.bearing || 0,
+                url: 'https://img.icons8.com/3d-fluency/94/motorcycle.png',
+                scaledSize: new google.maps.Size(42, 42), // Reduced size 55 -> 42
+                anchor: new google.maps.Point(21, 21)
             }}
+            zIndex={200}
             options={{ optimized: false }}
         />
     );

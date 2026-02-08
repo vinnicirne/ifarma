@@ -28,13 +28,22 @@ serve(async (req) => {
                 icon: '/icon.png',
                 badge: '/badge.png',
                 click_action: data?.url || '/',
-                tag: data?.orderId || 'notification'
+                tag: data?.orderId || 'notification',
+                android_channel_id: 'chat_bibi_channel',
+                sound: 'bi_bi.mp3'
             },
             data: {
                 ...data,
                 timestamp: new Date().toISOString()
             },
             priority: 'high',
+            android: {
+                priority: 'high',
+                notification: {
+                    channel_id: 'chat_bibi_channel',
+                    sound: 'bi_bi'
+                }
+            },
             time_to_live: 86400 // 24 horas
         }
 

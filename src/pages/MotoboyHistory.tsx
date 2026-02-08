@@ -23,7 +23,7 @@ const MotoboyHistory = () => {
 
             const { data, error } = await supabase
                 .from('orders')
-                .select('*, pharmacies(name)')
+                .select('*, pharmacies!pharmacy_id(name)')
                 .eq('motoboy_id', user.id)
                 .eq('status', 'entregue')
                 .order('created_at', { ascending: false })
@@ -98,7 +98,7 @@ const MotoboyHistory = () => {
                                 </div>
                                 <div className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
                                     <MaterialIcon name="store" className="text-sm" />
-                                    <span className="truncate">{delivery.pharmacies?.name}</span>
+                                    <span className="truncate">{(delivery.pharmacies as any)?.name || 'Farmácia'}</span>
                                 </div>
                                 <div className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
                                     <MaterialIcon name="location_on" className="text-sm text-red-500" />

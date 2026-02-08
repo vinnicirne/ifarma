@@ -18,15 +18,21 @@ const MotoboyDeliveryConfirm = () => {
 
     // Obter usuário e posição atual
     useEffect(() => {
+        let mounted = true;
         supabase.auth.getUser()
             .then(({ data, error }) => {
-                if (error) throw error;
-                setUserId(data.user?.id || null);
+                if (mounted) {
+                    if (error) throw error;
+                    setUserId(data.user?.id || null);
+                }
             })
             .catch(err => {
-                console.error("Auth Error:", err);
-                setInitError("Falha na autenticação. Tente novamente.");
+                if (mounted) {
+                    console.error("Auth Error:", err);
+                    setInitError("Falha na autenticação. Tente novamente.");
+                }
             });
+        return () => { mounted = false; };
     }, []);
 
     // Safe Geolocation Hook Usage
@@ -75,6 +81,17 @@ const MotoboyDeliveryConfirm = () => {
                 .eq('id', orderId);
 
             if (error) throw error;
+
+            // Sucesso: Limpar do localStorage para não travar na tela de delivery
+            try {
+                const saved = localStorage.getItem('ifarma_accepted_orders');
+                if (saved) {
+                    const orders = JSON.parse(saved);
+                    const updated = orders.filter((id: string) => id !== orderId);
+                    localStorage.setItem('ifarma_accepted_orders', JSON.stringify(updated));
+                }
+            } catch (e) { console.warn("Erro ao limpar cache local:", e); }
+
             setShowSuccess(true);
         } catch (error: any) {
             console.error(error);

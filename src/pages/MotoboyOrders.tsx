@@ -29,29 +29,11 @@ const MotoboyOrders = () => {
 
         fetchOrders();
 
-        const channel = supabase
-            .channel(`motoboy_orders_list_${userId}`)
-            .on(
-                'postgres_changes',
-                {
-                    event: 'UPDATE', // Listen specifically for updates
-                    schema: 'public',
-                    table: 'orders',
-                    filter: `motoboy_id=eq.${userId}`
-                },
-                (payload: any) => {
-                    // Only alert if it's a relevant status change or assignment
-                    if (payload.new && ['pronto_entrega', 'em_rota'].includes(payload.new.status)) {
-                        playAudio('new_order');
-                    }
-                    fetchOrders();
-                }
-            )
-            .subscribe();
+        // REMOVIDO: O hook useMotoboyQueue (Dashboard) já cuida dos sons de notificação globais.
+        // Ter dois canais de Realtime abertos aqui estava causando sons 'embolados' (eco).
+        fetchOrders();
 
-        return () => {
-            supabase.removeChannel(channel);
-        };
+        return () => { };
     }, [userId]);
 
     const fetchOrders = async () => {
@@ -60,7 +42,7 @@ const MotoboyOrders = () => {
                 .from('orders')
                 .select('*, pharmacies(name, address)')
                 .eq('motoboy_id', userId)
-                .in('status', ['pendente', 'preparando', 'pronto_entrega', 'retirado', 'em_rota'])
+                .in('status', ['pendente', 'aceito', 'preparando', 'pronto_entrega', 'aguardando_retirada', 'retirado', 'em_rota'])
                 .order('created_at', { ascending: false });
 
             if (error) throw error;

@@ -36,10 +36,10 @@ const MotoboyLogin = () => {
     };
 
     return (
-        <div className="relative flex min-h-screen w-full flex-col bg-background-light dark:bg-background-dark overflow-x-hidden font-display text-white transition-colors duration-200">
+        <div className="relative flex min-h-screen w-full flex-col bg-slate-50 dark:bg-slate-950 overflow-x-hidden font-display transition-colors duration-200">
             {/* Header / Top Bar */}
-            <div className="flex items-center bg-background-light dark:bg-background-dark p-4 pb-2 justify-between">
-                <h2 className="text-slate-900 dark:text-white text-lg font-bold leading-tight tracking-[-0.015em] flex-1 text-center">Login do Motoboy</h2>
+            <div className="flex items-center bg-slate-50 dark:bg-slate-950 p-4 pb-2 justify-between border-b border-slate-200 dark:border-slate-800">
+                <h2 className="text-slate-900 dark:text-white text-lg font-bold leading-tight tracking-[-0.015em] flex-1 text-center font-black italic italic">LOGIN DO MOTOBOY</h2>
             </div>
 
             <div className="flex flex-col flex-1 px-6 pt-4 max-w-md mx-auto w-full">

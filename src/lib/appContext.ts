@@ -2,6 +2,7 @@ import { Capacitor } from '@capacitor/core';
 import { App } from '@capacitor/app';
 
 let internalAppId: string = 'web';
+let internalAppName: string = 'Ifarma';
 
 /**
  * Inicializa o contexto do app buscando o ID nativo
@@ -16,7 +17,8 @@ export const initAppContext = async () => {
     try {
         const info = await App.getInfo();
         internalAppId = info.id;
-        console.log('App Context Inicializado:', internalAppId);
+        internalAppName = info.name;
+        console.log('App Context Inicializado:', { id: internalAppId, name: internalAppName });
     } catch (e) {
         console.error('Erro ao buscar App Info:', e);
         internalAppId = 'web';
@@ -28,17 +30,18 @@ export const initAppContext = async () => {
  * @returns 'cliente' | 'motoboy' | 'farmacia' | 'web'
  */
 export const getAppContext = (): 'cliente' | 'motoboy' | 'farmacia' | 'web' => {
-    // Mapeia App ID para contexto
-    switch (internalAppId) {
-        case 'com.ifarma.cliente':
-            return 'cliente';
-        case 'com.ifarma.motoboy':
-            return 'motoboy';
-        case 'com.ifarma.farmacia':
-            return 'farmacia';
-        default:
-            return 'web';
-    }
+    // 1. Check by ID (Primary)
+    if (internalAppId === 'com.ifarma.motoboy') return 'motoboy';
+    if (internalAppId === 'com.ifarma.farmacia') return 'farmacia';
+    if (internalAppId === 'com.ifarma.cliente') return 'cliente';
+
+    // 2. Check by Name (Fallback)
+    if (internalAppName === 'Entregador Ifarma') return 'motoboy';
+    if (internalAppName === 'Gestor Ifarma') return 'farmacia';
+    if (internalAppName === 'Ifarma' && internalAppId !== 'com.ifarma.app') return 'cliente'; // If strict ID match fails but name is generic
+
+    // 3. Fallback based on web/default
+    return 'web';
 };
 
 /**
