@@ -30,21 +30,24 @@ android {
             dimension "version"
             applicationId "com.ifarma.cliente"
             resValue "string", "app_name", "Ifarma"
+            resValue "string", "title_activity_main", "Ifarma"
             manifestPlaceholders = [appName: "Ifarma"]
         }
         
         motoboy {
             dimension "version"
             applicationId "com.ifarma.motoboy"
-            resValue "string", "app_name", "Entregador Ifarma"
-            manifestPlaceholders = [appName: "Entregador Ifarma"]
+            resValue "string", "app_name", "Motoboy"
+            resValue "string", "title_activity_main", "Motoboy"
+            manifestPlaceholders = [appName: "Motoboy"]
         }
         
         farmacia {
             dimension "version"
             applicationId "com.ifarma.farmacia"
-            resValue "string", "app_name", "Gestor Ifarma"
-            manifestPlaceholders = [appName: "Gestor Ifarma"]
+            resValue "string", "app_name", "Gestor"
+            resValue "string", "title_activity_main", "Gestor"
+            manifestPlaceholders = [appName: "Gestor"]
         }
     }
 
