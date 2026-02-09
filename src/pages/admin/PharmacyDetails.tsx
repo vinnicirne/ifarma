@@ -115,11 +115,12 @@ const PharmacyDetails = () => {
         rating: '5.0',
         is_open: true,
         plan: 'Gratuito',
-        status: 'Aprovado',
+        status: 'Aprovado', // Manter como string inicialmente para compatibilidade com UI
         cnpj: '',
         owner_name: '',
         owner_phone: '',
         owner_email: '',
+        phone: '', // Adicionado para corrigir erro de TS no handleSave
         establishment_phone: '',
         merchant_email: '',
         merchant_password: '',
@@ -388,7 +389,7 @@ const PharmacyDetails = () => {
             phone: formData.establishment_phone || formData.phone, // Prioriza establishment_phone
             establishment_phone: formData.establishment_phone,
             is_open: formData.is_open,
-            status: formData.status === 'active' || formData.status === 'true' || formData.status === true, // Garantir boolean
+            status: (formData.status as any) === 'active' || (formData.status as any) === 'true' || (formData.status as any) === true || (formData.status as any) === 'Aprovado', // Garantir boolean (com cast any para evitar erro TS)
             plan: formData.plan,
             rating: parseFloat(formData.rating) || 5.0,
             // Mídia
