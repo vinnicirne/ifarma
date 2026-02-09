@@ -1,25 +1,53 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
-const FIREBASE_SERVER_KEY = Deno.env.get('FIREBASE_SERVER_KEY')!
-const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
-const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+console.log("Hello from Functions!")
 
-const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+export const corsHeaders = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+}
 
 serve(async (req) => {
+    // Handle CORS preflight requests
+    if (req.method === 'OPTIONS') {
+        return new Response('ok', { headers: corsHeaders })
+    }
+
     try {
-        // Parse request body
         const { tokens, title, body, data } = await req.json()
+        const supabaseClient = createClient(
+            // Supabase API URL - env var exported by default.
+            Deno.env.get('SUPABASE_URL') ?? '',
+            // Supabase API ANON KEY - env var exported by default.
+            Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+            // Create client with Auth context of the user that called the function.
+            // This way your row-level-security (RLS) policies are applied.
+            { global: { headers: { Authorization: req.headers.get('Authorization')! } } }
+        )
+
+        // Create a Supabase client with the SERVICE ROLE key to access device_tokens and delete invalid ones
+        // We need service role because normal users shouldn't delete other users' tokens directly, 
+        // but this system function needs to clean up.
+        const supabaseAdmin = createClient(
+            Deno.env.get('SUPABASE_URL') ?? '',
+            Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+        )
 
         if (!tokens || tokens.length === 0) {
             return new Response(
                 JSON.stringify({ error: 'Nenhum token fornecido' }),
-                { status: 400, headers: { 'Content-Type': 'application/json' } }
+                {
+                    status: 400,
+                    headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+                }
             )
         }
 
-        // Preparar mensagem FCM
+        const FIREBASE_SERVER_KEY = Deno.env.get('FIREBASE_SERVER_KEY')!
+
+        // Preparar mensagem FCM (Legacy API)
+        // Nota: O ideal seria migrar para V1 HTTP API, mas vamos manter compatibilidade por enquanto
         const message = {
             registration_ids: tokens,
             notification: {
@@ -47,10 +75,9 @@ serve(async (req) => {
             time_to_live: 86400 // 24 horas
         }
 
-        console.log('Enviando notificação FCM:', message)
+        // console.log('Enviando para FCM com chave:', FIREBASE_SERVER_KEY ? 'Sim' : 'Não')
 
-        // Enviar para Firebase Cloud Messaging
-        const response = await fetch('https://fcm.googleapis.com/fcm/send', {
+        const fcmResponse = await fetch('https://fcm.googleapis.com/fcm/send', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -59,9 +86,8 @@ serve(async (req) => {
             body: JSON.stringify(message)
         })
 
-        const result = await response.json()
-
-        console.log('Resposta FCM:', result)
+        const result = await fcmResponse.json()
+        console.log('FCM Response:', result)
 
         // Verificar tokens inválidos e removê-los
         if (result.results) {
@@ -75,38 +101,29 @@ serve(async (req) => {
 
             // Remover tokens inválidos do banco
             if (invalidTokens.length > 0) {
-                await supabase
+                await supabaseAdmin
                     .from('device_tokens')
                     .delete()
                     .in('token', invalidTokens)
 
-                console.log('Tokens inválidos removidos:', invalidTokens.length)
+                console.log('Limpeza: Tokens inválidos removidos:', invalidTokens.length)
             }
         }
 
         return new Response(
-            JSON.stringify({
-                success: true,
-                result,
-                invalidTokensRemoved: result.failure || 0
-            }),
+            JSON.stringify(result),
             {
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' },
                 status: 200,
-                headers: { 'Content-Type': 'application/json' }
-            }
+            },
         )
     } catch (error) {
-        console.error('Erro ao enviar notificação:', error)
-
         return new Response(
-            JSON.stringify({
-                error: error.message,
-                details: error.toString()
-            }),
+            JSON.stringify({ error: error.message }),
             {
-                status: 500,
-                headers: { 'Content-Type': 'application/json' }
-            }
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+                status: 400,
+            },
         )
     }
 })
