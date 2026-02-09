@@ -61,7 +61,12 @@ const StoreCustomization = () => {
     const fetchPharmacyData = async () => {
         try {
             const { data: { user } } = await supabase.auth.getUser();
-            if (!user) return;
+            if (!user) {
+                console.error("fetchPharmacyData: Usuário não autenticado");
+                return;
+            }
+
+            console.log("fetchPharmacyData: Iniciando busca para user:", user.id, user.email);
 
             // Check for impersonation
             const impersonatedId = localStorage.getItem('impersonatedPharmacyId');
@@ -69,24 +74,32 @@ const StoreCustomization = () => {
             let pharmacyId = null;
 
             if (impersonatedId && user.email === 'admin@ifarma.com.br') {
-                // Admin impersonating
+                console.log("fetchPharmacyData: Admin impersonating:", impersonatedId);
                 pharmacyId = impersonatedId;
             } else {
+                console.log("fetchPharmacyData: Buscando pharmacy_id no perfil...");
                 // Regular user - get pharmacy_id from profile
-                const { data: profile } = await supabase
+                const { data: profile, error: profileError } = await supabase
                     .from('profiles')
                     .select('pharmacy_id')
                     .eq('id', user.id)
                     .single();
 
+                if (profileError) {
+                    console.error("fetchPharmacyData: Erro ao buscar perfil:", profileError);
+                }
+
+                console.log("fetchPharmacyData: Perfil encontrado:", profile);
                 pharmacyId = profile?.pharmacy_id;
             }
 
             if (!pharmacyId) {
-                console.error('No pharmacy_id found for user');
+                console.error('fetchPharmacyData: Nenhum pharmacy_id encontrado para este usuário.');
                 setLoading(false);
                 return;
             }
+
+            console.log("fetchPharmacyData: Buscando dados da farmácia ID:", pharmacyId);
 
             const { data, error } = await supabase
                 .from('pharmacies')
@@ -94,7 +107,12 @@ const StoreCustomization = () => {
                 .eq('id', pharmacyId)
                 .single();
 
-            if (error) throw error;
+            if (error) {
+                console.error("fetchPharmacyData: Erro ao buscar dados da farmácia:", error);
+                throw error;
+            }
+
+            console.log("fetchPharmacyData: Dados da farmácia carregados com sucesso:", data ? "SIM" : "NÃO");
 
             if (data) {
                 setPharmacy(data);
@@ -200,7 +218,12 @@ const StoreCustomization = () => {
     };
 
     const handleSave = async () => {
-        if (!pharmacy) return;
+        if (!pharmacy) {
+            console.error("handleSave: Objeto pharmacy é null ou undefined - impossível salvar.");
+            return;
+        }
+
+        console.log("handleSave: Iniciando salvamento das configurações para pharmacy ID:", pharmacy.id);
         setSaving(true);
 
         const fullAddress = `${street}, ${number} - ${neighborhood}, ${city} - ${state}`;
@@ -247,11 +270,16 @@ const StoreCustomization = () => {
                 })
                 .eq('id', pharmacy.id);
 
-            if (error) throw error;
-            alert('Dados salvos com sucesso! 💾');
-        } catch (error: any) {
-            console.error("Error saving:", error);
-            alert('Erro ao salvar: ' + error.message);
+            if (error) {
+                console.error("handleSave: Erro retornado pelo supabase:", error);
+                throw error;
+            }
+
+            console.log("handleSave: Configurações salvas com sucesso!");
+            alert("Configurações salvas com sucesso!");
+        } catch (error) {
+            console.error("handleSave: Exception ao salvar:", error);
+            alert("Erro ao salvar configurações. Verifique o console.");
         } finally {
             setSaving(false);
         }
