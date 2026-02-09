@@ -89,7 +89,7 @@ const MerchantLayout = ({ children, activeTab, title }: { children: React.ReactN
     }, []);
 
     // REALTIME SYNC: Sincroniza status instantaneamente quando alterado em outra tela
-    useEffect(() => {
+    React.useEffect(() => {
         let channel: any = null;
 
         const syncStatus = async () => {
