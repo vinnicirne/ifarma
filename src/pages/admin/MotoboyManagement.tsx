@@ -230,6 +230,80 @@ export const MotoboyManagement = ({ profile }: { profile: any }) => {
         }
     };
 
+    // Contract Management State
+    const [showContractModal, setShowContractModal] = useState(false);
+    const [selectedMotoboy, setSelectedMotoboy] = useState<any>(null);
+    const [contractData, setContractData] = useState({
+        delivery_fee: 0,
+        fixed_salary: 0,
+        daily_rate: 0,
+        productivity_goal: 0,
+        productivity_bonus: 0
+    });
+
+    const openContractModal = async (boy: any) => {
+        if (!boy.pharmacy_id) {
+            alert('Este motoboy não está vinculado a nenhuma farmácia.');
+            return;
+        }
+
+        setSelectedMotoboy(boy);
+        setContractData({
+            delivery_fee: 0,
+            fixed_salary: 0,
+            daily_rate: 0,
+            productivity_goal: 0,
+            productivity_bonus: 0
+        });
+
+        // Fetch existing contract using the motoboy's pharmacy
+        const { data: contract } = await supabase
+            .from('courier_contracts')
+            .select('*')
+            .eq('courier_id', boy.id)
+            .eq('pharmacy_id', boy.pharmacy_id)
+            .single();
+
+        if (contract) {
+            setContractData({
+                delivery_fee: contract.delivery_fee || 0,
+                fixed_salary: contract.fixed_salary || 0,
+                daily_rate: contract.daily_rate || 0,
+                productivity_goal: contract.productivity_goal || 0,
+                productivity_bonus: contract.productivity_bonus || 0
+            });
+        }
+        setShowContractModal(true);
+    };
+
+    const handleSaveContract = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!selectedMotoboy || !selectedMotoboy.pharmacy_id) return;
+
+        setSaving(true);
+        try {
+            const { error } = await supabase
+                .from('courier_contracts')
+                .upsert({
+                    courier_id: selectedMotoboy.id,
+                    pharmacy_id: selectedMotoboy.pharmacy_id,
+                    ...contractData,
+                    updated_at: new Date().toISOString()
+                }, { onConflict: 'courier_id, pharmacy_id' });
+
+            if (error) throw error;
+
+            alert('Contrato atualizado com sucesso (Admin)!');
+            setShowContractModal(false);
+            fetchData();
+        } catch (error: any) {
+            console.error('Error saving contract:', error);
+            alert('Erro ao salvar contrato: ' + error.message);
+        } finally {
+            setSaving(false);
+        }
+    };
+
     return (
         <div className="flex flex-col gap-6">
             <header className="sticky top-0 z-30 bg-background-light/80 dark:bg-background-dark/80 backdrop-blur-md border-b border-slate-200 dark:border-white/10 -mx-8 px-8 flex items-center justify-between p-5">
