@@ -26,8 +26,6 @@ export const SystemSettings = ({ profile }: { profile: any }) => {
                     'global_percentage_fee': 'global_perc_fee',
                     'mp_public_key': 'mp_pub_key',
                     'mp_access_token': 'mp_acc_token',
-                    'mp_public_key': 'mp_pub_key',
-                    'mp_access_token': 'mp_acc_token',
                     'asaas_api_key': 'asaas_key',
                     'admob_enabled': 'admob_enabled',
                     'admob_app_id_android': 'admob_app_id',

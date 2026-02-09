@@ -21,7 +21,7 @@ export const AdMobBanner = () => {
                 await AdMob.showBanner({
                     adId: unitId,
                     adSize: BannerAdSize.ADAPTIVE_BANNER,
-                    position: BannerAdPosition.BOTTOM,
+                    position: BannerAdPosition.BOTTOM_CENTER,
                     margin: 60, // Avoid overlapping bottom nav if present
                     isTesting: true // Always use test mode during dev to avoid ban
                 });

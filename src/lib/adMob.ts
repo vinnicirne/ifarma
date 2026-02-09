@@ -1,4 +1,5 @@
-import { AdMob, BannerAdSize, BannerAdPosition, BannerAdOptions } from '@capacitor-community/admob';
+import { AdMob, BannerAdSize, BannerAdPosition } from '@capacitor-community/admob';
+import type { BannerAdOptions } from '@capacitor-community/admob';
 import { supabase } from './supabase';
 
 let adMobEnabled = false;
@@ -22,10 +23,9 @@ export const initializeAdMob = async () => {
         bannerUnitId = settings['admob_banner_id_android'] || 'ca-app-pub-3940256099942544/6300978111'; // Fallback to test ID
 
         await AdMob.initialize({
-            requestTrackingAuthorization: true,
-            testingDevices: ['2077ef9a63d2b398840261c8221a0c9b'], // Add test devices if needed
-            initializeForTagForChildDirectedTreatment: false,
-            initializeForTagForUnderAgeOfConsent: false,
+            testingDevices: ['2077ef9a63d2b398840261c8221a0c9b'],
+            tagForChildDirectedTreatment: false,
+            tagForUnderAgeOfConsent: false,
         });
 
         console.log('✅ AdMob Initialized');
@@ -42,7 +42,7 @@ export const showBanner = async () => {
         const options: BannerAdOptions = {
             adId: bannerUnitId,
             adSize: BannerAdSize.ADAPTIVE_BANNER,
-            position: BannerAdPosition.BOTTOM,
+            position: BannerAdPosition.BOTTOM_CENTER,
             margin: 0,
             isTesting: true // npa?
             // isTesting: true means it will use test ads even if ID is real? No, mostly uses test ID.
