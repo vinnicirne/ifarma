@@ -159,8 +159,15 @@ const MerchantLayout = ({ children, activeTab, title }: { children: React.ReactN
                                             if (impersonatedId && user.email === 'admin@ifarma.com.br') {
                                                 pharmacyId = impersonatedId;
                                             } else {
-                                                const { data: profile } = await supabase.from('profiles').select('pharmacy_id').eq('id', user.id).single();
-                                                pharmacyId = profile?.pharmacy_id;
+                                                // 1. Check Owner
+                                                const { data: owned } = await supabase.from('pharmacies').select('id').eq('owner_id', user.id).maybeSingle();
+                                                if (owned) {
+                                                    pharmacyId = owned.id;
+                                                } else {
+                                                    // 2. Check Staff
+                                                    const { data: profile } = await supabase.from('profiles').select('pharmacy_id').eq('id', user.id).single();
+                                                    pharmacyId = profile?.pharmacy_id;
+                                                }
                                             }
 
                                             if (!pharmacyId) throw new Error("Farmácia não encontrada");

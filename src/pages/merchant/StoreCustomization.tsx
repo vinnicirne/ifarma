@@ -77,29 +77,37 @@ const StoreCustomization = () => {
                 console.log("fetchPharmacyData: Admin impersonating:", impersonatedId);
                 pharmacyId = impersonatedId;
             } else {
-                console.log("fetchPharmacyData: Buscando pharmacy_id no perfil...");
-                // Regular user - get pharmacy_id from profile
-                const { data: profile, error: profileError } = await supabase
-                    .from('profiles')
-                    .select('pharmacy_id')
-                    .eq('id', user.id)
-                    .single();
+                console.log("fetchPharmacyData: Verificando se usuário é DONO...");
+                // 1. Tentar encontrar farmácia onde usuário é DONO
+                const { data: ownedPharmacy } = await supabase
+                    .from('pharmacies')
+                    .select('id')
+                    .eq('owner_id', user.id)
+                    .maybeSingle();
 
-                if (profileError) {
-                    console.error("fetchPharmacyData: Erro ao buscar perfil:", profileError);
+                if (ownedPharmacy) {
+                    console.log("fetchPharmacyData: Usuário é DONO da farmácia:", ownedPharmacy.id);
+                    pharmacyId = ownedPharmacy.id;
+                } else {
+                    console.log("fetchPharmacyData: Usuário não é dono. Buscando pharmacy_id no perfil (Funcionário)...");
+                    // 2. Se não for dono, buscar link no perfil (Staff/Manager)
+                    const { data: profile } = await supabase
+                        .from('profiles')
+                        .select('pharmacy_id')
+                        .eq('id', user.id)
+                        .single();
+
+                    pharmacyId = profile?.pharmacy_id;
                 }
-
-                console.log("fetchPharmacyData: Perfil encontrado:", profile);
-                pharmacyId = profile?.pharmacy_id;
             }
 
             if (!pharmacyId) {
-                console.error('fetchPharmacyData: Nenhum pharmacy_id encontrado para este usuário.');
+                console.error('fetchPharmacyData: CRÍTICO - Nenhuma farmácia encontrada (nem como dono, nem como staff).');
                 setLoading(false);
                 return;
             }
 
-            console.log("fetchPharmacyData: Buscando dados da farmácia ID:", pharmacyId);
+            console.log("fetchPharmacyData: ID Final da Farmácia:", pharmacyId);
 
             const { data, error } = await supabase
                 .from('pharmacies')
