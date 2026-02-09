@@ -185,15 +185,15 @@ const NearbyPharmacies = ({ pharmacies }: { pharmacies: any[] }) => (
                 })();
 
                 return (
-                    <Link to={`/pharmacy/${pharma.id}`} key={pharma.id} className={`flex gap-4 p-4 rounded-xl border transition-all ${!isOpen
-                        ? 'bg-slate-50/50 grayscale opacity-80 border-slate-100 dark:border-slate-800'
-                        : 'bg-white dark:bg-slate-900/30 border-slate-100 dark:border-slate-800 shadow-sm hover:border-primary/30'
-                        } items-start`}>
-                        <div className="size-16 rounded-lg bg-slate-50 dark:bg-slate-800 flex items-center justify-center shrink-0 border border-slate-100 dark:border-slate-700 overflow-hidden">
+                    <Link to={`/pharmacy/${pharma.id}`} key={pharma.id} className={`flex gap-3 p-3 rounded-2xl border transition-all ${!isOpen
+                        ? 'bg-transparent grayscale opacity-60 border-slate-100 dark:border-white/5'
+                        : 'bg-transparent border-slate-100 dark:border-white/5 hover:border-primary/30 hover:bg-slate-50 dark:hover:bg-white/5'
+                        } items-center`}>
+                        <div className="size-12 rounded-xl bg-white dark:bg-white/5 flex items-center justify-center shrink-0 border border-slate-100 dark:border-white/5 overflow-hidden p-1">
                             {pharma.logo_url ? (
-                                <img src={pharma.logo_url} alt={pharma.name} className="w-full h-full object-cover" />
+                                <img src={pharma.logo_url} alt={pharma.name} className="w-full h-full object-contain rounded-lg" />
                             ) : (
-                                <div className="w-full h-full bg-gradient-to-br from-primary/10 to-primary/30 text-primary flex items-center justify-center font-bold text-xl">{pharma.name.charAt(0)}</div>
+                                <div className="w-full h-full bg-primary/10 text-primary flex items-center justify-center font-bold text-lg rounded-lg">{pharma.name.charAt(0)}</div>
                             )}
                         </div>
                         <div className="flex-1 flex flex-col gap-1">
@@ -243,11 +243,11 @@ const NearbyPharmacies = ({ pharmacies }: { pharmacies: any[] }) => (
                                     <MaterialIcon name="star" className="text-[14px]" fill /> {pharma.rating || '0.0'}
                                 </div>
                             </div>
-                            <div className="flex items-center gap-3 text-xs text-slate-500 dark:text-slate-400">
-                                <span className="flex items-center gap-1"><MaterialIcon name="schedule" className="text-[14px]" /> 20-30 min</span>
+                            <div className="flex items-center gap-3 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide">
+                                <span className="flex items-center gap-1"><MaterialIcon name="schedule" className="text-[12px]" /> 20-30 min</span>
                                 <span>•</span>
                                 <span className="flex items-center gap-1">
-                                    <MaterialIcon name="location_on" className="text-[14px]" />
+                                    <MaterialIcon name="location_on" className="text-[12px]" />
                                     {pharma.distance === Infinity ? 'N/A' : `${pharma.distance.toFixed(1)} km`}
                                 </span>
                             </div>
