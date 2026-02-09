@@ -156,7 +156,8 @@ const MerchantLayout = ({ children, activeTab, title }: { children: React.ReactN
                                             let pharmacyId = null;
                                             const impersonatedId = localStorage.getItem('impersonatedPharmacyId');
 
-                                            if (impersonatedId && user.email === 'admin@ifarma.com.br') {
+                                            if (impersonatedId) {
+                                                console.log("MerchantLayout: Admin Impersonating:", impersonatedId);
                                                 pharmacyId = impersonatedId;
                                             } else {
                                                 // 1. Check Owner

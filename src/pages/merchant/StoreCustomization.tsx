@@ -73,8 +73,10 @@ const StoreCustomization = () => {
 
             let pharmacyId = null;
 
-            if (impersonatedId && user.email === 'admin@ifarma.com.br') {
-                console.log("fetchPharmacyData: Admin impersonating:", impersonatedId);
+            // Se tiver impersonatedId, assume que é uma ação administrativa legítima
+            // A segurança real deve vir das RLS do banco de dados (Admins can select all)
+            if (impersonatedId) {
+                console.log("fetchPharmacyData: Admin Impersonating Mode:", impersonatedId);
                 pharmacyId = impersonatedId;
             } else {
                 console.log("fetchPharmacyData: Verificando se usuário é DONO...");
