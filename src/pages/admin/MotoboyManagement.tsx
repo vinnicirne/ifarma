@@ -156,75 +156,75 @@ export const MotoboyManagement = ({ profile }: { profile: any }) => {
     };
 
 
-    // Contract Management State
-    const [showContractModal, setShowContractModal] = useState(false);
-    const [selectedMotoboy, setSelectedMotoboy] = useState<any>(null);
-    const [contractData, setContractData] = useState({
-        delivery_fee: 0,
-        fixed_salary: 0,
-        daily_rate: 0,
-        productivity_goal: 0,
-        productivity_bonus: 0
-    });
+    // Transfer/Assign Pharmacy State
+    const [showAssignModal, setShowAssignModal] = useState(false);
+    const [assignData, setAssignData] = useState({ motoboyId: '', pharmacyId: '' });
 
-    const openContractModal = async (boy: any) => {
-        if (!boy.pharmacy_id) {
-            alert('Este motoboy não está vinculado a nenhuma farmácia.');
-            return;
-        }
+    // Edit State
+    const [showEditModal, setShowEditModal] = useState(false);
+    const [editData, setEditData] = useState({ id: '', name: '', phone: '', vehicle_plate: '', vehicle_model: '' });
 
-        setSelectedMotoboy(boy);
-        setContractData({
-            delivery_fee: 0,
-            fixed_salary: 0,
-            daily_rate: 0,
-            productivity_goal: 0,
-            productivity_bonus: 0
+    const handleEdit = (moto: any) => {
+        setEditData({
+            id: moto.id,
+            name: moto.name,
+            phone: moto.phone,
+            vehicle_plate: moto.vehicle_plate === 'N/A' ? '' : moto.vehicle_plate,
+            vehicle_model: moto.vehicle_model === 'N/A' ? '' : moto.vehicle_model
         });
-
-        // Fetch existing contract using the motoboy's pharmacy
-        const { data: contract } = await supabase
-            .from('courier_contracts')
-            .select('*')
-            .eq('courier_id', boy.id)
-            .eq('pharmacy_id', boy.pharmacy_id)
-            .single();
-
-        if (contract) {
-            setContractData({
-                delivery_fee: contract.delivery_fee || 0,
-                fixed_salary: contract.fixed_salary || 0,
-                daily_rate: contract.daily_rate || 0,
-                productivity_goal: contract.productivity_goal || 0,
-                productivity_bonus: contract.productivity_bonus || 0
-            });
-        }
-        setShowContractModal(true);
+        setShowEditModal(true);
     };
 
-    const handleSaveContract = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!selectedMotoboy || !selectedMotoboy.pharmacy_id) return;
-
+    const handleSaveEdit = async () => {
+        if (!editData.name || !editData.phone) return alert('Nome e Telefone obrigatórios');
         setSaving(true);
         try {
-            const { error } = await supabase
-                .from('courier_contracts')
-                .upsert({
-                    courier_id: selectedMotoboy.id,
-                    pharmacy_id: selectedMotoboy.pharmacy_id,
-                    ...contractData,
-                    updated_at: new Date().toISOString()
-                }, { onConflict: 'courier_id, pharmacy_id' });
+            const { error } = await supabase.from('profiles').update({
+                full_name: editData.name,
+                phone: editData.phone
+                // Plate/Model update requires generic update or specific fields if they exist in a separate table.
+                // Assuming basic profile update for now. 
+            }).eq('id', editData.id);
 
             if (error) throw error;
-
-            alert('Contrato atualizado com sucesso (Admin)!');
-            setShowContractModal(false);
+            alert('Dados atualizados!');
+            setShowEditModal(false);
             fetchData();
-        } catch (error: any) {
-            console.error('Error saving contract:', error);
-            alert('Erro ao salvar contrato: ' + error.message);
+        } catch (err: any) {
+            alert('Erro: ' + err.message);
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const handleToggleStatus = async (moto: any) => {
+        const newStatus = !moto.is_active;
+        const action = newStatus ? 'DESBLOQUEAR' : 'BLOQUEAR';
+        if (!confirm(`Deseja realmente ${action} o motoboy ${moto.name}?`)) return;
+
+        const { error } = await supabase.from('profiles').update({ is_active: newStatus }).eq('id', moto.id);
+        if (error) return alert('Erro ao atualizar status');
+        fetchData();
+    };
+
+    const handleAssignPharmacy = (moto: any) => {
+        setAssignData({ motoboyId: moto.id, pharmacyId: moto.pharmacy_id || '' });
+        setShowAssignModal(true);
+    };
+
+    const saveAssignPharmacy = async () => {
+        setSaving(true);
+        try {
+            const { error } = await supabase.from('profiles').update({
+                pharmacy_id: assignData.pharmacyId || null
+            }).eq('id', assignData.motoboyId);
+
+            if (error) throw error;
+            alert('Vínculo de farmácia atualizado!');
+            setShowAssignModal(false);
+            fetchData();
+        } catch (err: any) {
+            alert('Erro: ' + err.message);
         } finally {
             setSaving(false);
         }
@@ -253,7 +253,7 @@ export const MotoboyManagement = ({ profile }: { profile: any }) => {
                         { label: 'Total Motoboys', value: motoboys.length.toString(), icon: 'moped', color: 'primary' },
                         { label: 'Em Entrega', value: motoboys.filter(m => m.status === 'Em Rota').length.toString(), icon: 'local_shipping', color: 'blue-500' },
                         { label: 'Disponíveis', value: motoboys.filter(m => m.status === 'Disponível').length.toString(), icon: 'check_circle', color: 'green-500' },
-                        { label: 'Bloqueados', value: motoboys.filter(m => m.status === 'Bloqueado').length.toString(), icon: 'block', color: 'red-500' }
+                        { label: 'Bloqueados', value: motoboys.filter(m => !m.is_active).length.toString(), icon: 'block', color: 'red-500' }
                     ].map((stat, i) => (
                         <div key={i} className="bg-white dark:bg-[#1a2e23] p-5 rounded-[28px] border border-slate-200 dark:border-white/5 shadow-sm">
                             <div className={`p-3 rounded-2xl bg-${stat.color}/10 text-${stat.color} w-fit mb-3`}>
@@ -265,56 +265,88 @@ export const MotoboyManagement = ({ profile }: { profile: any }) => {
                     ))}
                 </div>
 
-                {/* List Section */}
-                {loading ? (
-                    <div className="py-20 flex justify-center"><div className="animate-spin size-8 border-4 border-primary border-t-transparent rounded-full"></div></div>
-                ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                        {motoboys.map((moto, i) => (
-                            <div key={i} className="bg-white dark:bg-[#1a2e23] rounded-[32px] border border-slate-200 dark:border-white/5 p-6 shadow-md flex flex-col gap-6 group hover:scale-[1.02] transition-all hover:shadow-xl">
-                                <div className="flex items-start gap-4">
-                                    <div className="size-16 rounded-2xl bg-primary/10 text-primary flex items-center justify-center font-black text-xl italic shadow-inner shrink-0 border border-primary/20">
-                                        {moto.name ? moto.name.charAt(0) : 'M'}
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                        <div className="flex justify-between items-start">
-                                            <div>
-                                                <h3 className="font-black text-lg italic truncate leading-tight">{moto.name || 'Sem Nome'}</h3>
-                                                <p className="text-[10px] text-slate-500 dark:text-[#92c9a9] font-bold uppercase tracking-widest mt-1 opacity-70">{moto.phone}</p>
-                                            </div>
-                                            <div className={`px-3 py-1 bg-slate-100 dark:bg-white/5 rounded-full`}>
-                                                <span className={`text-slate-500 dark:text-white text-[8px] font-black uppercase tracking-widest`}>{moto.status || 'Offline'}</span>
-                                            </div>
-                                        </div>
-                                        <div className="mt-3 flex items-center gap-2 text-slate-600 dark:text-gray-300">
-                                            <MaterialIcon name="store" className="text-sm opacity-50" />
-                                            <span className="text-xs font-bold italic truncate">{moto.pharmacy?.name || 'Sem vínculo'}</span>
-                                        </div>
-                                    </div>
-                                    {moto.vehicle_plate && (
-                                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-2">{moto.vehicle_model} • {moto.vehicle_plate}</p>
-                                    )}
-                                </div>
-
-                                <div className="flex gap-2 pt-4 border-t border-slate-50 dark:border-white/5">
-                                    <button
-                                        onClick={() => openContractModal(moto)}
-                                        className="flex-1 flex items-center justify-center gap-2 h-11 bg-slate-100 dark:bg-white/5 hover:bg-primary/20 hover:text-primary rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
-                                    >
-                                        <MaterialIcon name="request_quote" className="text-base" />
-                                        Contrato
-                                    </button>
-                                    <button
-                                        onClick={() => handleDelete(moto.id)}
-                                        className="h-11 w-11 flex items-center justify-center bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white rounded-xl transition-all"
-                                    >
-                                        <MaterialIcon name="delete" className="text-base" />
-                                    </button>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                )}
+                {/* Table Section */}
+                <div className="bg-white dark:bg-[#1a2e23] rounded-[40px] border border-slate-200 dark:border-white/5 overflow-hidden shadow-xl animate-fade-in">
+                    {loading ? (
+                        <div className="p-12 text-center"><div className="animate-spin size-8 border-4 border-primary border-t-transparent rounded-full mx-auto"></div></div>
+                    ) : (
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left">
+                                <thead className="bg-slate-50 dark:bg-black/20 border-b border-slate-200 dark:border-white/5">
+                                    <tr>
+                                        <th className="p-6 text-[10px] font-black uppercase tracking-widest text-[#92c9a9]">Motoboy</th>
+                                        <th className="p-6 text-[10px] font-black uppercase tracking-widest text-[#92c9a9]">Farmácia (Vínculo)</th>
+                                        <th className="p-6 text-[10px] font-black uppercase tracking-widest text-[#92c9a9]">Veículo</th>
+                                        <th className="p-6 text-[10px] font-black uppercase tracking-widest text-[#92c9a9]">Status</th>
+                                        <th className="p-6 text-[10px] font-black uppercase tracking-widest text-[#92c9a9] text-right">Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100 dark:divide-white/5">
+                                    {motoboys.map((moto) => (
+                                        <tr key={moto.id} className="hover:bg-slate-50 dark:hover:bg-white/5 transition-colors group">
+                                            <td className="p-6">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="size-10 rounded-full bg-primary/20 flex items-center justify-center text-primary font-black italic text-sm">
+                                                        {moto.name?.charAt(0)}
+                                                    </div>
+                                                    <div>
+                                                        <div className="font-bold text-slate-700 dark:text-white text-sm">{moto.name}</div>
+                                                        <div className="text-[10px] font-medium text-slate-400 mt-0.5">{moto.phone}</div>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td className="p-6">
+                                                <div className="flex items-center gap-2">
+                                                    <MaterialIcon name="store" className="text-slate-400 text-sm" />
+                                                    <span className={`text-xs font-bold ${moto.pharmacy?.name !== 'Sem farmácia' ? 'text-slate-700 dark:text-slate-200' : 'text-slate-400 italic'}`}>
+                                                        {moto.pharmacy?.name || 'Sem Vínculo'}
+                                                    </span>
+                                                </div>
+                                            </td>
+                                            <td className="p-6 text-xs font-mono text-slate-500">
+                                                {moto.vehicle_plate !== 'N/A' ? (
+                                                    <span className="bg-slate-100 dark:bg-white/10 px-2 py-1 rounded-md">{moto.vehicle_plate}</span>
+                                                ) : <span className="opacity-50">-</span>}
+                                            </td>
+                                            <td className="p-6">
+                                                <div className="flex flex-col gap-1 items-start">
+                                                    <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase ${moto.is_online ? 'bg-green-500/10 text-green-500' : 'bg-slate-500/10 text-slate-500'}`}>
+                                                        {moto.is_online ? 'Online' : 'Offline'}
+                                                    </span>
+                                                    {!moto.is_active && (
+                                                        <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-red-500/10 text-red-500">BLOQUEADO</span>
+                                                    )}
+                                                </div>
+                                            </td>
+                                            <td className="p-6">
+                                                <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    <button onClick={() => handleAssignPharmacy(moto)} title="Trocar Farmácia" className="size-8 rounded-lg bg-blue-500/10 text-blue-500 hover:bg-blue-500 hover:text-white flex items-center justify-center transition-colors">
+                                                        <MaterialIcon name="swap_horiz" className="text-base" />
+                                                    </button>
+                                                    <button onClick={() => openContractModal(moto)} title="Contrato" className="size-8 rounded-lg bg-amber-500/10 text-amber-500 hover:bg-amber-500 hover:text-white flex items-center justify-center transition-colors">
+                                                        <MaterialIcon name="request_quote" className="text-base" />
+                                                    </button>
+                                                    <button onClick={() => handleEdit(moto)} title="Editar" className="size-8 rounded-lg bg-slate-100 dark:bg-white/10 text-slate-500 hover:bg-slate-200 hover:text-slate-700 dark:hover:text-white flex items-center justify-center transition-colors">
+                                                        <MaterialIcon name="edit" className="text-base" />
+                                                    </button>
+                                                    <button onClick={() => handleToggleStatus(moto)} title={moto.is_active ? "Bloquear/Banir" : "Desbloquear"} className={`size-8 rounded-lg flex items-center justify-center transition-colors ${moto.is_active ? 'bg-slate-100 dark:bg-white/10 text-slate-400 hover:bg-red-500 hover:text-white' : 'bg-green-500 text-white hover:bg-green-600'}`}>
+                                                        <MaterialIcon name={moto.is_active ? "block" : "check_circle"} className="text-base" />
+                                                    </button>
+                                                    <button onClick={() => handleDelete(moto.id)} title="Excluir" className="size-8 rounded-lg bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white flex items-center justify-center transition-colors">
+                                                        <MaterialIcon name="delete" className="text-base" />
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                            {motoboys.length === 0 && (
+                                <div className="p-12 text-center text-slate-400 italic">Nenhum motoboy encontrado.</div>
+                            )}
+                        </div>
+                    )}
+                </div>
             </main>
 
             {/* Registration Modal */}
@@ -395,6 +427,39 @@ export const MotoboyManagement = ({ profile }: { profile: any }) => {
                             <button onClick={handleSave} disabled={saving} className="w-full mt-8 bg-primary text-background-dark font-black py-5 rounded-3xl shadow-xl shadow-primary/20 active:scale-95 transition-all uppercase tracking-tighter disabled:opacity-50 disabled:cursor-not-allowed">
                                 {saving ? 'Cadastrando...' : 'Finalizar Cadastro'}
                             </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Edit User Modal */}
+            {showEditModal && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowEditModal(false)}></div>
+                    <div className="relative w-full max-w-sm bg-white dark:bg-[#1a2e22] rounded-[32px] p-8 animate-scale-in">
+                        <h2 className="text-xl font-black italic mb-6">Editar Motoboy</h2>
+                        <div className="space-y-4">
+                            <input value={editData.name} onChange={e => setEditData({ ...editData, name: e.target.value })} placeholder="Nome" className="w-full h-12 px-4 rounded-xl bg-slate-50 dark:bg-black/20 border-transparent focus:border-primary border-2 outline-none font-bold" />
+                            <input value={editData.phone} onChange={e => setEditData({ ...editData, phone: e.target.value })} placeholder="Telefone" className="w-full h-12 px-4 rounded-xl bg-slate-50 dark:bg-black/20 border-transparent focus:border-primary border-2 outline-none font-bold" />
+                            <button onClick={handleSaveEdit} className="w-full h-12 bg-primary text-background-dark font-black rounded-xl uppercase tracking-widest hover:opacity-90">Salvar Alterações</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Assign Pharmacy Modal */}
+            {showAssignModal && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowAssignModal(false)}></div>
+                    <div className="relative w-full max-w-sm bg-white dark:bg-[#1a2e22] rounded-[32px] p-8 animate-scale-in">
+                        <h2 className="text-xl font-black italic mb-2">Vincular Farmácia</h2>
+                        <p className="text-xs text-slate-500 mb-6 font-bold">Selecione onde o motoboy irá operar.</p>
+                        <div className="space-y-4">
+                            <select value={assignData.pharmacyId} onChange={e => setAssignData({ ...assignData, pharmacyId: e.target.value })} className="w-full h-12 px-4 rounded-xl bg-slate-50 dark:bg-black/20 border-transparent focus:border-primary border-2 outline-none font-bold appearance-none">
+                                <option value="">Sem vínculo (Livre)</option>
+                                {pharmacies.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                            </select>
+                            <button onClick={saveAssignPharmacy} className="w-full h-12 bg-blue-500 text-white font-black rounded-xl uppercase tracking-widest hover:bg-blue-600 transition-colors">Confirmar Vínculo</button>
                         </div>
                     </div>
                 </div>
