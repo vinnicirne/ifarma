@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { MaterialIcon } from '../../components/Shared';
-import ActionConfirmModal from '../../components/admin/ActionConfirmModal';
+import { ActionConfirmModal } from '../../components/admin/ActionConfirmModal';
 import { CheckCircle, AlertTriangle } from 'lucide-react';
 
 export const MotoboyManagement = ({ profile }: { profile: any }) => {
