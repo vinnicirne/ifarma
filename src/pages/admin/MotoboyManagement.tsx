@@ -351,7 +351,7 @@ export const MotoboyManagement = ({ profile }: { profile: any }) => {
                 if (tableError) throw tableError;
             }
 
-            setStatus({ type: 'success', message: 'Contrato salvo com sucesso!' }); (Admin)!' });
+            setStatus({ type: 'success', message: 'Contrato salvo com sucesso!' });
             setShowContractModal(false);
             fetchData();
         } catch (error: any) {
