@@ -258,6 +258,8 @@ function App() {
     const referenceLoc = userLocation || { lat: -22.8269, lng: -43.0539 };
     const now = new Date();
     const isNewThreshold = 90 * 24 * 60 * 60 * 1000; // 90 days in ms
+    const currentDay = now.getDay();
+    const currentTime = now.getHours() * 60 + now.getMinutes();
 
     return allPharmacies.map(p => {
       let distance = Infinity;
@@ -274,8 +276,34 @@ function App() {
       const createdDate = new Date(p.created_at);
       const isNew = (now.getTime() - createdDate.getTime()) < isNewThreshold;
 
-      return { ...p, distance, isNew };
-    }).sort((a, b) => a.distance - b.distance);
+      // Calculate isOpen status for Sorting
+      let isOpen = false;
+      if (p.is_open) {
+        isOpen = true; // Manual override (Always Open)
+      } else if (p.auto_open_status && Array.isArray(p.opening_hours) && p.opening_hours.length > 0) {
+        // Automatic Schedule Logic
+        const todayRule = p.opening_hours.find((h: any) => h.day === currentDay);
+        if (todayRule && !todayRule.closed && todayRule.open && todayRule.close) {
+          const [hOpen, mOpen] = todayRule.open.split(':').map(Number);
+          const [hClose, mClose] = todayRule.close.split(':').map(Number);
+          const openTimeVal = hOpen * 60 + mOpen;
+          const closeTimeVal = hClose * 60 + mClose;
+
+          if (currentTime >= openTimeVal && currentTime < closeTimeVal) {
+            isOpen = true;
+          }
+        }
+      }
+
+      return { ...p, distance, isNew, isOpen };
+    }).sort((a, b) => {
+      // 1. Sort by Open Status (Open first)
+      if (a.isOpen && !b.isOpen) return -1;
+      if (!a.isOpen && b.isOpen) return 1;
+
+      // 2. Sort by Distance
+      return a.distance - b.distance;
+    });
   }, [allPharmacies, userLocation]);
 
   if (loading || !contextLoaded) {
