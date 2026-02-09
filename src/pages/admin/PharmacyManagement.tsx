@@ -238,6 +238,7 @@ const PharmacyManagement = ({ profile }: { profile: any }) => {
                                         <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-[#92c9a9]">Farmácia</th>
                                         <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-[#92c9a9] hidden md:table-cell">Localização</th>
                                         <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-[#92c9a9] hidden sm:table-cell">Plano</th>
+                                        <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-[#92c9a9]">Loja</th>
                                         <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-[#92c9a9]">Status</th>
                                         <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-[#92c9a9] text-right">Ações</th>
                                     </tr>
@@ -276,6 +277,31 @@ const PharmacyManagement = ({ profile }: { profile: any }) => {
                                                 <div className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-lg ${pharm.plan === 'Premium' ? 'bg-[#13ec6d]/10 text-[#13ec6d]' : 'bg-slate-100 dark:bg-white/10 text-slate-500 dark:text-gray-400'}`}>
                                                     <span className="text-[9px] font-black uppercase tracking-widest">{pharm.plan || 'Gratuito'}</span>
                                                 </div>
+                                            </td>
+
+                                            <td className="p-5" onClick={e => e.stopPropagation()}>
+                                                <button
+                                                    onClick={async () => {
+                                                        const newStatus = !pharm.is_open;
+                                                        // Optimistic Update
+                                                        setPharmacies(prev => prev.map(p => p.id === pharm.id ? { ...p, is_open: newStatus } : p));
+
+                                                        const { error } = await supabase.from('pharmacies').update({ is_open: newStatus }).eq('id', pharm.id);
+                                                        if (error) {
+                                                            alert('Erro ao atualizar status da loja');
+                                                            fetchPharmacies(); // Revert on error
+                                                        }
+                                                    }}
+                                                    className={`h-8 px-3 rounded-full flex items-center gap-2 transition-all ${pharm.is_open
+                                                            ? 'bg-green-500 text-white shadow-lg shadow-green-500/30'
+                                                            : 'bg-slate-200 dark:bg-white/10 text-slate-500 dark:text-slate-400'
+                                                        }`}
+                                                >
+                                                    <span className={`size-2 rounded-full ${pharm.is_open ? 'bg-white animate-pulse' : 'bg-slate-400'}`}></span>
+                                                    <span className="text-[10px] font-black uppercase tracking-widest leading-none pt-0.5">
+                                                        {pharm.is_open ? 'Aberta' : 'Fechada'}
+                                                    </span>
+                                                </button>
                                             </td>
 
                                             <td className="p-5">
