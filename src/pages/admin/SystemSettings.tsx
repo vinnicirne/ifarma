@@ -77,7 +77,7 @@ export const SystemSettings = ({ profile }: { profile: any }) => {
 
         const { error } = await supabase
             .from('system_settings')
-            .upsert(settings.map(s => ({ ...s, description: 'Configuração do Sistema' })));
+            .upsert(settings.map(s => ({ ...s, description: 'Configuração do Sistema' })), { onConflict: 'key' });
 
         if (error) {
             console.error("Erro ao salvar configurações:", error);
