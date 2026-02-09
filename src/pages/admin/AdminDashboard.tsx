@@ -23,7 +23,7 @@ import {
 } from 'recharts';
 import AdminMap from '../../components/admin/AdminMap';
 import SupportAlerts from '../../components/admin/SupportAlerts';
-import SystemSimulator from '../../components/admin/SystemSimulator';
+
 import OrderAuditModal from '../../components/admin/OrderAuditModal';
 import { AdminPushNotification } from '../../components/admin/AdminPushNotification';
 import { supabase } from '../../lib/supabase';
@@ -718,11 +718,10 @@ const AdminDashboard = ({ profile }: { profile: any }) => {
                     </div>
                 </div>
 
-                {/* Simulador Operacional - REMOVIDO A PEDIDO */}
-                {/* <SystemSimulator onFleetUpdate={setSimulationFleet} /> */}
-
-                {/* Push Notifications Panel */}
-                <AdminPushNotification />
+                {/* Push Notifications Panel - Expandido para 2 colunas */}
+                <div className="lg:col-span-2 h-full">
+                    <AdminPushNotification />
+                </div>
             </div>
 
             {selectedOrderId && (

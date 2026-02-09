@@ -44,7 +44,7 @@ export const AdminPushNotification = () => {
     };
 
     return (
-        <div className="bg-[#111a16] border border-white/5 p-8 rounded-[40px] shadow-xl flex flex-col h-full relative overflow-hidden group">
+        <div className="bg-[#111a16] border border-white/5 p-8 rounded-[40px] shadow-xl flex flex-col h-[450px] relative overflow-hidden group">
             {/* Status Feedback Banner */}
             {status && (
                 <div className={`absolute top-0 left-0 right-0 p-4 flex items-center justify-center gap-2 animate-slide-down transition-all z-10 ${status.type === 'success' ? 'bg-emerald-500/20 text-emerald-500 backdrop-blur-md' : 'bg-red-500/20 text-red-500 backdrop-blur-md'
