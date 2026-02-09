@@ -66,15 +66,33 @@ const StoreCustomization = () => {
             // Check for impersonation
             const impersonatedId = localStorage.getItem('impersonatedPharmacyId');
 
-            let query = supabase.from('pharmacies').select('*');
+            let pharmacyId = null;
 
-            if (impersonatedId && user.email === 'admin@ifarma.com.br') { // Basic check or rely on RLS
-                query = query.eq('id', impersonatedId);
+            if (impersonatedId && user.email === 'admin@ifarma.com.br') {
+                // Admin impersonating
+                pharmacyId = impersonatedId;
             } else {
-                query = query.eq('owner_id', user.id);
+                // Regular user - get pharmacy_id from profile
+                const { data: profile } = await supabase
+                    .from('profiles')
+                    .select('pharmacy_id')
+                    .eq('id', user.id)
+                    .single();
+
+                pharmacyId = profile?.pharmacy_id;
             }
 
-            const { data, error } = await query.single();
+            if (!pharmacyId) {
+                console.error('No pharmacy_id found for user');
+                setLoading(false);
+                return;
+            }
+
+            const { data, error } = await supabase
+                .from('pharmacies')
+                .select('*')
+                .eq('id', pharmacyId)
+                .single();
 
             if (error) throw error;
 
