@@ -389,7 +389,7 @@ const PharmacyDetails = () => {
             phone: formData.establishment_phone || formData.phone, // Prioriza establishment_phone
             establishment_phone: formData.establishment_phone,
             is_open: formData.is_open,
-            status: (formData.status as any) === 'active' || (formData.status as any) === 'true' || (formData.status as any) === true || (formData.status as any) === 'Aprovado', // Garantir boolean (com cast any para evitar erro TS)
+            status: formData.status, // Envia a string diretamente (ex: 'Aprovado') para satisfazer check constraint
             plan: formData.plan,
             rating: parseFloat(formData.rating) || 5.0,
             // Mídia
