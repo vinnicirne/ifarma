@@ -718,8 +718,8 @@ const AdminDashboard = ({ profile }: { profile: any }) => {
                     </div>
                 </div>
 
-                {/* Simulador Operacional */}
-                <SystemSimulator onFleetUpdate={setSimulationFleet} />
+                {/* Simulador Operacional - REMOVIDO A PEDIDO */}
+                {/* <SystemSimulator onFleetUpdate={setSimulationFleet} /> */}
 
                 {/* Push Notifications Panel */}
                 <AdminPushNotification />
