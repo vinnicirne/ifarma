@@ -942,7 +942,7 @@ const PharmacyDetails = () => {
                                             <select value={formData.status} onChange={e => setFormData({ ...formData, status: e.target.value })} className="h-14 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-2xl px-4 text-slate-900 dark:text-white font-bold outline-none focus:border-primary/50 transition-colors appearance-none">
                                                 <option value="Pendente">Pendente</option>
                                                 <option value="Aprovado">Aprovado</option>
-                                                <option value="Bloqueado">Bloqueado</option>
+                                                <option value="Rejeitado">Rejeitado</option>
                                             </select>
                                         </div>
                                     </div>
