@@ -325,18 +325,33 @@ export const MotoboyManagement = ({ profile }: { profile: any }) => {
         setSaving(true);
         setStatus(null);
         try {
-            const { error } = await supabase
-                .from('courier_contracts')
-                .upsert({
-                    courier_id: selectedMotoboy.id,
-                    pharmacy_id: selectedMotoboy.pharmacy_id,
-                    ...contractData,
-                    updated_at: new Date().toISOString()
-                }, { onConflict: 'courier_id, pharmacy_id' });
+            // Tentar via RPC (mais robusto, bypass RLS table permissions)
+            const { error: rpcError } = await supabase.rpc('upsert_courier_contract_admin', {
+                p_courier_id: selectedMotoboy.id,
+                p_pharmacy_id: selectedMotoboy.pharmacy_id,
+                p_delivery_fee: contractData.delivery_fee,
+                p_fixed_salary: contractData.fixed_salary,
+                p_daily_rate: contractData.daily_rate,
+                p_productivity_goal: contractData.productivity_goal,
+                p_productivity_bonus: contractData.productivity_bonus
+            });
 
-            if (error) throw error;
+            if (rpcError) {
+                console.error('RPC Error:', rpcError);
+                // Fallback para o método antigo (caso o RPC não exista ainda no banco)
+                const { error: tableError } = await supabase
+                    .from('courier_contracts')
+                    .upsert({
+                        courier_id: selectedMotoboy.id,
+                        pharmacy_id: selectedMotoboy.pharmacy_id,
+                        ...contractData,
+                        updated_at: new Date().toISOString()
+                    });
 
-            setStatus({ type: 'success', message: 'Contrato atualizado com sucesso (Admin)!' });
+                if (tableError) throw tableError;
+            }
+
+            setStatus({ type: 'success', message: 'Contrato salvo com sucesso!' }); (Admin)!' });
             setShowContractModal(false);
             fetchData();
         } catch (error: any) {
