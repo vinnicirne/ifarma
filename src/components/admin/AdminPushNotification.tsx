@@ -54,28 +54,28 @@ export const AdminPushNotification = () => {
                 </div>
             )}
 
-            <div className="flex items-center gap-3 mb-8">
+            <div className="flex items-center gap-3 mb-6 shrink-0">
                 <div className="p-2 bg-primary/10 rounded-lg">
                     <Bell size={18} className="text-primary" />
                 </div>
                 <h3 className="text-white text-xl font-[900] italic tracking-tight uppercase">Push Notifications</h3>
             </div>
 
-            <div className="space-y-6 flex-1">
-                <div>
+            <div className="flex flex-col gap-4 flex-1 overflow-y-auto hide-scrollbar pr-2">
+                <div className="shrink-0">
                     <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 block">
                         Público-Alvo
                     </label>
                     <div className="grid grid-cols-3 gap-2">
                         {[
                             { id: 'customer', label: 'Clientes', icon: Users },
-                            { id: 'motoboy', label: 'Entregadores', icon: Truck },
-                            { id: 'pharmacy', label: 'Farmácias', icon: Store },
+                            { id: 'motoboy', label: 'Moto', icon: Truck },
+                            { id: 'pharmacy', label: 'Lojas', icon: Store },
                         ].map((t) => (
                             <button
                                 key={t.id}
                                 onClick={() => setTarget(t.id as any)}
-                                className={`flex flex-col items-center justify-center p-3 rounded-2xl border transition-all gap-1 ${target === t.id
+                                className={`flex flex-col items-center justify-center p-3 rounded-2xl border transition-all gap-1 h-20 ${target === t.id
                                     ? 'bg-primary/10 border-primary text-primary shadow-lg shadow-primary/5'
                                     : 'bg-white/5 border-transparent text-slate-500 hover:bg-white/10'
                                     }`}
@@ -87,7 +87,7 @@ export const AdminPushNotification = () => {
                     </div>
                 </div>
 
-                <div className="space-y-4">
+                <div className="space-y-4 shrink-0">
                     <div className="flex flex-col gap-1.5">
                         <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-1">Título</label>
                         <input
@@ -104,28 +104,27 @@ export const AdminPushNotification = () => {
                         <textarea
                             value={message}
                             onChange={(e) => setMessage(e.target.value)}
-                            className="bg-white/5 border border-white/5 rounded-xl px-4 py-3 text-sm text-white outline-none focus:bg-white/10 focus:border-primary/50 transition-all font-bold placeholder:font-normal"
+                            className="bg-white/5 border border-white/5 rounded-xl px-4 py-3 text-sm text-white outline-none focus:bg-white/10 focus:border-primary/50 transition-all font-bold placeholder:font-normal resize-none h-24"
                             placeholder="Descreva a novidade aqui..."
-                            rows={4}
                         />
                     </div>
                 </div>
             </div>
 
-            <div className="mt-8 pt-6 border-t border-white/5">
+            <div className="pt-4 border-t border-white/5 mt-auto shrink-0">
                 <button
                     onClick={handleSend}
                     disabled={loading || !title || !message}
-                    className="w-full bg-primary text-[#0a0f0d] font-[900] italic h-14 rounded-2xl shadow-lg shadow-primary/20 hover:scale-[1.02] transition-all active:scale-95 disabled:opacity-50 disabled:grayscale flex items-center justify-center gap-2 uppercase tracking-tight"
+                    className="w-full bg-primary text-[#0a0f0d] font-[900] italic h-12 rounded-xl shadow-lg shadow-primary/20 hover:scale-[1.02] transition-all active:scale-95 disabled:opacity-50 disabled:grayscale flex items-center justify-center gap-2 uppercase tracking-tight"
                 >
                     {loading ? (
                         <>
-                            <div className="animate-spin size-5 border-2 border-black border-t-transparent rounded-full" />
-                            <span>Enviando...</span>
+                            <div className="animate-spin size-4 border-2 border-black border-t-transparent rounded-full" />
+                            <span className="text-xs">Enviando...</span>
                         </>
                     ) : (
                         <>
-                            <Send size={18} /> Enviar Notificação
+                            <Send size={16} /> <span className="text-xs">Enviar Notificação</span>
                         </>
                     )}
                 </button>
