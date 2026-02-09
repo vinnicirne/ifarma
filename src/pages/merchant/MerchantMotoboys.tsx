@@ -220,73 +220,7 @@ const MerchantMotoboys = () => { // Assuming session/profile context or fetching
     // I need to provide the FULL content or target with StartLine/TargetContent.
     // Since I am replacing the whole file logic, I should provide the full file content similar to what I did for Admin.
 
-    const [showContractModal, setShowContractModal] = useState(false);
-    const [selectedMotoboy, setSelectedMotoboy] = useState<any>(null);
-    const [contractData, setContractData] = useState({
-        delivery_fee: 0,
-        fixed_salary: 0,
-        daily_rate: 0,
-        productivity_goal: 0,
-        productivity_bonus: 0
-    });
 
-    const openContractModal = async (boy: any) => {
-        setSelectedMotoboy(boy);
-        setContractData({
-            delivery_fee: 0,
-            fixed_salary: 0,
-            daily_rate: 0,
-            productivity_goal: 0,
-            productivity_bonus: 0
-        });
-
-        // Fetch existing contract
-        const { data: contract } = await supabase
-            .from('courier_contracts')
-            .select('*')
-            .eq('courier_id', boy.id)
-            .eq('pharmacy_id', pharmacyId) // Ensure we only get contract for this pharmacy
-            .single();
-
-        if (contract) {
-            setContractData({
-                delivery_fee: contract.delivery_fee || 0,
-                fixed_salary: contract.fixed_salary || 0,
-                daily_rate: contract.daily_rate || 0,
-                productivity_goal: contract.productivity_goal || 0,
-                productivity_bonus: contract.productivity_bonus || 0
-            });
-        }
-        setShowContractModal(true);
-    };
-
-    const handleSaveContract = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!selectedMotoboy || !pharmacyId) return;
-
-        setSaving(true);
-        try {
-            const { error } = await supabase
-                .from('courier_contracts')
-                .upsert({
-                    courier_id: selectedMotoboy.id,
-                    pharmacy_id: pharmacyId,
-                    ...contractData,
-                    updated_at: new Date().toISOString()
-                }, { onConflict: 'courier_id, pharmacy_id' });
-
-            if (error) throw error;
-
-            alert('Contrato salvo com sucesso!');
-            setShowContractModal(false);
-            fetchPharmacyAndMotoboys(); // Refresh to update UI indicators potentially
-        } catch (error: any) {
-            console.error('Error saving contract:', error);
-            alert('Erro ao salvar contrato: ' + error.message);
-        } finally {
-            setSaving(false);
-        }
-    };
 
     return (
         <div className="p-6 pb-32 md:pb-6">
