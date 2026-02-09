@@ -88,6 +88,48 @@ const MerchantLayout = ({ children, activeTab, title }: { children: React.ReactN
         return () => clearInterval(interval);
     }, []);
 
+    // REALTIME SYNC: Sincroniza status instantaneamente quando alterado em outra tela
+    useEffect(() => {
+        let channel: any = null;
+
+        const syncStatus = async () => {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) return;
+
+            // Resolve ID
+            let pid = localStorage.getItem('impersonatedPharmacyId');
+            if (!pid) {
+                const { data: owned } = await supabase.from('pharmacies').select('id').eq('owner_id', user.id).maybeSingle();
+                pid = owned?.id;
+                if (!pid) {
+                    const { data: prof } = await supabase.from('profiles').select('pharmacy_id').eq('id', user.id).single();
+                    pid = prof?.pharmacy_id;
+                }
+            }
+
+            if (!pid) return;
+
+            // Inscreve no canal
+            channel = supabase.channel(`pharmacy_sync_${pid}`)
+                .on(
+                    'postgres_changes',
+                    { event: 'UPDATE', schema: 'public', table: 'pharmacies', filter: `id=eq.${pid}` },
+                    (payload) => {
+                        if (payload.new && typeof payload.new.is_open === 'boolean') {
+                            setStoreStatus(payload.new.is_open);
+                        }
+                    }
+                )
+                .subscribe();
+        };
+
+        syncStatus();
+
+        return () => {
+            if (channel) supabase.removeChannel(channel);
+        };
+    }, []);
+
     React.useEffect(() => {
         const updateAccess = async () => {
             const { data: { user } } = await supabase.auth.getUser();
