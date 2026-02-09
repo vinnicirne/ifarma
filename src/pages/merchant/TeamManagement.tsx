@@ -128,7 +128,7 @@ const TeamManagement = () => {
                 showToast("Membro atualizado com sucesso!", 'success');
             } else {
                 // CREATE MODE (Existing Logic)
-                let loginEmail = formData.email;
+                let loginEmail = '';  // Inicializar vazio - será gerado baseado no telefone
                 let loginPassword = formData.password;
                 let displayMessage = '';
 
