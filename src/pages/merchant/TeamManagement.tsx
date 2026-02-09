@@ -10,6 +10,8 @@ const TeamManagement = () => {
     const [team, setTeam] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
+    const [showDeleteModal, setShowDeleteModal] = useState(false);
+    const [memberToDelete, setMemberToDelete] = useState<any | null>(null);
     const [editingMember, setEditingMember] = useState<any | null>(null); // New state for editing
     const [saving, setSaving] = useState(false);
     const [pharmacyId, setPharmacyId] = useState<string | null>(null);
@@ -96,6 +98,57 @@ const TeamManagement = () => {
         setFormData({ name: '', email: '', phone: '', password: '', role: 'staff', vehicle_plate: '', vehicle_model: '' });
         setShowModal(true);
     };
+
+    const handleDeleteClick = (member: any) => {
+        setMemberToDelete(member);
+        setShowDeleteModal(true);
+    };
+
+    const handleConfirmDelete = async () => {
+        if (!memberToDelete) return;
+
+        setSaving(true);
+        try {
+            // 1. Deletar do Auth (isso cascateia para profiles devido ao ON DELETE CASCADE)
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) throw new Error("Sessão expirada");
+
+            const baseUrl = import.meta.env.VITE_SUPABASE_URL;
+            const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+            // Usar Edge Function para deletar usuário do Auth (requer service role)
+            const response = await fetch(`${baseUrl}/functions/v1/delete-user-admin`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${session.access_token}`,
+                    'apikey': anonKey
+                },
+                body: JSON.stringify({ userId: memberToDelete.id })
+            });
+
+            if (!response.ok) {
+                // Fallback: deletar apenas do profiles se a Edge Function não existir
+                const { error } = await supabase
+                    .from('profiles')
+                    .delete()
+                    .eq('id', memberToDelete.id);
+
+                if (error) throw error;
+            }
+
+            showToast(`${memberToDelete.full_name} foi removido da equipe.`, 'success');
+            setShowDeleteModal(false);
+            setMemberToDelete(null);
+            fetchTeam(); // Recarregar lista
+        } catch (error: any) {
+            console.error('Erro ao deletar:', error);
+            showToast('Erro ao remover funcionário: ' + error.message, 'error');
+        } finally {
+            setSaving(false);
+        }
+    };
+
 
     const handleSave = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -355,13 +408,22 @@ const TeamManagement = () => {
                                         </div>
 
                                         {['merchant', 'manager'].includes(myRole || '') && (
-                                            <button
-                                                onClick={() => handleEditClick(member)}
-                                                className="size-8 rounded-full bg-slate-100 dark:bg-white/5 text-slate-400 hover:text-primary hover:bg-white hover:shadow-lg transition-all flex items-center justify-center opacity-0 group-hover:opacity-100 transform translate-x-2 group-hover:translate-x-0"
-                                                title="Editar acesso"
-                                            >
-                                                <MaterialIcon name="edit" className="text-[16px]" />
-                                            </button>
+                                            <>
+                                                <button
+                                                    onClick={() => handleEditClick(member)}
+                                                    className="size-8 rounded-full bg-slate-100 dark:bg-white/5 text-slate-400 hover:text-primary hover:bg-white hover:shadow-lg transition-all flex items-center justify-center opacity-0 group-hover:opacity-100 transform translate-x-2 group-hover:translate-x-0"
+                                                    title="Editar acesso"
+                                                >
+                                                    <MaterialIcon name="edit" className="text-[16px]" />
+                                                </button>
+                                                <button
+                                                    onClick={() => handleDeleteClick(member)}
+                                                    className="size-8 rounded-full bg-red-50 dark:bg-red-500/10 text-red-500 hover:text-white hover:bg-red-500 hover:shadow-lg hover:shadow-red-500/20 transition-all flex items-center justify-center opacity-0 group-hover:opacity-100 transform translate-x-2 group-hover:translate-x-0"
+                                                    title="Remover da equipe"
+                                                >
+                                                    <MaterialIcon name="delete" className="text-[16px]" />
+                                                </button>
+                                            </>
                                         )}
                                     </div>
                                 </div>
@@ -568,6 +630,62 @@ const TeamManagement = () => {
                     </div>
                 </div>
             )}
+
+            {/* Modal de Confirmação de Exclusão */}
+            {showDeleteModal && memberToDelete && (
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                    <div className="bg-white dark:bg-background-dark rounded-3xl shadow-2xl max-w-md w-full p-8 animate-in fade-in zoom-in duration-200">
+                        <div className="flex items-center gap-4 mb-6">
+                            <div className="size-12 rounded-full bg-red-100 dark:bg-red-500/20 flex items-center justify-center">
+                                <MaterialIcon name="warning" className="text-red-500 text-2xl" />
+                            </div>
+                            <div>
+                                <h2 className="text-xl font-black italic tracking-tighter text-slate-900 dark:text-white">
+                                    Remover Funcionário?
+                                </h2>
+                                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                                    Esta ação não pode ser desfeita
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="p-4 bg-slate-50 dark:bg-black/20 rounded-2xl border border-slate-100 dark:border-white/5 mb-6">
+                            <p className="text-sm text-slate-600 dark:text-slate-300">
+                                Você está prestes a remover <strong className="text-slate-900 dark:text-white">{memberToDelete.full_name}</strong> da equipe.
+                            </p>
+                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
+                                O acesso ao sistema será revogado imediatamente.
+                            </p>
+                        </div>
+
+                        <div className="flex gap-3">
+                            <button
+                                onClick={() => {
+                                    setShowDeleteModal(false);
+                                    setMemberToDelete(null);
+                                }}
+                                disabled={saving}
+                                className="flex-1 h-12 bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-300 rounded-xl font-black uppercase tracking-widest hover:bg-slate-200 dark:hover:bg-white/10 transition-colors"
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                onClick={handleConfirmDelete}
+                                disabled={saving}
+                                className="flex-1 h-12 bg-red-500 text-white rounded-xl font-black uppercase tracking-widest hover:bg-red-600 transition-colors flex items-center justify-center gap-2"
+                            >
+                                {saving ? (
+                                    <div className="animate-spin size-4 border-2 border-white border-t-transparent rounded-full"></div>
+                                ) : (
+                                    <MaterialIcon name="delete" />
+                                )}
+                                Remover
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
         </div>
     );
