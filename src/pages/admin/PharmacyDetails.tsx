@@ -369,34 +369,36 @@ const PharmacyDetails = () => {
         if (!formData.name) return alert("Nome é obrigatório");
         setLoading(true);
 
-        // Concatenate address for legacy support if needed, or primarily rely on columns
-        const finalAddress = isNew
-            ? `${formData.street}, ${formData.number} - ${formData.neighborhood}, ${formData.city} - ${formData.state}`
-            : formData.address;
-
-        const payload = {
+        // Mapeamento correto dos campos do formulário para o banco de dados
+        // address e establishment_phone são campos legados/redundantes mas mantidos por compatibilidade
+        const payload: any = {
             name: formData.name,
-            address: finalAddress,
-            zip: formData.cep, // Saving ZIP to column
+            cnpj: formData.cnpj,
+            // Endereço
+            zip: formData.cep,
             street: formData.street,
             number: formData.number,
             neighborhood: formData.neighborhood,
             city: formData.city,
             state: formData.state,
+            address: `${formData.street}, ${formData.number} - ${formData.neighborhood}, ${formData.city} - ${formData.state}`,
             latitude: parseFloat(formData.latitude) || 0,
             longitude: parseFloat(formData.longitude) || 0,
-            rating: parseFloat(formData.rating) || 5.0,
+            // Contato e Status
+            phone: formData.establishment_phone || formData.phone, // Prioriza establishment_phone
+            establishment_phone: formData.establishment_phone,
             is_open: formData.is_open,
+            status: formData.status === 'active' || formData.status === 'true' || formData.status === true, // Garantir boolean
             plan: formData.plan,
-            status: formData.status,
-            cnpj: formData.cnpj,
+            rating: parseFloat(formData.rating) || 5.0,
+            // Mídia
+            logo_url: formData.logo_url,
+            banner_url: formData.banner_url,
+            // Dados do proprietário (apenas informativos na tabela pharmacies)
             owner_name: formData.owner_name,
             owner_phone: formData.owner_phone,
             owner_email: formData.owner_email,
-            establishment_phone: formData.establishment_phone,
-            logo_url: formData.logo_url,
-            banner_url: formData.banner_url,
-            // Delivery Fees
+            // Configurações de Entrega
             delivery_fee_type: formData.delivery_fee_type,
             delivery_fee_fixed: formData.delivery_fee_fixed,
             delivery_fee_per_km: formData.delivery_fee_per_km,
@@ -408,28 +410,71 @@ const PharmacyDetails = () => {
 
         try {
             let pharmacyId = id;
+
             if (!isNew && id) {
+                // --- ATUALIZAÇÃO ---
+                console.log("Atualizando farmácia:", id, payload);
                 const { error } = await supabase.from('pharmacies').update(payload).eq('id', id);
                 if (error) throw error;
-            } else {
-                const { data, error } = await supabase.from('pharmacies').insert([payload]).select().single();
-                if (error) throw error;
-                pharmacyId = data.id;
 
+                // Se houver alteração de senha/email do merchant, isso deve ser tratado separadamente ou aqui
+                // Mas por enquanto foca nos dados da farmácia
+            } else {
+                // --- CRIAÇÃO ---
+                console.log("Criando nova farmácia:", payload);
+                const { data: newPharmacy, error: createError } = await supabase
+                    .from('pharmacies')
+                    .insert([payload])
+                    .select()
+                    .single();
+
+                if (createError) throw createError;
+                pharmacyId = newPharmacy.id;
+                console.log("Farmácia criada com ID:", pharmacyId);
+
+                // Criar Usuário Dono (Merchant) se dados fornecidos
                 if (formData.merchant_email && formData.merchant_password) {
+                    console.log("Criando usuário merchant...", formData.merchant_email);
+
                     const { data: authData, error: authErr } = await supabase.functions.invoke('create-user-admin', {
-                        body: { email: formData.merchant_email, password: formData.merchant_password, metadata: { full_name: formData.owner_name, role: 'merchant' } }
+                        body: {
+                            email: formData.merchant_email,
+                            password: formData.merchant_password,
+                            metadata: {
+                                full_name: formData.owner_name,
+                                role: 'merchant',
+                                pharmacy_id: pharmacyId, // VINCULAÇÃO CRUCIAL NO PERFIL
+                                phone: formData.owner_phone
+                            }
+                        }
                     });
-                    if (authErr) console.error("Auth error", authErr);
-                    else if (authData?.user) {
-                        await supabase.from('profiles').upsert({ id: authData.user.id, email: formData.merchant_email, full_name: formData.owner_name, role: 'merchant', pharmacy_id: pharmacyId });
+
+                    if (authErr) {
+                        console.error("Erro ao criar usuário merchant:", authErr);
+                        alert(`Farmácia criada, mas erro ao criar usuário: ${authErr.message}`);
+                    } else if (authData?.user?.id) {
+                        console.log("Usuário merchant criado com ID:", authData.user.id);
+
+                        // ATA PONTO CHAVE: Atualizar farmácia com owner_id
+                        const { error: updateOwnerError } = await supabase
+                            .from('pharmacies')
+                            .update({ owner_id: authData.user.id })
+                            .eq('id', pharmacyId);
+
+                        if (updateOwnerError) {
+                            console.error("Erro ao vincular owner_id na farmácia:", updateOwnerError);
+                        } else {
+                            console.log("Vinculado owner_id com sucesso!");
+                        }
                     }
                 }
             }
-            alert("Salvo com sucesso!");
-            if (isNew) navigate(`/dashboard/pharmacy/${pharmacyId}`);
+
+            alert("Farmácia salva com sucesso!");
+            navigate('/dashboard/pharmacies');
         } catch (err: any) {
-            alert("Erro ao salvar: " + err.message);
+            console.error("Erro fatal ao salvar:", err);
+            alert("Erro ao salvar farmácia: " + (err.message || JSON.stringify(err)));
         } finally {
             setLoading(false);
         }
