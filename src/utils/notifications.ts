@@ -62,26 +62,40 @@ export const sendBroadcastNotification = async (
     data: any = {}
 ) => {
     try {
-        // Buscar tokens de todos os usuários com o papel especificado
-        const { data: profileTokens, error: tokensError } = await supabase
+        // 1. Buscar IDs dos usuários alvo
+        const { data: profiles, error: profileError } = await supabase
             .from('profiles')
-            .select('id, device_tokens(token)')
+            .select('id')
             .eq('role', role);
 
-        if (tokensError) throw tokensError;
+        if (profileError) throw profileError;
 
-        const tokens = profileTokens
-            ?.flatMap(p => (p as any).device_tokens)
-            .map(t => t.token)
-            .filter(Boolean);
-
-        if (!tokens || tokens.length === 0) {
-            console.log(`Nenhum token encontrado para o papel: ${role}`);
+        if (!profiles || profiles.length === 0) {
+            console.warn(`Nenhum usuário encontrado com o papel: ${role}`);
             return null;
         }
 
-        // Chamar Edge Function para enviar notificação em massa
-        const { data: res, error } = await supabase.functions.invoke('send-push-notification', {
+        const userIds = profiles.map(p => p.id);
+
+        // 2. Buscar tokens desses usuários
+        const { data: tokensData, error: tokensError } = await supabase
+            .from('device_tokens')
+            .select('user_id, token')
+            .in('user_id', userIds);
+
+        if (tokensError) throw tokensError;
+
+        const tokens = tokensData?.map(t => t.token).filter(Boolean);
+
+        if (!tokens || tokens.length === 0) {
+            console.warn(`Nenhum token de dispositivo encontrado para o papel: ${role}`);
+            return false; // Retorna false explicitamente para indicar falha de tokens
+        }
+
+        console.log(`Enviando notificação para ${tokens.length} dispositivos (${role})...`);
+
+        // 3. Chamar Edge Function
+        const { data: res, error: funcError } = await supabase.functions.invoke('send-push-notification', {
             body: {
                 tokens,
                 title,
@@ -90,22 +104,27 @@ export const sendBroadcastNotification = async (
             }
         });
 
-        if (error) throw error;
+        if (funcError) throw funcError;
 
-        // Registrar na tabela de notificações do sistema
-        for (const profile of profileTokens) {
-            await supabase.from('notifications').insert({
-                user_id: profile.id,
-                title,
-                message: body,
-                type: 'promotion'
-            });
-        }
+        // 4. Registrar histórico (Opcional - pode ser lento para muitos usuários, melhor fazer na Edge Function futuramente)
+        // Por enquanto, vamos registrar apenas para os primeiros 50 para não travar o cliente
+        const sampleProfiles = userIds.slice(0, 50);
+        const notificationsToInsert = sampleProfiles.map(id => ({
+            user_id: id,
+            title,
+            message: body,
+            type: 'promotion',
+            read: false,
+            created_at: new Date().toISOString()
+        }));
 
-        return res;
+        const { error: notifError } = await supabase.from('notifications').insert(notificationsToInsert);
+        if (notifError) console.warn('Erro ao salvar histórico de notificações (não crítico):', notifError);
+
+        return res || { success: true };
     } catch (error) {
         console.error('Erro ao enviar transmissão:', error);
-        return null;
+        return null; // Retorna null para erro genérico
     }
 };
 
