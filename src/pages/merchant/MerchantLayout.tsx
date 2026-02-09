@@ -156,8 +156,11 @@ const MerchantLayout = ({ children, activeTab, title }: { children: React.ReactN
                                             let pharmacyId = null;
                                             const impersonatedId = localStorage.getItem('impersonatedPharmacyId');
 
+                                            // LOG DE DEBUG PARA CONFIRMAR VERSÃO V2
+                                            console.log("[DEBUG v2] Verificando ID:", impersonatedId);
+
                                             if (impersonatedId) {
-                                                console.log("MerchantLayout: Admin Impersonating:", impersonatedId);
+                                                console.log("MerchantLayout (v2): Admin Impersonating:", impersonatedId);
                                                 pharmacyId = impersonatedId;
                                             } else {
                                                 // 1. Check Owner
@@ -171,17 +174,18 @@ const MerchantLayout = ({ children, activeTab, title }: { children: React.ReactN
                                                 }
                                             }
 
-                                            if (!pharmacyId) throw new Error("Farmácia não encontrada");
+                                            if (!pharmacyId) throw new Error("Farmácia não encontrada (Código v2 Atualizado - ID Nulo)");
 
                                             const { error } = await supabase.from('pharmacies')
                                                 .update({ is_open: newStatus, auto_open_status: false })
                                                 .eq('id', pharmacyId);
 
                                             if (error) throw error;
-                                        } catch (err) {
+                                        } catch (err: any) {
                                             console.error("Erro ao atualizar status:", err);
                                             setStoreStatus(previousStatus);
-                                            alert("Erro ao atualizar status da loja.");
+                                            // Alerta com mensagem de erro detalhada para confirmação visual
+                                            alert(`Erro ao atualizar status (v2): ${err.message}`);
                                         }
                                     }}
                                     className={`ml-2 w-8 h-4 rounded-full transition-colors relative border border-white/10 ${storeStatus ? 'bg-green-500/20' : 'bg-red-500/20'}`}
