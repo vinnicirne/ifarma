@@ -6,6 +6,7 @@ import { TopAppBar } from '../../components/layout/TopAppBar';
 import { BottomNav } from '../../components/layout/BottomNav';
 import { useCartCount } from '../../hooks/useCartCount';
 import { useCart } from '../../hooks/useCart';
+import { AdMobBanner } from '../../components/AdMobBanner';
 
 
 // --- Shared Helper for Distance ---
@@ -21,7 +22,7 @@ const PromoCarousel = () => {
             const { data } = await supabase
                 .from('promotions')
                 .select('*')
-                .eq('is_active', true)
+                .eq('active', true)
                 .gte('end_date', new Date().toISOString().split('T')[0]); // Only future/present promos
 
             if (data && data.length > 0) {
@@ -356,6 +357,8 @@ export const ClientHome = ({ userLocation, sortedPharmacies, session }: { userLo
                 userLocation={userLocation}
                 session={session}
             />
+            <AdMobBanner />
+
 
             <main className="flex-1">
                 {searchQuery.length > 0 ? (

@@ -1,4 +1,4 @@
-import React, { Suspense, lazy } from 'react';
+import React, { lazy, Suspense } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 
 // Loading Component
@@ -47,6 +47,7 @@ const PharmacyDetails = lazy(() => import('../pages/admin/PharmacyDetails'));
 const MotoboyManagement = lazy(() => import('../pages/admin/MotoboyManagement').then(m => ({ default: m.MotoboyManagement })));
 const AdManagement = lazy(() => import('../pages/admin/AdManagement').then(m => ({ default: m.AdManagement })));
 const PromotionManagement = lazy(() => import('../pages/admin/PromotionManagement').then(m => ({ default: m.PromotionManagement })));
+const CategoryManagement = lazy(() => import('../pages/admin/CategoryManagement').then(m => ({ default: m.CategoryManagement })));
 const SystemSettings = lazy(() => import('../pages/admin/SystemSettings').then(m => ({ default: m.SystemSettings })));
 
 // Pages - Merchant (lazy load - large files)
@@ -59,6 +60,7 @@ const MerchantFinancial = lazy(() => import('../pages/merchant/MerchantFinancial
 const StoreCustomization = lazy(() => import('../pages/merchant/StoreCustomization'));
 const TeamManagement = lazy(() => import('../pages/merchant/TeamManagement'));
 const MerchantNotifications = lazy(() => import('../pages/merchant/MerchantNotifications'));
+const MerchantPromotions = lazy(() => import('../pages/merchant/MerchantPromotions').then(m => ({ default: m.MerchantPromotions })));
 
 // Layout
 const MerchantLayout = lazy(() => import('../pages/merchant/MerchantLayout'));
@@ -128,6 +130,7 @@ export const AppRoutes = ({ session, profile, userLocation, sortedPharmacies, re
                 <Route path="motoboys" element={<Suspense fallback={<LoadingScreen />}><MotoboyManagement profile={profile} /></Suspense>} />
                 <Route path="ads" element={<Suspense fallback={<LoadingScreen />}><AdManagement profile={profile} /></Suspense>} />
                 <Route path="promotions" element={<Suspense fallback={<LoadingScreen />}><PromotionManagement profile={profile} /></Suspense>} />
+                <Route path="categories" element={<Suspense fallback={<LoadingScreen />}><CategoryManagement profile={profile} /></Suspense>} />
                 <Route path="settings" element={<Suspense fallback={<LoadingScreen />}><SystemSettings profile={profile} /></Suspense>} />
             </Route>
 
@@ -140,6 +143,7 @@ export const AppRoutes = ({ session, profile, userLocation, sortedPharmacies, re
             <Route path="/gestor/settings" element={<GestorRoute session={session} profile={profile}><Suspense fallback={<LoadingScreen />}><StoreCustomization /></Suspense></GestorRoute>} />
             <Route path="/gestor/equipe" element={<GestorRoute session={session} profile={profile}><Suspense fallback={<LoadingScreen />}><TeamManagement /></Suspense></GestorRoute>} />
             <Route path="/gestor/notifications" element={<GestorRoute session={session} profile={profile}><Suspense fallback={<LoadingScreen />}><MerchantNotifications /></Suspense></GestorRoute>} />
+            <Route path="/gestor/promotions" element={<GestorRoute session={session} profile={profile}><Suspense fallback={<LoadingScreen />}><MerchantPromotions /></Suspense></GestorRoute>} />
 
             {/* Motoboy Routes (with Suspense) */}
             <Route path="/motoboy-login" element={<MotoboyLogin />} />

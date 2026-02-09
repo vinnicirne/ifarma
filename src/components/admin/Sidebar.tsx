@@ -23,6 +23,7 @@ const Sidebar = () => {
         { icon: Bike, label: 'MOTOBOYS', path: '/dashboard/motoboys' },
         { icon: Megaphone, label: 'ANÚNCIOS', path: '/dashboard/ads' },
         { icon: Tag, label: 'PROMOÇÕES', path: '/dashboard/promotions' },
+        { icon: Tag, label: 'CATEGORIAS', path: '/dashboard/categories' },
         { icon: Settings, label: 'CONFIGURAÇÕES', path: '/dashboard/settings' },
     ];
 

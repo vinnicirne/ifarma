@@ -156,6 +156,7 @@ const MerchantLayout = ({ children, activeTab, title }: { children: React.ReactN
         { id: 'orders', label: 'Pedidos', icon: 'receipt_long', path: '/gestor/orders' },
         { id: 'products', label: 'Produtos', icon: 'inventory_2', path: '/gestor/products' },
         { id: 'team', label: 'Equipe / Cargos', icon: 'groups', path: '/gestor/equipe' },
+        { id: 'promotions', label: 'Campanhas', icon: 'campaign', path: '/gestor/promotions' },
         { id: 'financial', label: 'Financeiro', icon: 'payments', path: '/gestor/financial' },
         { id: 'settings', label: 'Configurações', icon: 'store', path: '/gestor/settings' },
     ];

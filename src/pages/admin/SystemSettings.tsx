@@ -6,7 +6,7 @@ export const SystemSettings = ({ profile }: { profile: any }) => {
     const [isSaving, setIsSaving] = useState(false);
     const [success, setSuccess] = useState(false);
     const [isTesting, setIsTesting] = useState(false);
-    const [activeTab, setActiveTab] = useState<'general' | 'finance' | 'notifications'>('general');
+    const [activeTab, setActiveTab] = useState<'general' | 'finance' | 'notifications' | 'ads'>('general');
 
     useEffect(() => {
         const loadSettings = async () => {
@@ -26,7 +26,13 @@ export const SystemSettings = ({ profile }: { profile: any }) => {
                     'global_percentage_fee': 'global_perc_fee',
                     'mp_public_key': 'mp_pub_key',
                     'mp_access_token': 'mp_acc_token',
-                    'asaas_api_key': 'asaas_key'
+                    'mp_public_key': 'mp_pub_key',
+                    'mp_access_token': 'mp_acc_token',
+                    'asaas_api_key': 'asaas_key',
+                    'admob_enabled': 'admob_enabled',
+                    'admob_app_id_android': 'admob_app_id',
+                    'admob_banner_id_android': 'admob_banner_id',
+                    'admob_interstitial_id_android': 'admob_interstitial_id'
                 };
 
                 Object.entries(mappings).forEach(([key, id]) => {
@@ -62,7 +68,11 @@ export const SystemSettings = ({ profile }: { profile: any }) => {
             { key: 'global_percentage_fee', value: getVal('global_perc_fee') },
             { key: 'mp_public_key', value: getVal('mp_pub_key') },
             { key: 'mp_access_token', value: getVal('mp_acc_token') },
-            { key: 'asaas_api_key', value: getVal('asaas_key') }
+            { key: 'asaas_api_key', value: getVal('asaas_key') },
+            { key: 'admob_enabled', value: getCheck('admob_enabled') },
+            { key: 'admob_app_id_android', value: getVal('admob_app_id') },
+            { key: 'admob_banner_id_android', value: getVal('admob_banner_id') },
+            { key: 'admob_interstitial_id_android', value: getVal('admob_interstitial_id') }
         ];
 
         const { error } = await supabase
@@ -122,7 +132,8 @@ export const SystemSettings = ({ profile }: { profile: any }) => {
                         {[
                             { id: 'general', label: 'Geral', icon: 'settings' },
                             { id: 'finance', label: 'Financeiro', icon: 'payments' },
-                            { id: 'notifications', label: 'Avisos', icon: 'notifications' }
+                            { id: 'notifications', label: 'Avisos', icon: 'notifications' },
+                            { id: 'ads', label: 'Anúncios', icon: 'campaign' }
                         ].map(tab => (
                             <button
                                 key={tab.id}
@@ -263,6 +274,60 @@ export const SystemSettings = ({ profile }: { profile: any }) => {
                                         <input id="asaas_key" type="password" className="h-12 bg-black/20 border border-white/10 rounded-xl px-4 text-xs font-mono" placeholder="$a..." />
                                     </label>
                                 </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {activeTab === 'ads' && (
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-fade-in">
+                        <div className="bg-white dark:bg-[#193324] rounded-[32px] border border-slate-200 dark:border-white/5 p-8 space-y-6">
+                            <div className="flex items-center gap-3 mb-2">
+                                <div className="size-10 rounded-full bg-blue-500/10 flex items-center justify-center text-blue-500">
+                                    <MaterialIcon name="campaign" />
+                                </div>
+                                <h3 className="text-lg font-black italic">Google AdMob</h3>
+                            </div>
+                            <p className="text-xs text-slate-400 mb-6 italic">Monetize o aplicativo exibindo banners de publicidade.</p>
+
+                            <div className="space-y-6">
+                                <div className="p-6 rounded-2xl bg-black/20 border border-white/5">
+                                    <label className="flex items-center gap-3 mb-4 cursor-pointer">
+                                        <input id="admob_enabled" type="checkbox" className="accent-blue-500 size-5" />
+                                        <span className="font-black uppercase tracking-widest text-xs">Exibir Anúncios</span>
+                                    </label>
+                                    <p className="text-[10px] text-slate-500">
+                                        Ao ativar, os banners aparecerão na tela inicial do app do cliente.
+                                    </p>
+                                </div>
+
+                                <label className="flex flex-col gap-2 opacity-50">
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-[#92c9a9]">App ID (Android)</span>
+                                    <input id="admob_app_id" placeholder="ca-app-pub-..." className="h-12 bg-black/20 border border-white/10 rounded-xl px-4 text-sm font-bold" />
+                                    <span className="text-[9px] text-red-400 font-bold">* Requer rebuild do app se alterado (Atualize o AndroidManifest.xml)</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div className="bg-white dark:bg-[#193324] rounded-[32px] border border-slate-200 dark:border-white/5 p-8 space-y-6">
+                            <h3 className="text-lg font-black italic border-b border-white/5 pb-4">Blocos de Anúncios</h3>
+
+                            <label className="flex flex-col gap-2">
+                                <span className="text-[10px] font-black uppercase tracking-widest text-[#92c9a9]">Banner ID (Home)</span>
+                                <input id="admob_banner_id" placeholder="ca-app-pub-.../..." className="h-12 bg-black/20 border border-white/10 rounded-xl px-4 text-sm font-bold" />
+                                <span className="text-[10px] text-slate-500">ID do bloco de anúncio tipo Banner</span>
+                            </label>
+
+                            <label className="flex flex-col gap-2">
+                                <span className="text-[10px] font-black uppercase tracking-widest text-[#92c9a9]">Interstitial ID (Opcional)</span>
+                                <input id="admob_interstitial_id" placeholder="ca-app-pub-.../..." className="h-12 bg-black/20 border border-white/10 rounded-xl px-4 text-sm font-bold" />
+                                <span className="text-[10px] text-slate-500">ID do bloco de anúncio tipo Interstitial (Tela cheia)</span>
+                            </label>
+
+                            <div className="bg-blue-500/10 p-4 rounded-xl border border-blue-500/20 mt-4">
+                                <p className="text-[10px] text-blue-400 font-bold">
+                                    💡 Dica: Use os IDs de teste do Google durante o desenvolvimento para evitar banimento da conta.
+                                </p>
                             </div>
                         </div>
                     </div>
