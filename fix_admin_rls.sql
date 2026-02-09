@@ -27,3 +27,35 @@ TO authenticated
 USING (
   (SELECT role FROM profiles WHERE id = auth.uid()) = 'admin'
 );
+
+-- FIX: Permitir que Admins gerenciem CONTRATOS de motoboys (courier_contracts)
+ALTER TABLE IF EXISTS courier_contracts ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Admins can do everything on courier_contracts" ON courier_contracts;
+CREATE POLICY "Admins can do everything on courier_contracts"
+ON courier_contracts
+FOR ALL
+TO authenticated
+USING (
+  (SELECT role FROM profiles WHERE id = auth.uid()) = 'admin'
+)
+WITH CHECK (
+  (SELECT role FROM profiles WHERE id = auth.uid()) = 'admin'
+);
+
+-- FIX: Permitir que Merchants gerenciem seus próprios contratos
+DROP POLICY IF EXISTS "Merchants can manage their pharmacy contracts" ON courier_contracts;
+CREATE POLICY "Merchants can manage their pharmacy contracts"
+ON courier_contracts
+FOR ALL
+TO authenticated
+USING (
+  pharmacy_id IN (
+    SELECT pharmacy_id FROM profiles WHERE id = auth.uid() AND role = 'merchant'
+  )
+)
+WITH CHECK (
+  pharmacy_id IN (
+    SELECT pharmacy_id FROM profiles WHERE id = auth.uid() AND role = 'merchant'
+  )
+);
