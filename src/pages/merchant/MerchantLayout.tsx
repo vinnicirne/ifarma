@@ -153,12 +153,21 @@ const MerchantLayout = ({ children, activeTab, title }: { children: React.ReactN
                                             const { data: { user } } = await supabase.auth.getUser();
                                             if (!user) throw new Error("Não autenticado");
 
-                                            const { data: profile } = await supabase.from('profiles').select('pharmacy_id').eq('id', user.id).single();
-                                            if (!profile?.pharmacy_id) throw new Error("Farmácia não encontrada");
+                                            let pharmacyId = null;
+                                            const impersonatedId = localStorage.getItem('impersonatedPharmacyId');
+
+                                            if (impersonatedId && user.email === 'admin@ifarma.com.br') {
+                                                pharmacyId = impersonatedId;
+                                            } else {
+                                                const { data: profile } = await supabase.from('profiles').select('pharmacy_id').eq('id', user.id).single();
+                                                pharmacyId = profile?.pharmacy_id;
+                                            }
+
+                                            if (!pharmacyId) throw new Error("Farmácia não encontrada");
 
                                             const { error } = await supabase.from('pharmacies')
                                                 .update({ is_open: newStatus, auto_open_status: false })
-                                                .eq('id', profile.pharmacy_id);
+                                                .eq('id', pharmacyId);
 
                                             if (error) throw error;
                                         } catch (err) {
