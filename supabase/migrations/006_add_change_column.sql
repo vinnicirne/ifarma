@@ -1,1 +1,0 @@
-ALTER TABLE orders ADD COLUMN IF NOT EXISTS change_for DECIMAL(10, 2);

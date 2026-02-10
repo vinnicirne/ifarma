@@ -40,6 +40,7 @@ export const Auth = ({ view = 'login' }: { view?: 'login' | 'signup' }) => {
                         // Redirecionar baseado no role
                         switch (profileData.role) {
                             case 'admin':
+                            case 'operator':
                                 navigate('/dashboard');
                                 break;
                             case 'merchant':

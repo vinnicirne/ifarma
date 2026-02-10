@@ -7,7 +7,7 @@ import { supabase } from '../lib/supabase';
 
 export const AdminRoute = ({ children, session, profile }: { children: React.ReactNode, session: any, profile: any }) => {
     if (!session) return <Auth view="login" />;
-    if (profile?.role !== 'admin') {
+    if (profile?.role !== 'admin' && profile?.role !== 'operator') {
         const handleLogout = async () => {
             await supabase.auth.signOut();
             window.location.reload();

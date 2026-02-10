@@ -7,7 +7,7 @@ export const CategoryManagement = ({ profile }: { profile: any }) => {
     const [loading, setLoading] = useState(true);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editMode, setEditMode] = useState(false);
-    const [currentCategory, setCurrentCategory] = useState<any>({ name: '', slug: '', icon_url: '' });
+    const [currentCategory, setCurrentCategory] = useState<any>({ name: '', slug: '', icon_url: '', parent_id: null, description: '' });
 
     useEffect(() => {
         fetchCategories();
@@ -18,6 +18,7 @@ export const CategoryManagement = ({ profile }: { profile: any }) => {
         const { data, error } = await supabase
             .from('categories')
             .select('*')
+            .order('parent_id', { ascending: true, nullsFirst: true })
             .order('name');
 
         if (error) console.error('Erro ao buscar categorias:', error);
@@ -25,33 +26,39 @@ export const CategoryManagement = ({ profile }: { profile: any }) => {
         setLoading(false);
     };
 
+    // Helper to get parent name
+    const getParentName = (parentId: string) => {
+        const parent = categories.find(c => c.id === parentId);
+        return parent ? parent.name : '-';
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
+            const payload = {
+                name: currentCategory.name,
+                slug: currentCategory.slug,
+                icon_url: currentCategory.icon_url,
+                parent_id: currentCategory.parent_id || null,
+                description: currentCategory.description
+            };
+
             if (editMode && currentCategory.id) {
                 const { error } = await supabase
                     .from('categories')
-                    .update({
-                        name: currentCategory.name,
-                        slug: currentCategory.slug,
-                        icon_url: currentCategory.icon_url
-                    })
+                    .update(payload)
                     .eq('id', currentCategory.id);
                 if (error) throw error;
             } else {
                 const { error } = await supabase
                     .from('categories')
-                    .insert([{
-                        name: currentCategory.name,
-                        slug: currentCategory.slug,
-                        icon_url: currentCategory.icon_url
-                    }]);
+                    .insert([payload]);
                 if (error) throw error;
             }
             fetchCategories();
             setIsModalOpen(false);
             setEditMode(false);
-            setCurrentCategory({ name: '', slug: '', icon_url: '' });
+            setCurrentCategory({ name: '', slug: '', icon_url: '', parent_id: null, description: '' });
         } catch (error) {
             console.error('Erro ao salvar categoria:', error);
             alert('Erro ao salvar categoria.');
@@ -170,6 +177,30 @@ export const CategoryManagement = ({ profile }: { profile: any }) => {
                                     value={currentCategory.icon_url || ''}
                                     onChange={e => setCurrentCategory({ ...currentCategory, icon_url: e.target.value })}
                                     placeholder="https://..."
+                                />
+                            </label>
+
+                            <label className="flex flex-col gap-2">
+                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-[#92c9a9]">Categoria Pai (Opcional)</span>
+                                <select
+                                    className="h-12 bg-slate-100 dark:bg-black/20 rounded-xl px-4 font-bold text-slate-900 dark:text-white border-transparent focus:border-primary focus:ring-0"
+                                    value={currentCategory.parent_id || ''}
+                                    onChange={e => setCurrentCategory({ ...currentCategory, parent_id: e.target.value || null })}
+                                >
+                                    <option value="">Nenhuma (Raiz)</option>
+                                    {categories.filter(c => c.id !== currentCategory.id).map(c => (
+                                        <option key={c.id} value={c.id}>{c.name}</option>
+                                    ))}
+                                </select>
+                            </label>
+
+                            <label className="flex flex-col gap-2">
+                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-[#92c9a9]">Descrição</span>
+                                <textarea
+                                    className="h-24 bg-slate-100 dark:bg-black/20 rounded-xl p-4 font-medium text-slate-900 dark:text-white border-transparent focus:border-primary focus:ring-0 resize-none"
+                                    value={currentCategory.description || ''}
+                                    onChange={e => setCurrentCategory({ ...currentCategory, description: e.target.value })}
+                                    placeholder="Descrição da categoria para SEO..."
                                 />
                             </label>
 

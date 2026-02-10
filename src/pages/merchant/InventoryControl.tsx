@@ -47,16 +47,22 @@ interface CatalogItem {
 }
 
 const InventoryControl = () => {
+    const [loading, setLoading] = useState(false);
     const [products, setProducts] = useState<Product[]>([]);
-    const [loading, setLoading] = useState(true);
+    const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+    const [showModal, setShowModal] = useState(false);
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+    const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
     const [catalogSearch, setCatalogSearch] = useState('');
-    const [catalogSuggestions, setCatalogSuggestions] = useState<CatalogItem[]>([]);
-    const [selectedCatalogItem, setSelectedCatalogItem] = useState<CatalogItem | null>(null);
+    const [catalogResults, setCatalogResults] = useState<any[]>([]);
+    const [catalogSuggestions, setCatalogSuggestions] = useState<any[]>([]);
+    const [selectedCatalogItem, setSelectedCatalogItem] = useState<any>(null);
+    const [uploading, setUploading] = useState(false);
+    const [categories, setCategories] = useState<any[]>([]);
     const [formData, setFormData] = useState({
         name: '',
         brand: '',
-        category: '',
+        category: '', // This will now store ID or Name depending on logic
         price: '',
         original_price: '',
         promo_price: '',
@@ -64,181 +70,273 @@ const InventoryControl = () => {
         requires_prescription: false,
         image_url: '',
         sku: '',
-        ean: ''
+        ean: '',
+        // New Fields
+        dosage: '',
+        quantity_label: '',
+        principle_active: '', // Comma separated
+        tags: '', // Comma separated
+        synonyms: '', // Comma separated
+        control_level: 'none',
+        usage_instructions: ''
     } as Record<string, any>);
 
-    const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+    useEffect(() => {
+        fetchProducts();
+        fetchCategories();
+    }, []);
 
-    const [uploading, setUploading] = useState(false);
-    const [toast, setToast] = useState<{ message: string, type: 'success' | 'error' | 'info' | 'warning' } | null>(null);
-
-    const showToast = (message: string, type: 'success' | 'error' | 'info' | 'warning' = 'info') => {
+    const showToast = (message: string, type: 'success' | 'error') => {
         setToast({ message, type });
         setTimeout(() => setToast(null), 3000);
     };
 
-    useEffect(() => {
-        fetchProducts();
-    }, []);
-
-    const fetchProducts = async () => {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
-
-        // Buscar a farmácia através do perfil do usuário
-        const { data: profile } = await supabase
-            .from('profiles')
-            .select('pharmacy_id')
-            .eq('id', user.id)
-            .single();
-
-        if (profile?.pharmacy_id) {
-            const { data, error } = await supabase
-                .from('products')
-                .select('*')
-                .eq('pharmacy_id', profile.pharmacy_id)
-                .order('created_at', { ascending: false });
-
-            if (data) {
-                const mappedProducts = data.map(p => ({
-                    ...p,
-                    status: !p.is_active ? 'Pausado' : p.stock === 0 ? 'Sem Estoque' : p.stock <= 10 ? 'Baixo Estoque' : 'Ativo'
-                }));
-                setProducts(mappedProducts);
-            }
-        }
-        setLoading(false);
-    };
-
-    const handleCatalogSearch = async (val: string) => {
-        setCatalogSearch(val);
-        if (val.length < 3) {
+    const handleCatalogSearch = async () => {
+        if (!catalogSearch.trim()) {
             setCatalogSuggestions([]);
             return;
         }
 
-        const { data } = await supabase
+        const { data, error } = await supabase
             .from('product_catalog')
-            .select('id, name, brand, category, requires_prescription, ean, image_url')
-            .ilike('name', `%${val}%`)
-            .limit(5);
+            .select('*')
+            .or(`name.ilike.%${catalogSearch}%,brand.ilike.%${catalogSearch}%,ean.eq.${catalogSearch}`)
+            .limit(10);
 
-        if (data) setCatalogSuggestions(data);
+        if (!error && data) {
+            setCatalogSuggestions(data);
+        }
     };
 
-    const selectCatalogItem = (item: CatalogItem) => {
+    const selectCatalogItem = (item: any) => {
         setSelectedCatalogItem(item);
-        setFormData(prev => ({
-            ...prev,
-            name: item.name,
+        setFormData({
+            ...formData,
+            name: item.name || '',
             brand: item.brand || '',
             category: item.category || '',
-            requires_prescription: item.requires_prescription,
-            image_url: item.image_url || prev.image_url,
-            ean: item.ean || ''
-        }));
-        setCatalogSearch(item.name);
+            ean: item.ean || '',
+            dosage: item.dosage || '',
+            quantity_label: item.quantity_label || '',
+            requires_prescription: item.requires_prescription || false,
+            principle_active: Array.isArray(item.active_ingredient) ? item.active_ingredient.join(', ') : '',
+            tags: Array.isArray(item.tags) ? item.tags.join(', ') : '',
+        });
+        setCatalogSearch('');
         setCatalogSuggestions([]);
     };
 
     const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        try {
-            setUploading(true);
-            const file = e.target.files?.[0];
-            if (!file) return;
+        const file = e.target.files?.[0];
+        if (!file) return;
 
-            const fileExt = file.name.split('.').pop();
-            const fileName = `${Math.random()}.${fileExt}`;
-            const filePath = `${fileName}`;
+        setUploading(true);
+        const fileExt = file.name.split('.').pop();
+        const fileName = `${Math.random()}.${fileExt}`;
+        const filePath = `products/${fileName}`;
 
-            const { error: uploadError } = await supabase.storage
-                .from('products')
-                .upload(filePath, file);
+        const { error: uploadError, data } = await supabase.storage
+            .from('product-images')
+            .upload(filePath, file);
 
-            if (uploadError) throw uploadError;
-
-            const { data: { publicUrl } } = supabase.storage
-                .from('products')
-                .getPublicUrl(filePath);
-
-            setFormData(prev => ({ ...prev, image_url: publicUrl }));
-            setFormData(prev => ({ ...prev, image_url: publicUrl }));
-            showToast('Imagem enviada com sucesso!', 'success');
-        } catch (error: any) {
-            showToast('Erro no upload: ' + error.message, 'error');
-        } finally {
+        if (uploadError) {
+            showToast('Erro ao fazer upload da imagem', 'error');
             setUploading(false);
+            return;
         }
+
+        const { data: { publicUrl } } = supabase.storage
+            .from('product-images')
+            .getPublicUrl(filePath);
+
+        setFormData({ ...formData, image_url: publicUrl });
+        setUploading(false);
     };
 
-    const handleSave = async (e: React.FormEvent) => {
-        e.preventDefault();
+    const resetForm = () => {
+        setFormData({
+            name: '',
+            brand: '',
+            category: '',
+            price: '',
+            original_price: '',
+            promo_price: '',
+            stock: '',
+            requires_prescription: false,
+            image_url: '',
+            sku: '',
+            ean: '',
+            dosage: '',
+            quantity_label: '',
+            principle_active: '',
+            tags: '',
+            synonyms: '',
+            control_level: 'none',
+            usage_instructions: ''
+        });
+        setSelectedCatalogItem(null);
+        setCatalogSearch('');
+        setCatalogSuggestions([]);
+    };
+
+    const fetchCategories = async () => {
+        const { data } = await supabase.from('categories').select('*').order('name');
+        if (data) setCategories(data);
+    };
+
+    const fetchProducts = async () => {
         setLoading(true);
-
         const { data: { user } } = await supabase.auth.getUser();
-        const { data: profile } = await supabase
-            .from('profiles')
-            .select('pharmacy_id')
-            .eq('id', user?.id)
-            .single();
+        if (!user) {
+            setLoading(false);
+            return;
+        }
 
-        if (profile?.pharmacy_id) {
-            const salePrice = parseFloat(formData.promo_price.toString().replace(',', '.')) || parseFloat(formData.price.toString().replace(',', '.'));
+        // 🔥 DETECTAR PHARMACY_ID (Admin Impersonation ou Perfil do Usuário)
+        let pharmacyId = null;
+        const impersonatedId = localStorage.getItem('impersonatedPharmacyId');
 
-            const payload = {
-                pharmacy_id: profile.pharmacy_id,
-                name: formData.name,
-                brand: formData.brand,
-                category: formData.category,
-                price: salePrice,
-                original_price: parseFloat(formData.original_price.toString().replace(',', '.')) || parseFloat(formData.price.toString().replace(',', '.')),
-                promo_price: formData.promo_price ? parseFloat(formData.promo_price.toString().replace(',', '.')) : null,
-                stock: parseInt(formData.stock.toString()),
-                requires_prescription: formData.requires_prescription,
-                image_url: formData.image_url,
-                sku: formData.sku,
-                ean: formData.ean
-            };
+        if (impersonatedId) {
+            console.log('🎭 Admin visualizando farmácia:', impersonatedId);
+            pharmacyId = impersonatedId;
+        } else {
+            const { data: profile } = await supabase
+                .from('profiles')
+                .select('pharmacy_id')
+                .eq('id', user.id)
+                .single();
 
-            let error;
-            if (editingProduct) {
-                const { error: err } = await supabase
-                    .from('products')
-                    .update(payload)
-                    .eq('id', editingProduct.id);
-                error = err;
-            } else {
-                const { error: err } = await supabase
-                    .from('products')
-                    .insert([payload]);
-                error = err;
-            }
+            pharmacyId = profile?.pharmacy_id;
+        }
 
-            if (!error) {
-                setIsAddModalOpen(false);
-                setEditingProduct(null);
-                fetchProducts();
-                resetForm();
-                showToast('Produto salvo com sucesso!', 'success');
-            } else {
-                showToast("Erro ao salvar: " + error.message, 'error');
+        if (pharmacyId) {
+            const { data, error } = await supabase
+                .from('products')
+                .select('*')
+                .eq('pharmacy_id', pharmacyId)
+                .order('created_at', { ascending: false });
+
+            if (!error && data) {
+                setProducts(data);
             }
         }
         setLoading(false);
     };
 
-    const resetForm = () => {
-        setFormData({
-            name: '', brand: '', category: '', price: '',
-            original_price: '', promo_price: '', stock: '',
-            requires_prescription: false, image_url: '',
-            sku: '', ean: ''
-        });
-        setCatalogSearch('');
-        setSelectedCatalogItem(null);
+    const handleSave = async (e: React.FormEvent) => {
+        e.preventDefault();
+        console.log('🔵 handleSave chamado!', formData);
+        setLoading(true);
+
+        try {
+            const { data: { user }, error: authError } = await supabase.auth.getUser();
+            console.log('👤 User:', user?.id);
+
+            if (authError || !user) {
+                console.error('❌ Erro de autenticação:', authError);
+                showToast('Erro de autenticação. Faça login novamente.', 'error');
+                return;
+            }
+
+            // 🔥 DETECTAR PHARMACY_ID (Admin Impersonation ou Perfil do Usuário)
+            let pharmacyId = null;
+            const impersonatedId = localStorage.getItem('impersonatedPharmacyId');
+
+            if (impersonatedId) {
+                console.log('🎭 Admin gerenciando farmácia:', impersonatedId);
+                pharmacyId = impersonatedId;
+            } else {
+                // Buscar pharmacy_id do perfil do usuário
+                const { data: profile, error: profileError } = await supabase
+                    .from('profiles')
+                    .select('pharmacy_id')
+                    .eq('id', user.id)
+                    .single();
+
+                console.log('🏪 Pharmacy ID do perfil:', profile?.pharmacy_id);
+
+                if (profileError) {
+                    console.error('❌ Erro ao buscar perfil:', profileError);
+                    showToast('Erro ao buscar perfil: ' + profileError.message, 'error');
+                    return;
+                }
+
+                pharmacyId = profile?.pharmacy_id;
+            }
+
+            console.log('✅ Pharmacy ID final:', pharmacyId);
+
+            if (pharmacyId) {
+                const salePrice = parseFloat(formData.promo_price.toString().replace(',', '.')) || parseFloat(formData.price.toString().replace(',', '.'));
+
+                const payload = {
+                    pharmacy_id: pharmacyId, // 🔥 USAR pharmacyId EM VEZ DE profile.pharmacy_id
+                    name: formData.name,
+                    brand: formData.brand,
+                    category: formData.category, // Assuming text for now to avoid breaking legacy, ideally ID
+                    price: salePrice,
+                    original_price: parseFloat(formData.original_price.toString().replace(',', '.')) || parseFloat(formData.price.toString().replace(',', '.')),
+                    promo_price: formData.promo_price ? parseFloat(formData.promo_price.toString().replace(',', '.')) : null,
+                    stock: parseInt(formData.stock.toString()),
+                    requires_prescription: formData.requires_prescription,
+                    image_url: formData.image_url,
+                    sku: formData.sku,
+                    ean: formData.ean,
+                    // New Fields
+                    dosage: formData.dosage,
+                    quantity_label: formData.quantity_label,
+                    principle_active: formData.principle_active ? formData.principle_active.split(',').map((s: string) => s.trim()) : [],
+                    tags: formData.tags ? formData.tags.split(',').map((s: string) => s.trim()) : [],
+                    synonyms: formData.synonyms ? formData.synonyms.split(',').map((s: string) => s.trim()) : [],
+                    control_level: formData.control_level,
+                    usage_instructions: formData.usage_instructions
+                };
+
+                console.log('📦 Payload:', payload);
+
+                // ... (insert/update logic remains same) ...
+                let error;
+                if (editingProduct) {
+                    console.log('✏️ Atualizando produto:', editingProduct.id);
+                    const { error: err } = await supabase
+                        .from('products')
+                        .update(payload)
+                        .eq('id', editingProduct.id);
+                    error = err;
+                } else {
+                    console.log('➕ Inserindo novo produto');
+                    const { error: err } = await supabase
+                        .from('products')
+                        .insert([payload]);
+                    error = err;
+                }
+
+                console.log('❓ Error:', error);
+
+                if (!error) {
+                    console.log('✅ Produto salvo com sucesso!');
+                    setIsAddModalOpen(false);
+                    setEditingProduct(null);
+                    fetchProducts();
+                    resetForm();
+                    showToast('Produto salvo com sucesso!', 'success');
+                } else {
+                    console.error('❌ Erro ao salvar:', error);
+                    showToast("Erro ao salvar: " + error.message, 'error');
+                }
+            } else {
+                console.error('❌ Pharmacy ID não encontrado!');
+                showToast('Erro: Você precisa estar associado a uma farmácia para adicionar produtos.', 'error');
+            }
+        } catch (err) {
+            console.error('💥 ERRO CRÍTICO em handleSave:', err);
+            showToast('Erro inesperado: ' + (err instanceof Error ? err.message : String(err)), 'error');
+        } finally {
+            setLoading(false);
+        }
     };
 
-    const handleEdit = (product: Product) => {
+    const handleEdit = (product: any) => { // Type 'any' used to access new fields not yet in Product interface
         setEditingProduct(product);
         setFormData({
             name: product.name,
@@ -251,7 +349,15 @@ const InventoryControl = () => {
             requires_prescription: product.requires_prescription || false,
             image_url: product.image_url || '',
             sku: product.sku || '',
-            ean: product.ean || ''
+            ean: product.ean || '',
+            // Populate New Fields
+            dosage: product.dosage || '',
+            quantity_label: product.quantity_label || '',
+            principle_active: Array.isArray(product.principle_active) ? product.principle_active.join(', ') : '',
+            tags: Array.isArray(product.tags) ? product.tags.join(', ') : '',
+            synonyms: Array.isArray(product.synonyms) ? product.synonyms.join(', ') : '',
+            control_level: product.control_level || 'none',
+            usage_instructions: product.usage_instructions || ''
         });
         setIsAddModalOpen(true);
     };
@@ -408,7 +514,14 @@ const InventoryControl = () => {
                                         type="text"
                                         placeholder="Digite o nome do remédio..."
                                         value={catalogSearch}
-                                        onChange={(e) => handleCatalogSearch(e.target.value)}
+                                        onChange={(e) => {
+                                            setCatalogSearch(e.target.value);
+                                            if (e.target.value.length > 2) {
+                                                handleCatalogSearch();
+                                            } else {
+                                                setCatalogSuggestions([]);
+                                            }
+                                        }}
                                         className="w-full h-12 px-10 rounded-2xl bg-slate-50 dark:bg-black/20 border-none focus:ring-2 focus:ring-primary outline-none text-sm font-bold"
                                     />
                                     <MaterialIcon name="search" className="position absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -434,35 +547,46 @@ const InventoryControl = () => {
                                 )}
                             </div>
 
-                            <div className="grid grid-cols-2 gap-6">
-                                <div className="space-y-4">
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-3">
                                     <div className="col-span-2">
-                                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Nome do Produto</label>
-                                        <input required value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} className="w-full h-12 px-4 rounded-xl bg-slate-50 dark:bg-black/20 border-none text-sm font-bold" />
+                                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5">Nome do Produto</label>
+                                        <input required value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} className="w-full h-11 px-4 rounded-xl bg-slate-50 dark:bg-black/20 border-none text-sm font-bold" />
                                     </div>
 
                                     <div className="col-span-1">
-                                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">EAN (Código de Barras)</label>
-                                        <input placeholder="Opcional" value={formData.ean} onChange={e => setFormData({ ...formData, ean: e.target.value })} className="w-full h-12 px-4 rounded-xl bg-slate-50 dark:bg-black/20 border-none text-sm font-bold shadow-inner" />
+                                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5">EAN (Código de Barras)</label>
+                                        <input placeholder="Opcional" value={formData.ean} onChange={e => setFormData({ ...formData, ean: e.target.value })} className="w-full h-11 px-4 rounded-xl bg-slate-50 dark:bg-black/20 border-none text-sm font-bold shadow-inner" />
                                     </div>
 
                                     <div className="col-span-1">
-                                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">SKU (Cód. Interno)</label>
-                                        <input placeholder="Opcional" value={formData.sku} onChange={e => setFormData({ ...formData, sku: e.target.value })} className="w-full h-12 px-4 rounded-xl bg-slate-50 dark:bg-black/20 border-none text-sm font-bold shadow-inner" />
+                                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5">SKU (Cód. Interno)</label>
+                                        <input placeholder="Opcional" value={formData.sku} onChange={e => setFormData({ ...formData, sku: e.target.value })} className="w-full h-11 px-4 rounded-xl bg-slate-50 dark:bg-black/20 border-none text-sm font-bold shadow-inner" />
                                     </div>
 
-                                    <div className="grid grid-cols-2 gap-4">
+                                    <div className="grid grid-cols-2 gap-3">
                                         <div className="col-span-1">
-                                            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Marca</label>
-                                            <input required value={formData.brand} onChange={e => setFormData({ ...formData, brand: e.target.value })} className="w-full h-12 px-4 rounded-xl bg-slate-50 dark:bg-black/20 border-none text-sm font-bold shadow-inner" />
+                                            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5">Marca</label>
+                                            <input required value={formData.brand} onChange={e => setFormData({ ...formData, brand: e.target.value })} className="w-full h-11 px-4 rounded-xl bg-slate-50 dark:bg-black/20 border-none text-sm font-bold shadow-inner" />
                                         </div>
                                         <div className="col-span-1">
-                                            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Categoria</label>
-                                            <input required value={formData.category} onChange={e => setFormData({ ...formData, category: e.target.value })} className="w-full h-12 px-4 rounded-xl bg-slate-50 dark:bg-black/20 border-none text-sm font-bold shadow-inner" />
+                                            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5">Categoria</label>
+                                            <select
+                                                required
+                                                value={formData.category} // If migrating to ID, this should match ID. If legacy text, it saves text.
+                                                onChange={e => setFormData({ ...formData, category: e.target.value })}
+                                                className="w-full h-11 px-4 rounded-xl bg-slate-50 dark:bg-black/20 border-none text-sm font-bold shadow-inner"
+                                            >
+                                                <option value="">Selecione...</option>
+                                                {categories.map(c => (
+                                                    <option key={c.id} value={c.name}>{c.name}</option> // Saving Name for legacy compat. Ideal: ID
+                                                ))}
+                                                <option value="Outros">Outros</option>
+                                            </select>
                                         </div>
 
                                         <div className="col-span-1">
-                                            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Preço Normal (R$)</label>
+                                            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5">Preço Normal (R$)</label>
                                             <input
                                                 required
                                                 placeholder="0,00"
@@ -471,11 +595,11 @@ const InventoryControl = () => {
                                                     const formatted = parseCurrency(e.target.value);
                                                     setFormData({ ...formData, original_price: formatted, price: formatted });
                                                 }}
-                                                className="w-full h-12 px-4 rounded-xl bg-slate-50 dark:bg-black/20 border-none text-sm font-bold shadow-inner"
+                                                className="w-full h-11 px-4 rounded-xl bg-slate-50 dark:bg-black/20 border-none text-sm font-bold shadow-inner"
                                             />
                                         </div>
                                         <div className="col-span-1">
-                                            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 text-primary">Preço Promo</label>
+                                            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5 text-primary">Preço Promo</label>
                                             <input
                                                 placeholder="0,00"
                                                 value={formData.promo_price}
@@ -483,12 +607,58 @@ const InventoryControl = () => {
                                                     const formatted = parseCurrency(e.target.value);
                                                     setFormData({ ...formData, promo_price: formatted });
                                                 }}
-                                                className="w-full h-12 px-4 rounded-xl bg-slate-50 dark:bg-black/20 border-none text-sm font-bold shadow-inner text-primary"
+                                                className="w-full h-11 px-4 rounded-xl bg-slate-50 dark:bg-black/20 border-none text-sm font-bold shadow-inner text-primary"
                                             />
                                         </div>
 
+                                        {/* New Fields Block */}
+                                        <div className="col-span-2 grid grid-cols-2 gap-3 border-t border-slate-100 dark:border-white/5 pt-3">
+                                            <div className="col-span-1">
+                                                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5">Dosagem</label>
+                                                <input placeholder="Ex: 500mg" value={formData.dosage} onChange={e => setFormData({ ...formData, dosage: e.target.value })} className="w-full h-11 px-4 rounded-xl bg-slate-50 dark:bg-black/20 border-none text-sm font-bold shadow-inner" />
+                                            </div>
+                                            <div className="col-span-1">
+                                                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5">Qtd/Embalagem</label>
+                                                <input placeholder="Ex: 10 comprim" value={formData.quantity_label} onChange={e => setFormData({ ...formData, quantity_label: e.target.value })} className="w-full h-11 px-4 rounded-xl bg-slate-50 dark:bg-black/20 border-none text-sm font-bold shadow-inner" />
+                                            </div>
+
+                                            <div className="col-span-2">
+                                                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5">Princípio Ativo (separar por vírgula)</label>
+                                                <input placeholder="Dipirona Sódica" value={formData.principle_active} onChange={e => setFormData({ ...formData, principle_active: e.target.value })} className="w-full h-11 px-4 rounded-xl bg-slate-50 dark:bg-black/20 border-none text-sm font-bold shadow-inner" />
+                                            </div>
+
+                                            <div className="col-span-1">
+                                                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5">Tags de Busca</label>
+                                                <input placeholder="dor, febre, ..." value={formData.tags} onChange={e => setFormData({ ...formData, tags: e.target.value })} className="w-full h-11 px-4 rounded-xl bg-slate-50 dark:bg-black/20 border-none text-sm font-bold shadow-inner" />
+                                            </div>
+                                            <div className="col-span-1">
+                                                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5">Controle Especial</label>
+                                                <select
+                                                    value={formData.control_level}
+                                                    onChange={e => setFormData({ ...formData, control_level: e.target.value })}
+                                                    className="w-full h-11 px-4 rounded-xl bg-slate-50 dark:bg-black/20 border-none text-sm font-bold shadow-inner"
+                                                >
+                                                    <option value="none">Sem Cor</option>
+                                                    <option value="prescription_only">Venda sob Prescrição</option>
+                                                    <option value="controlled_yellow">Receita Amarela (A)</option>
+                                                    <option value="controlled_blue">Receita Azul (B)</option>
+                                                </select>
+                                            </div>
+
+                                            <div className="col-span-2">
+                                                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5">Modo de Uso / Instruções</label>
+                                                <textarea
+                                                    rows={2}
+                                                    placeholder="Tomar 1 comprimido a cada 8 horas..."
+                                                    value={formData.usage_instructions}
+                                                    onChange={e => setFormData({ ...formData, usage_instructions: e.target.value })}
+                                                    className="w-full p-3 rounded-xl bg-slate-50 dark:bg-black/20 border-none text-sm font-medium shadow-inner resize-none"
+                                                />
+                                            </div>
+                                        </div>
+
                                         <div className="col-span-2">
-                                            <div className="flex items-center gap-4 p-4 bg-slate-50 dark:bg-black/20 rounded-xl">
+                                            <div className="flex items-center gap-4 p-3 bg-slate-50 dark:bg-black/20 rounded-xl">
                                                 <input
                                                     type="checkbox"
                                                     id="prescription"
@@ -501,19 +671,19 @@ const InventoryControl = () => {
                                         </div>
 
                                         <div className="col-span-2">
-                                            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Estoque Inicial</label>
-                                            <input required type="number" placeholder="0" value={formData.stock} onChange={e => setFormData({ ...formData, stock: e.target.value })} className="w-full h-12 px-4 rounded-xl bg-slate-50 dark:bg-black/20 border-none text-sm font-bold shadow-inner" />
+                                            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5">Estoque Inicial</label>
+                                            <input required type="number" placeholder="0" value={formData.stock} onChange={e => setFormData({ ...formData, stock: e.target.value })} className="w-full h-11 px-4 rounded-xl bg-slate-50 dark:bg-black/20 border-none text-sm font-bold shadow-inner" />
                                         </div>
                                     </div>
                                 </div>
 
-                                <div className="flex flex-col gap-4">
+                                <div className="flex flex-col gap-3">
                                     <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">Foto do Produto</label>
                                     <div className="flex-1 relative group">
-                                        <label className="flex flex-col items-center justify-center w-full h-[320px] rounded-3xl bg-primary/5 dark:bg-primary/10 border-2 border-dashed border-primary/20 hover:border-primary/50 transition-all cursor-pointer overflow-hidden">
+                                        <label className="flex flex-col items-center justify-center w-full h-[240px] rounded-2xl bg-primary/5 dark:bg-primary/10 border-2 border-dashed border-primary/20 hover:border-primary/50 transition-all cursor-pointer overflow-hidden">
                                             {uploading ? (
-                                                <div className="flex flex-col items-center gap-4">
-                                                    <span className="animate-spin text-primary text-4xl">⌛</span>
+                                                <div className="flex flex-col items-center gap-3">
+                                                    <span className="animate-spin text-primary text-3xl">⌛</span>
                                                     <span className="text-[10px] font-black uppercase tracking-widest text-primary">Subindo...</span>
                                                 </div>
                                             ) : formData.image_url ? (
@@ -527,13 +697,13 @@ const InventoryControl = () => {
                                                     }}
                                                 />
                                             ) : (
-                                                <div className="flex flex-col items-center gap-4 text-primary/40 group-hover:text-primary transition-colors">
-                                                    <div className="size-20 rounded-full bg-primary/10 flex items-center justify-center">
-                                                        <MaterialIcon name="add_photo_alternate" className="!text-4xl" />
+                                                <div className="flex flex-col items-center gap-3 text-primary/40 group-hover:text-primary transition-colors">
+                                                    <div className="size-16 rounded-full bg-primary/10 flex items-center justify-center">
+                                                        <MaterialIcon name="add_photo_alternate" className="!text-3xl" />
                                                     </div>
                                                     <div className="text-center">
-                                                        <p className="text-sm font-black uppercase tracking-widest">Adicionar Foto</p>
-                                                        <p className="text-[10px] font-bold opacity-60">PNG ou JPG até 5MB</p>
+                                                        <p className="text-xs font-black uppercase tracking-widest">Adicionar Foto</p>
+                                                        <p className="text-[9px] font-bold opacity-60">PNG ou JPG até 5MB</p>
                                                     </div>
                                                 </div>
                                             )}
@@ -544,7 +714,7 @@ const InventoryControl = () => {
                                             <button
                                                 type="button"
                                                 onClick={() => window.open(`https://www.google.com/search?tbm=isch&q=${encodeURIComponent((formData.name || catalogSearch) + ' ' + (formData.brand || '') + ' png')}`, '_blank')}
-                                                className="mt-4 w-full h-10 rounded-xl bg-blue-500 hover:bg-blue-600 text-white shadow-lg shadow-blue-500/20 text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 hover:scale-[1.02] active:scale-95"
+                                                className="mt-3 w-full h-9 rounded-xl bg-blue-500 hover:bg-blue-600 text-white shadow-lg shadow-blue-500/20 text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 hover:scale-[1.02] active:scale-95"
                                             >
                                                 <MaterialIcon name="search" className="text-sm" />
                                                 Buscar Foto no Google
@@ -555,9 +725,9 @@ const InventoryControl = () => {
                                             <button
                                                 type="button"
                                                 onClick={() => setFormData(prev => ({ ...prev, image_url: '' }))}
-                                                className="absolute top-4 right-4 size-10 flex items-center justify-center rounded-xl bg-red-500 text-white shadow-lg hover:scale-110 active:scale-95 transition-all"
+                                                className="absolute top-3 right-3 size-9 flex items-center justify-center rounded-xl bg-red-500 text-white shadow-lg hover:scale-110 active:scale-95 transition-all"
                                             >
-                                                <MaterialIcon name="delete" />
+                                                <MaterialIcon name="delete" className="text-sm" />
                                             </button>
                                         )}
                                     </div>

@@ -56,6 +56,16 @@ const StoreCustomization = () => {
 
     useEffect(() => {
         fetchPharmacyData();
+
+        const handleLocalUpdate = (e: CustomEvent) => {
+            // Only update if current isOpen is different to avoid loops if needed, 
+            // but strictly we should trust the event.
+            console.log("StoreCustomization: Received local status update", e.detail);
+            setIsOpen(e.detail);
+        };
+        window.addEventListener('pharmacy_status_changed', handleLocalUpdate as EventListener);
+
+        return () => window.removeEventListener('pharmacy_status_changed', handleLocalUpdate as EventListener);
     }, []);
 
     const fetchPharmacyData = async () => {
@@ -245,7 +255,7 @@ const StoreCustomization = () => {
                     name,
                     establishment_phone: phone, // Saving to establishment_phone primarily
                     phone: phone, // Legacy sync
-                    cnpj,
+                    cnpj: cnpj || null,
                     is_open: isOpen,
                     logo_url: logoUrl,
                     banner_url: bannerUrl,
@@ -259,14 +269,15 @@ const StoreCustomization = () => {
                     state,
                     latitude: parseFloat(latitude) || 0,
                     longitude: parseFloat(longitude) || 0,
-                    auto_message_accept_enabled: autoMessageAcceptEnabled,
-                    auto_message_accept_text: autoMessageAcceptText,
-                    auto_message_cancel_enabled: autoMessageCancelEnabled,
-                    auto_message_cancel_text: autoMessageCancelText,
+                    // auto_message fields temporarily disabled (pending DB migration)
+                    // auto_message_accept_enabled: autoMessageAcceptEnabled,
+                    // auto_message_accept_text: autoMessageAcceptText,
+                    // auto_message_cancel_enabled: autoMessageCancelEnabled,
+                    // auto_message_cancel_text: autoMessageCancelText,
                     // Opening Hours
                     auto_open_status: autoOpenStatus,
-                    opening_hours_start: openingHoursStart,
-                    opening_hours_end: openingHoursEnd,
+                    // opening_hours_start: openingHoursStart,
+                    // opening_hours_end: openingHoursEnd,
                     opening_hours: openingHours,
                     // Delivery Fees
                     delivery_fee_type: deliveryFeeType,
@@ -286,6 +297,7 @@ const StoreCustomization = () => {
             }
 
             console.log("handleSave: Configurações salvas com sucesso!");
+            window.dispatchEvent(new CustomEvent('pharmacy_status_changed', { detail: isOpen }));
             alert("Configurações salvas com sucesso!");
         } catch (error) {
             console.error("handleSave: Exception ao salvar:", error);

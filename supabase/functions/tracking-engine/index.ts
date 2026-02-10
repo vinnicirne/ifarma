@@ -13,7 +13,7 @@ serve(async (req) => {
 
     try {
         const supabaseUrl = Deno.env.get('SUPABASE_URL');
-        const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+        const supabaseKey = Deno.env.get('IFARMA_SERVICE_ROLE_KEY') ?? Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
 
         if (!supabaseUrl || !supabaseKey) {
             throw new Error('Configuração de ambiente ausente (SUPABASE_URL ou KEY)');

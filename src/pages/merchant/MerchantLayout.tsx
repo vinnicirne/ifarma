@@ -92,6 +92,12 @@ const MerchantLayout = ({ children, activeTab, title }: { children: React.ReactN
     React.useEffect(() => {
         let channel: any = null;
 
+        const handleLocalUpdate = (e: CustomEvent) => {
+            console.log("MerchantLayout: Received local status update", e.detail);
+            setStoreStatus(e.detail);
+        };
+        window.addEventListener('pharmacy_status_changed', handleLocalUpdate as EventListener);
+
         const syncStatus = async () => {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) return;
@@ -126,6 +132,7 @@ const MerchantLayout = ({ children, activeTab, title }: { children: React.ReactN
         syncStatus();
 
         return () => {
+            window.removeEventListener('pharmacy_status_changed', handleLocalUpdate as EventListener);
             if (channel) supabase.removeChannel(channel);
         };
     }, []);
@@ -191,6 +198,7 @@ const MerchantLayout = ({ children, activeTab, title }: { children: React.ReactN
                                         const newStatus = !storeStatus;
                                         const previousStatus = storeStatus;
                                         setStoreStatus(newStatus);
+                                        window.dispatchEvent(new CustomEvent('pharmacy_status_changed', { detail: newStatus }));
 
                                         try {
                                             const { data: { user } } = await supabase.auth.getUser();

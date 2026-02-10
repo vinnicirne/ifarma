@@ -14,10 +14,11 @@ serve(async (req) => {
     try {
         const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
         // Fallback to custom name to avoid reserved prefix restriction in CLI
-        const serviceRoleKey = Deno.env.get('ADMIN_SERVICE_ROLE_KEY') || Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
+        const serviceRoleKey = Deno.env.get('IFARMA_SERVICE_ROLE_KEY') ?? Deno.env.get('ADMIN_SERVICE_ROLE_KEY') ?? Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
 
         console.log(`[Diagnostic] SUPABASE_URL: ${supabaseUrl ? 'OK' : 'MISSING'}`);
         console.log(`[Diagnostic] ADMIN_SERVICE_ROLE_KEY: ${Deno.env.get('ADMIN_SERVICE_ROLE_KEY') ? 'OK' : 'NOT SET'}`);
+        console.log(`[Diagnostic] IFARMA_SERVICE_ROLE_KEY: ${Deno.env.get('IFARMA_SERVICE_ROLE_KEY') ? 'OK' : 'NOT SET'}`);
         console.log(`[Diagnostic] SUPABASE_SERVICE_ROLE_KEY: ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ? 'OK' : 'NOT SET'}`);
 
         if (!supabaseUrl || !serviceRoleKey) {
@@ -62,11 +63,15 @@ serve(async (req) => {
         const { data: { user: requester }, error: authError } = await supabaseClient.auth.getUser(token)
 
         if (authError || !requester) {
+            console.error('❌ AUTH ERROR:', authError?.message);
+            console.error('Token usado:', token?.substring(0, 20) + '...');
             return new Response(JSON.stringify({ error: 'Invalid requester token', detail: authError?.message }), {
                 headers: { ...corsHeaders, 'Content-Type': 'application/json' },
                 status: 401,
             })
         }
+
+        console.log('✅ Requester autenticado:', requester.id, requester.email);
 
         // Fetch requester role from profiles
         const { data: requesterProfile, error: profileError } = await supabaseClient
@@ -75,8 +80,11 @@ serve(async (req) => {
             .eq('id', requester.id)
             .single()
 
+        console.log('📋 Buscando perfil para:', requester.id);
+
         if (profileError || !requesterProfile) {
-            console.error('Erro ao buscar perfil:', profileError);
+            console.error('❌ PROFILE ERROR:', profileError);
+            console.error('Profile encontrado:', requesterProfile);
             return new Response(JSON.stringify({
                 error: 'Could not verify requester profile',
                 detail: profileError?.message || 'Profile not found',
@@ -90,6 +98,7 @@ serve(async (req) => {
             })
         }
 
+        console.log('✅ Perfil encontrado:', requesterProfile.role);
 
         const isAdmin = requesterProfile.role === 'admin'
         const isManager = requesterProfile.role === 'manager'
@@ -113,28 +122,32 @@ serve(async (req) => {
 
         // Body already parsed above to extract auth_token
 
+        // 🔥 EXTRAIR PHARMACY_ID DE MÚLTIPLAS FONTES (Corpo direto OU metadata)
+        const pharmacy_id = reqJson.pharmacy_id || metadata?.pharmacy_id;
+
+        console.log(`[Debug] pharmacy_id extraído: ${pharmacy_id} (fonte: ${reqJson.pharmacy_id ? 'corpo' : 'metadata'})`);
+
         // Additional security: Managers/Merchants can only create users for their own pharmacy
-        if ((isManager || isMerchant) && metadata?.pharmacy_id !== requesterProfile.pharmacy_id && !isAdmin) {
+        if ((isManager || isMerchant) && pharmacy_id !== requesterProfile.pharmacy_id && !isAdmin) {
             return new Response(JSON.stringify({ error: 'Unauthorized: You can only create users for your own pharmacy' }), {
                 headers: { ...corsHeaders, 'Content-Type': 'application/json' },
                 status: 403,
             })
         }
 
-        console.log(`Tentando criar usuário: ${email} com role: ${metadata?.role}`)
+        console.log(`Tentando criar usuário: ${email} com role: ${metadata?.role} para pharmacy_id: ${pharmacy_id}`)
 
         // --- Pharmacy Approval Logic (Audit Fix: Moved to TOP) ---
         // Ensure approval happens regardless of user creation success/failure
-        const { pharmacy_id } = reqJson;
         if (pharmacy_id) {
             console.log(`[Prioritizing] Aprovando farmácia ${pharmacy_id}...`);
             const { error: approvalError } = await supabaseClient
                 .from('pharmacies')
-                .update({ status: 'Aprovado' })
+                .update({ status: 'approved' })
                 .eq('id', pharmacy_id);
 
             if (approvalError) console.error('Erro na aprovação prioritária:', approvalError);
-            else console.log('Farmácia aprovada com sucesso (Prioridade).');
+            else console.log('✅ Farmácia aprovada com sucesso (Prioridade).');
         }
 
         let userResponse;
@@ -152,6 +165,46 @@ serve(async (req) => {
                 throw error;
             }
             userResponse = data;
+
+            // 🔥 CRIAR PERFIL COM PHARMACY_ID IMEDIATAMENTE - SEMPRE!
+            if (userResponse.user) {
+                console.log(`[Profile] Criando perfil para ${userResponse.user.id} com pharmacy_id ${pharmacy_id || 'NULL'}`);
+
+                const profilePayload: any = {
+                    id: userResponse.user.id,
+                    email: email,
+                    full_name: metadata?.full_name || email.split('@')[0],
+                    role: metadata?.role || 'merchant',
+                };
+
+                // Só adiciona pharmacy_id se existir
+                if (pharmacy_id) {
+                    profilePayload.pharmacy_id = pharmacy_id;
+                }
+
+                const { error: profileError } = await supabaseClient
+                    .from('profiles')
+                    .upsert(profilePayload);
+
+                if (profileError) {
+                    console.error('❌ Erro ao criar perfil:', profileError);
+                    // NÃO FALHAR - mas retornar aviso
+                    console.warn('⚠️ Usuário criado mas perfil falhou. Tentando novamente...');
+
+                    // Segunda tentativa com INSERT direto
+                    const { error: insertError } = await supabaseClient
+                        .from('profiles')
+                        .insert(profilePayload);
+
+                    if (insertError) {
+                        console.error('❌ Segunda tentativa falhou:', insertError);
+                    } else {
+                        console.log('✅ Perfil criado na segunda tentativa!');
+                    }
+                } else {
+                    console.log('✅ Perfil criado com sucesso' + (pharmacy_id ? ' com pharmacy_id vinculado!' : '!'));
+                }
+            }
         } catch (error: any) {
             console.error('Erro ao criar usuário:', error.message);
             throw error;

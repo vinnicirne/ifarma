@@ -2,11 +2,11 @@ import { Outlet } from 'react-router-dom';
 import Sidebar from '../components/admin/Sidebar';
 import Header from '../components/admin/Header';
 
-const AdminLayout = () => {
+const AdminLayout = ({ profile }: { profile?: any }) => {
     return (
         <div className="min-h-screen bg-[#060a08] font-display flex w-full">
             {/* Sidebar Fixa */}
-            <Sidebar />
+            <Sidebar profile={profile} />
 
             {/* Área de Conteúdo à Direita */}
             <div className="flex-1 ml-72 flex flex-col min-h-screen bg-[#060a08]">

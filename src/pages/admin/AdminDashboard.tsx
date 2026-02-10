@@ -25,8 +25,8 @@ import AdminMap from '../../components/admin/AdminMap';
 import SupportAlerts from '../../components/admin/SupportAlerts';
 
 import OrderAuditModal from '../../components/admin/OrderAuditModal';
-import { AdminPushNotification } from '../../components/admin/AdminPushNotification';
 import { supabase } from '../../lib/supabase';
+import { SystemHealth } from '../../components/admin/SystemHealth';
 
 const AdminDashboard = ({ profile }: { profile: any }) => {
     const navigate = useNavigate();
@@ -51,6 +51,7 @@ const AdminDashboard = ({ profile }: { profile: any }) => {
     const [slaValue, setSlaValue] = useState('100%');
     const [isRushMode, setIsRushMode] = useState(false);
     const [topCategories, setTopCategories] = useState<{ name: string, total: number }[]>([]);
+    const [topProducts, setTopProducts] = useState<any[]>([]); // New state
     const [mapMode, setMapMode] = useState<'activity' | 'profitability'>('activity');
     const [profitabilityData, setProfitabilityData] = useState<any[]>([]);
     const [googleKey, setGoogleKey] = useState<string | null>(null);
@@ -252,18 +253,33 @@ const AdminDashboard = ({ profile }: { profile: any }) => {
             // 9. Ranking por Categorias (Novo Recurso Premium)
             const { data: orderItems } = await supabase
                 .from('order_items')
-                .select('quantity, price, products(category)')
+                .select('quantity, price, products(name, category)')
                 .in('order_id', currentSales?.map(o => o.id) || []);
 
             if (orderItems) {
                 const catMap: { [key: string]: number } = {};
+                const prodMap: { [key: string]: any } = {};
+
                 orderItems.forEach((item: any) => {
+                    // Categoria
                     const cat = item.products?.category || 'Outros';
                     catMap[cat] = (catMap[cat] || 0) + (item.price * item.quantity);
+
+                    // Produto
+                    const pName = item.products?.name || 'Desconhecido';
+                    if (!prodMap[pName]) prodMap[pName] = { name: pName, quantity: 0, total: 0, category: cat };
+                    prodMap[pName].quantity += item.quantity;
+                    prodMap[pName].total += (item.price * item.quantity);
                 });
+
                 setTopCategories(Object.entries(catMap)
                     .map(([name, total]) => ({ name, total }))
                     .sort((a, b) => b.total - a.total)
+                    .slice(0, 5)
+                );
+
+                setTopProducts(Object.values(prodMap)
+                    .sort((a: any, b: any) => b.quantity - a.quantity)
                     .slice(0, 5)
                 );
             }
@@ -461,6 +477,9 @@ const AdminDashboard = ({ profile }: { profile: any }) => {
                     )}
                 </div>
             )}
+
+            {/* System Health Overview (New) */}
+            <SystemHealth />
 
             {/* Cards de Estatísticas */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -718,9 +737,40 @@ const AdminDashboard = ({ profile }: { profile: any }) => {
                     </div>
                 </div>
 
-                {/* Push Notifications Panel - Expandido para 2 colunas */}
-                <div className="lg:col-span-2 h-full">
-                    <AdminPushNotification />
+                <div className="lg:col-span-2 bg-[#111a16] border border-white/5 p-8 rounded-[40px] shadow-xl flex flex-col h-[450px]">
+                    <div className="flex justify-between items-center mb-8">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 bg-primary/10 rounded-lg">
+                                <ShoppingBag size={18} className="text-primary" />
+                            </div>
+                            <h3 className="text-white text-xl font-[900] italic tracking-tight">Top Produtos</h3>
+                        </div>
+                        <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-3 py-1 bg-white/5 rounded-full">Volume de Vendas</span>
+                    </div>
+
+                    <div className="flex-1 space-y-4 overflow-y-auto hide-scrollbar">
+                        {topProducts.length > 0 ? topProducts.map((prod, i) => (
+                            <div key={i} className="flex items-center justify-between p-4 bg-white/[0.02] border border-white/5 rounded-2xl hover:border-primary/20 transition-all group">
+                                <div className="flex items-center gap-4">
+                                    <div className="size-10 rounded-xl bg-white/5 flex items-center justify-center font-black italic text-slate-400 group-hover:text-primary transition-colors">
+                                        #{i + 1}
+                                    </div>
+                                    <div>
+                                        <p className="text-white font-bold italic text-sm">{prod.name}</p>
+                                        <p className="text-slate-500 font-bold text-[9px] uppercase tracking-widest">{prod.category}</p>
+                                    </div>
+                                </div>
+                                <div className="flex flex-col items-end">
+                                    <h4 className="text-white font-[900] italic text-sm">{prod.quantity} un.</h4>
+                                    <span className="text-[9px] font-black text-primary">R$ {prod.total.toFixed(2)}</span>
+                                </div>
+                            </div>
+                        )) : (
+                            <div className="h-full flex flex-col items-center justify-center opacity-30 italic font-bold text-xs uppercase tracking-widest">
+                                Sem vendas no período
+                            </div>
+                        )}
+                    </div>
                 </div>
             </div>
 

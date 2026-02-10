@@ -48,7 +48,11 @@ const MotoboyManagement = lazy(() => import('../pages/admin/MotoboyManagement').
 const AdManagement = lazy(() => import('../pages/admin/AdManagement').then(m => ({ default: m.AdManagement })));
 const PromotionManagement = lazy(() => import('../pages/admin/PromotionManagement').then(m => ({ default: m.PromotionManagement })));
 const CategoryManagement = lazy(() => import('../pages/admin/CategoryManagement').then(m => ({ default: m.CategoryManagement })));
+const CollectionManagement = lazy(() => import('../pages/admin/CollectionManagement').then(m => ({ default: m.CollectionManagement })));
+const FeedManagement = lazy(() => import('../pages/admin/FeedManagement').then(m => ({ default: m.FeedManagement })));
 const SystemSettings = lazy(() => import('../pages/admin/SystemSettings').then(m => ({ default: m.SystemSettings })));
+const FeaturePlaceholder = lazy(() => import('../pages/admin/FeaturePlaceholder').then(m => ({ default: m.FeaturePlaceholder })));
+const AdminNotifications = lazy(() => import('../pages/admin/Notifications').then(m => ({ default: m.Notifications })));
 
 // Pages - Merchant (lazy load - large files)
 import MerchantLogin from '../pages/merchant/MerchantLogin';
@@ -121,7 +125,7 @@ export const AppRoutes = ({ session, profile, userLocation, sortedPharmacies, re
             <Route path="/chat/:orderId?" element={<ProtectedRoute session={session}><Suspense fallback={<LoadingScreen />}><PharmacyChat /></Suspense></ProtectedRoute>} />
 
             {/* Protected Admin Routes (with Suspense) */}
-            <Route path="/dashboard" element={<AdminRoute session={session} profile={profile}><AdminLayout /></AdminRoute>}>
+            <Route path="/dashboard" element={<AdminRoute session={session} profile={profile}><AdminLayout profile={profile} /></AdminRoute>}>
                 <Route index element={<Suspense fallback={<LoadingScreen />}><AdminDashboard profile={profile} /></Suspense>} />
                 <Route path="tracking" element={<Suspense fallback={<LoadingScreen />}><OrderTracking /></Suspense>} />
                 <Route path="users" element={<Suspense fallback={<LoadingScreen />}><UserManagement profile={profile} /></Suspense>} />
@@ -131,6 +135,12 @@ export const AppRoutes = ({ session, profile, userLocation, sortedPharmacies, re
                 <Route path="ads" element={<Suspense fallback={<LoadingScreen />}><AdManagement profile={profile} /></Suspense>} />
                 <Route path="promotions" element={<Suspense fallback={<LoadingScreen />}><PromotionManagement profile={profile} /></Suspense>} />
                 <Route path="categories" element={<Suspense fallback={<LoadingScreen />}><CategoryManagement profile={profile} /></Suspense>} />
+                <Route path="collections" element={<Suspense fallback={<LoadingScreen />}><CollectionManagement profile={profile} /></Suspense>} />
+                <Route path="feed" element={<Suspense fallback={<LoadingScreen />}><FeedManagement profile={profile} /></Suspense>} />
+                <Route path="products" element={<Suspense fallback={<LoadingScreen />}><FeaturePlaceholder title="Gestão de Produtos" /></Suspense>} />
+                <Route path="notifications" element={<Suspense fallback={<LoadingScreen />}><AdminNotifications /></Suspense>} />
+                <Route path="reports" element={<Suspense fallback={<LoadingScreen />}><FeaturePlaceholder title="Relatórios e Analytics" /></Suspense>} />
+                <Route path="monetization" element={<Suspense fallback={<LoadingScreen />}><FeaturePlaceholder title="Monetização e Planos" /></Suspense>} />
                 <Route path="settings" element={<Suspense fallback={<LoadingScreen />}><SystemSettings profile={profile} /></Suspense>} />
             </Route>
 

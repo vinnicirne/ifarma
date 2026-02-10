@@ -19,6 +19,8 @@ const PharmacyManagement = ({ profile }: { profile: any }) => {
         fetchPharmacies();
     }, []);
 
+    const [successModal, setSuccessModal] = useState<{ open: boolean, email?: string, password?: string }>({ open: false });
+
     const handleApprove = async (id: string, e: React.MouseEvent) => {
         e.stopPropagation();
         if (window.confirm('Deseja APROVAR esta farmácia e gerar as credenciais de acesso do lojista?')) {
@@ -52,7 +54,8 @@ const PharmacyManagement = ({ profile }: { profile: any }) => {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY
+                        'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+                        'Authorization': `Bearer ${currentSession.access_token}`
                     },
                     body: JSON.stringify({
                         email: merchantEmail,
@@ -73,6 +76,22 @@ const PharmacyManagement = ({ profile }: { profile: any }) => {
                 let userId: string | null = null;
 
                 if (!response.ok) {
+                    // 🔥 AUTO-LOGOUT SE JWT FOR INVÁLIDO
+                    if (response.status === 401) {
+                        try {
+                            const errorJson = JSON.parse(await response.clone().text());
+                            if (errorJson.message === 'Invalid JWT' || errorJson.error === 'Invalid JWT') {
+                                console.error("Sessão expirada detectada. Realizando logout forçado.");
+                                await supabase.auth.signOut();
+                                alert("Sua sessão expirou. Por favor, faça login novamente.");
+                                window.location.href = '/login';
+                                return;
+                            }
+                        } catch (e) {
+                            // ignore json parse error
+                        }
+                    }
+
                     try {
                         const errorJson = JSON.parse(responseText);
 
@@ -144,26 +163,32 @@ const PharmacyManagement = ({ profile }: { profile: any }) => {
                 // We just assume success if we got here (function didn't throw)
 
                 if (userWasCreated) {
-                    alert(`✅ Farmácia Aprovada!\n\nNovo login criado:\nE-mail: ${merchantEmail}\nSenha: ${tempPassword}\n\n(Credenciais enviadas por e-mail)`);
+                    setSuccessModal({
+                        open: true,
+                        email: merchantEmail,
+                        password: tempPassword
+                    });
                 } else {
-                    alert('✅ Farmácia aprovada!\n\n(Vínculo realizado com usuário existente)');
+                    // USER EXISTS - Show modal but without password (indicate existing user)
+                    setSuccessModal({
+                        open: true,
+                        email: merchantEmail,
+                        password: undefined
+                    });
                 }
 
                 fetchPharmacies();
             } catch (error: any) {
                 console.error('Erro na aprovação:', error);
-
-                // Check for session expiration errors
                 const errText = error.message || JSON.stringify(error);
                 if (errText.includes('Auth session missing') ||
                     errText.includes('Invalid requester token') ||
                     errText.includes('JWT expired')) {
-                    alert('⚠️ Sua sessão de segurança expirou. Por favor, faça login novamente para confirmar sua identidade.');
+                    alert('⚠️ Sua sessão expirou. Faça login novamente.');
                     await supabase.auth.signOut();
                     navigate('/login');
                     return;
                 }
-
                 alert(`Erro ao aprovar: ${error.message}`);
             } finally {
                 setLoading(false);
@@ -185,18 +210,11 @@ const PharmacyManagement = ({ profile }: { profile: any }) => {
                 // 2. Se existir um perfil, chamar a Edge Function para remover o login (Auth)
                 if (profile) {
                     const { data: { session } } = await supabase.auth.getSession();
-
                     const { error: deleteFuncErr } = await supabase.functions.invoke('delete-user-admin', {
                         body: { user_id: profile.id },
-                        headers: {
-                            Authorization: `Bearer ${session?.access_token}`
-                        }
+                        headers: { Authorization: `Bearer ${session?.access_token}` }
                     });
-
-                    if (deleteFuncErr) {
-                        console.error("Erro ao deletar usuário do Auth:", deleteFuncErr);
-                        // Não impedir a deleção do registro se falhar o auth, mas avisar console
-                    }
+                    if (deleteFuncErr) console.error("Erro ao deletar usuário do Auth:", deleteFuncErr);
                 }
 
                 // 3. Deletar a farmácia (Cascade deve deletar o profile, mas garantimos antes)
@@ -210,8 +228,71 @@ const PharmacyManagement = ({ profile }: { profile: any }) => {
         }
     };
 
+    const copyToClipboard = () => {
+        let text = `Acesso ao Appifarma:\nLink: https://appifarma.com\nEmail: ${successModal.email}`;
+
+        if (successModal.password) {
+            text += `\nSenha: ${successModal.password}`;
+        } else {
+            text += `\n(Use sua senha atual)`;
+        }
+
+        navigator.clipboard.writeText(text);
+        alert("Copiado para a área de transferência!");
+    };
+
     return (
-        <div className="flex flex-col gap-6">
+        <div className="flex flex-col gap-6 relative">
+            {/* SUCCESS MODAL OVERLAY */}
+            {successModal.open && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
+                    <div className="bg-white dark:bg-[#1a2e23] border border-slate-200 dark:border-white/10 p-8 rounded-[32px] shadow-2xl max-w-md w-full relative transform transition-all scale-100">
+                        <div className="flex flex-col items-center text-center gap-4">
+                            <div className="size-16 rounded-full bg-green-500/10 flex items-center justify-center mb-2">
+                                <MaterialIcon name="check_circle" className="text-4xl text-green-500" />
+                            </div>
+                            <h2 className="text-2xl font-black italic text-slate-900 dark:text-white">Farmácia Aprovada!</h2>
+                            <p className="text-sm text-slate-500 font-medium">As credenciais de acesso foram geradas.</p>
+
+                            <div className="w-full bg-slate-50 dark:bg-black/30 p-6 rounded-2xl border border-dashed border-slate-300 dark:border-white/10 mt-2 text-left space-y-3">
+                                <div>
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-[#92c9a9] block mb-1">E-mail</span>
+                                    <code className="text-sm font-bold text-slate-700 dark:text-slate-200 select-all">{successModal.email}</code>
+                                </div>
+                                {successModal.password ? (
+                                    <div>
+                                        <span className="text-[10px] font-black uppercase tracking-widest text-[#92c9a9] block mb-1">Senha Temporária</span>
+                                        <code className="text-lg font-black text-primary select-all">{successModal.password}</code>
+                                    </div>
+                                ) : (
+                                    <div>
+                                        <span className="text-[10px] font-black uppercase tracking-widest text-yellow-500 block mb-1">Aviso</span>
+                                        <span className="text-xs font-bold text-slate-500 dark:text-slate-400">Usuário já existia. Senha mantida.</span>
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="flex w-full gap-3 mt-4">
+                                <button
+                                    onClick={copyToClipboard}
+                                    className="flex-1 bg-primary hover:bg-primary/90 text-background-dark h-12 rounded-xl font-bold flex items-center justify-center gap-2 transition-all active:scale-95"
+                                >
+                                    <MaterialIcon name="content_copy" />
+                                    <span>Copiar Dados</span>
+                                </button>
+                                <button
+                                    onClick={() => setSuccessModal({ open: false })}
+                                    className="px-6 bg-slate-100 hover:bg-slate-200 dark:bg-white/5 dark:hover:bg-white/10 text-slate-600 dark:text-slate-300 h-12 rounded-xl font-bold transition-all active:scale-95"
+                                >
+                                    Fechar
+                                </button>
+                            </div>
+                            <p className="text-xs text-slate-400 mt-2">Dica: Envie agora mesmo para o lojista.</p>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <header className="sticky top-0 z-30 bg-background-light/80 dark:bg-background-dark/80 backdrop-blur-md border-b border-slate-200 dark:border-white/10 -mx-8 px-8 flex items-center justify-between p-5">
                 <div>
                     <h1 className="text-xl font-black tracking-tighter italic text-slate-900 dark:text-white">Gestão de Farmácias</h1>
@@ -293,8 +374,8 @@ const PharmacyManagement = ({ profile }: { profile: any }) => {
                                                         }
                                                     }}
                                                     className={`h-8 px-3 rounded-full flex items-center gap-2 transition-all ${pharm.is_open
-                                                            ? 'bg-green-500 text-white shadow-lg shadow-green-500/30'
-                                                            : 'bg-slate-200 dark:bg-white/10 text-slate-500 dark:text-slate-400'
+                                                        ? 'bg-green-500 text-white shadow-lg shadow-green-500/30'
+                                                        : 'bg-slate-200 dark:bg-white/10 text-slate-500 dark:text-slate-400'
                                                         }`}
                                                 >
                                                     <span className={`size-2 rounded-full ${pharm.is_open ? 'bg-white animate-pulse' : 'bg-slate-400'}`}></span>
@@ -305,11 +386,25 @@ const PharmacyManagement = ({ profile }: { profile: any }) => {
                                             </td>
 
                                             <td className="p-5">
-                                                <span className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${pharm.status === 'Aprovado' ? 'bg-[#13ec6d]/10 text-[#13ec6d]' : 'bg-yellow-500/10 text-yellow-500'
-                                                    }`}>
-                                                    <span className={`size-1.5 rounded-full ${pharm.status === 'Aprovado' ? 'bg-[#13ec6d]' : 'bg-yellow-500'}`}></span>
-                                                    {pharm.status}
-                                                </span>
+                                                {(() => {
+                                                    const statusMap: Record<string, { label: string, color: string, dot: string }> = {
+                                                        'approved': { label: 'Aprovado', color: 'bg-[#13ec6d]/10 text-[#13ec6d]', dot: 'bg-[#13ec6d]' },
+                                                        'pending': { label: 'Pendente', color: 'bg-yellow-500/10 text-yellow-500', dot: 'bg-yellow-500' },
+                                                        'rejected': { label: 'Rejeitado', color: 'bg-red-500/10 text-red-500', dot: 'bg-red-500' },
+                                                        'suspended': { label: 'Suspenso', color: 'bg-slate-500/10 text-slate-500', dot: 'bg-slate-500' }
+                                                    };
+
+                                                    // Fallback for unknown status or uppercase
+                                                    const normalizedStatus = (pharm.status || 'pending').toLowerCase();
+                                                    const style = statusMap[normalizedStatus] || statusMap['pending'];
+
+                                                    return (
+                                                        <span className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${style.color}`}>
+                                                            <span className={`size-1.5 rounded-full ${style.dot}`}></span>
+                                                            {style.label}
+                                                        </span>
+                                                    );
+                                                })()}
                                             </td>
 
                                             <td className="p-5 text-right">
@@ -346,7 +441,7 @@ const PharmacyManagement = ({ profile }: { profile: any }) => {
                                     ))}
                                     {pharmacies.length === 0 && (
                                         <tr>
-                                            <td colSpan={5} className="p-10 text-center text-slate-500">
+                                            <td colSpan={6} className="p-10 text-center text-slate-500">
                                                 Nenhuma farmácia encontrada.
                                             </td>
                                         </tr>

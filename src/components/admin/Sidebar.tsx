@@ -8,24 +8,42 @@ import {
     Megaphone,
     Tag,
     Settings,
+    LayoutGrid,
+    Package,
+    Bell,
+    FileText,
+    DollarSign,
+    Layers,
     ShieldCheck,
     Navigation,
-    LogOut
+    LogOut,
+    BookmarkCheck
 } from 'lucide-react';
 
-const Sidebar = () => {
+const Sidebar = ({ profile }: { profile?: any }) => {
     const navigate = useNavigate();
-    const menuItems = [
-        { icon: LayoutDashboard, label: 'DASHBOARD', path: '/dashboard' },
-        { icon: Navigation, label: 'RASTREAMENTO', path: '/dashboard/tracking' },
-        { icon: Users, label: 'USUÁRIOS', path: '/dashboard/users' },
-        { icon: Store, label: 'FARMÁCIAS', path: '/dashboard/pharmacies' },
-        { icon: Bike, label: 'MOTOBOYS', path: '/dashboard/motoboys' },
-        { icon: Megaphone, label: 'ANÚNCIOS', path: '/dashboard/ads' },
-        { icon: Tag, label: 'PROMOÇÕES', path: '/dashboard/promotions' },
-        { icon: Tag, label: 'CATEGORIAS', path: '/dashboard/categories' },
-        { icon: Settings, label: 'CONFIGURAÇÕES', path: '/dashboard/settings' },
+
+    const allMenuItems = [
+        { icon: LayoutDashboard, label: 'DASHBOARD', path: '/dashboard', roles: ['admin', 'operator'] },
+        { icon: Layers, label: 'FEED APP', path: '/dashboard/feed', roles: ['admin', 'operator'] },
+        { icon: Megaphone, label: 'BANNERS & ADS', path: '/dashboard/ads', roles: ['admin', 'operator'] },
+        { icon: Tag, label: 'PROMOÇÕES', path: '/dashboard/promotions', roles: ['admin', 'operator'] },
+        { icon: Package, label: 'PRODUTOS', path: '/dashboard/products', roles: ['admin', 'operator'] },
+        { icon: Store, label: 'FARMÁCIAS', path: '/dashboard/pharmacies', roles: ['admin', 'operator'] },
+        { icon: LayoutGrid, label: 'CATEGORIAS', path: '/dashboard/categories', roles: ['admin', 'operator'] },
+        { icon: BookmarkCheck, label: 'COLEÇÕES', path: '/dashboard/collections', roles: ['admin', 'operator'] },
+        { icon: Navigation, label: 'PEDIDOS', path: '/dashboard/tracking', roles: ['admin', 'operator'] },
+        { icon: Bike, label: 'ENTREGAS', path: '/dashboard/motoboys', roles: ['admin', 'operator'] },
+        { icon: Bell, label: 'NOTIFICAÇÕES', path: '/dashboard/notifications', roles: ['admin', 'operator'] },
+        { icon: FileText, label: 'RELATÓRIOS', path: '/dashboard/reports', roles: ['admin', 'operator'] },
+        { icon: Users, label: 'USUÁRIOS', path: '/dashboard/users', roles: ['admin', 'operator'] },
+        { icon: DollarSign, label: 'MONETIZAÇÃO', path: '/dashboard/monetization', roles: ['admin'] },
+        { icon: Settings, label: 'CONFIGURAÇÕES', path: '/dashboard/settings', roles: ['admin'] },
     ];
+
+    const menuItems = allMenuItems.filter(item =>
+        !item.roles || item.roles.includes(profile?.role || 'admin')
+    );
 
     const handleLogout = async () => {
         await supabase.auth.signOut();

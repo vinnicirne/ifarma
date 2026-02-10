@@ -53,6 +53,31 @@ function App() {
     return () => subscription.unsubscribe();
   }, []);
 
+  // 🔥 Session Watchdog: Verifica validade real do token
+  useEffect(() => {
+    const checkSession = async () => {
+      if (!session) return;
+      // Tenta validar o token batendo no Auth
+      const { error } = await supabase.auth.getUser();
+      if (error && (error.status === 401 || error.message?.includes('Invalid JWT') || error.message?.includes('token is expired'))) {
+        console.warn("🚨 Watchdog: Sessão expirada ou inválida. Forçando logout...");
+        await supabase.auth.signOut();
+        setSession(null);
+        setProfile(null);
+        window.location.href = '/login';
+      }
+    };
+
+    const interval = setInterval(checkSession, 60 * 1000); // Checa a cada 1 min
+    const onFocus = () => checkSession(); // Checa ao focar na aba
+    window.addEventListener('focus', onFocus);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', onFocus);
+    };
+  }, [session]);
+
   const fetchProfile = async (userId: string) => {
     try {
       const { data, error } = await supabase
@@ -126,7 +151,7 @@ function App() {
       const { data, error } = await supabase
         .from('pharmacies')
         .select('*')
-        .eq('status', 'Aprovado');
+        .eq('status', 'approved');
 
       if (error) console.error("Error fetching pharmacies:", error);
       else setAllPharmacies(data || []);
@@ -295,15 +320,48 @@ function App() {
         }
       }
 
-      return { ...p, distance, isNew, isOpen };
-    }).sort((a, b) => {
-      // 1. Sort by Open Status (Open first)
-      if (a.isOpen && !b.isOpen) return -1;
-      if (!a.isOpen && b.isOpen) return 1;
+      // Feature Flag
+      const is_featured = p.is_featured || p.plan === 'Premium' || p.plan === 'Pro' || p.plan === 'Destaque';
 
-      // 2. Sort by Distance
-      return a.distance - b.distance;
-    });
+      // 🧠 ALGORITMO DE RANQUEAMENTO INTELIGENTE (iFood Style)
+      // ======================================================
+
+      // 1. Proximidade (Peso Alto - 35%)
+      const distKm = distance / 1000;
+      const scoreProx = Math.max(0, 100 - (distKm * 6)); // ~16km zera pontos
+
+      // 2. Tempo de Entrega (Peso Médio - 25%)
+      const minTime = Number(p.delivery_time_min) || 30;
+      const maxTime = Number(p.delivery_time_max) || 60;
+      const avgTime = (minTime + maxTime) / 2;
+      const scoreTime = Math.max(0, 100 - (avgTime * 1.5));
+
+      // 3. Performance Operacional / SLA (Peso 20%)
+      const scoreSla = p.sla_score !== undefined ? Number(p.sla_score) : 100;
+
+      // 4. Avaliação (Peso 15%)
+      const scoreRating = (Number(p.rating) || 5) * 20;
+
+      // 5. Promoção/Planos (Peso 5%)
+      const scorePromo = is_featured ? 100 : 0;
+
+      // CÁLCULO FINAL
+      let finalScore =
+        (scoreProx * 0.35) +
+        (scoreTime * 0.25) +
+        (scoreSla * 0.20) +
+        (scoreRating * 0.15) +
+        (scorePromo * 0.05);
+
+      // BOOSTS (Fura-Fila)
+      if (p.is_sponsored) finalScore += 500; // Ads Pagos
+      if (isOpen) finalScore += 2000; // Abertos têm prioridade total
+      else finalScore -= 2000; // Fechados vão para o fundo
+
+      if (isNew) finalScore += 50; // Boost novidade
+
+      return { ...p, distance, isNew, isOpen, is_featured, score: finalScore };
+    }).sort((a, b) => b.score - a.score); // Ordena pelo Score decrescente
   }, [allPharmacies, userLocation]);
 
   if (loading || !contextLoaded) {

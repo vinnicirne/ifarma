@@ -186,14 +186,20 @@ const TeamManagement = () => {
                 let loginPassword = formData.password;
                 let displayMessage = '';
 
+                // VALIDATION: Explicit check to prevent silent failures
+                if (!formData.name) throw new Error("O nome do membro é obrigatório.");
+
                 // Lógica específica para Motoboy
                 if (formData.role === 'motoboy') {
                     const { allMet } = getPasswordStrength(formData.password);
                     if (!formData.phone || !formData.password) {
                         throw new Error("Telefone e Senha são obrigatórios para Motoboy.");
                     }
+                    if (!formData.vehicle_plate || !formData.vehicle_model) {
+                        throw new Error("Placa e Modelo da Moto são obrigatórios.");
+                    }
                     if (!allMet) {
-                        throw new Error("A senha não atende aos requisitos mínimos de segurança.");
+                        throw new Error("A senha não atende aos requisitos mínimos de segurança (6+ caracteres, número, símbolo).");
                     }
                     // Gerar email de login baseado no telefone
                     loginEmail = `${formData.phone.replace(/\D/g, '')}@motoboy.ifarma.com`;

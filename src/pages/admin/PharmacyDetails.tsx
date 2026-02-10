@@ -135,7 +135,9 @@ const PharmacyDetails = () => {
         delivery_ranges: [] as { max_km: number, fee: number }[],
         delivery_free_min_km: 0,
         delivery_free_min_value: 0,
-        delivery_max_km: 15
+        delivery_max_km: 15,
+        min_order_value: 0,
+        allows_pickup: true,
     });
 
     const isNew = id === 'new';
@@ -370,11 +372,42 @@ const PharmacyDetails = () => {
         if (!formData.name) return alert("Nome é obrigatório");
         setLoading(true);
 
+        // Mapeia status de PT para EN (banco)
+        const statusMap: Record<string, string> = {
+            'Aprovado': 'approved',
+            'Pendente': 'pending',
+            'Rejeitado': 'rejected',
+            'Suspenso': 'suspended',
+            'approved': 'approved',
+            'pending': 'pending',
+            'rejected': 'rejected',
+            'suspended': 'suspended'
+        };
+
+        // Mapeia plano (PT -> EN) para satisfazer check constraint
+        const planMap: Record<string, string> = {
+            'Gratuito': 'basic',
+            'Bronze': 'pro',
+            'Prata': 'premium',
+            'Ouro': 'enterprise',
+            // Fallbacks
+            'basic': 'basic',
+            'pro': 'pro',
+            'premium': 'premium',
+            'enterprise': 'enterprise',
+            'Basic': 'basic',
+            'Pro': 'pro',
+            'Premium': 'premium',
+            'Enterprise': 'enterprise'
+        };
+
+        const planValue = planMap[formData.plan] || 'basic';
+
         // Mapeamento correto dos campos do formulário para o banco de dados
         // address e establishment_phone são campos legados/redundantes mas mantidos por compatibilidade
         const payload: any = {
             name: formData.name,
-            cnpj: formData.cnpj,
+            cnpj: formData.cnpj || null,
             // Endereço
             zip: formData.cep,
             street: formData.street,
@@ -386,19 +419,22 @@ const PharmacyDetails = () => {
             latitude: parseFloat(formData.latitude) || 0,
             longitude: parseFloat(formData.longitude) || 0,
             // Contato e Status
-            phone: formData.establishment_phone || formData.phone, // Prioriza establishment_phone
+            phone: formData.establishment_phone || formData.phone,
             establishment_phone: formData.establishment_phone,
             is_open: formData.is_open,
-            status: formData.status, // Envia a string diretamente (ex: 'Aprovado') para satisfazer check constraint
-            plan: formData.plan,
+            status: statusMap[formData.status] || 'pending',
+            plan: planValue,
             rating: parseFloat(formData.rating) || 5.0,
+
             // Mídia
             logo_url: formData.logo_url,
             banner_url: formData.banner_url,
-            // Dados do proprietário (apenas informativos na tabela pharmacies)
+
+            // Dados do proprietário
             owner_name: formData.owner_name,
             owner_phone: formData.owner_phone,
             owner_email: formData.owner_email,
+
             // Configurações de Entrega
             delivery_fee_type: formData.delivery_fee_type,
             delivery_fee_fixed: formData.delivery_fee_fixed,
@@ -406,7 +442,11 @@ const PharmacyDetails = () => {
             delivery_ranges: formData.delivery_ranges,
             delivery_free_min_km: formData.delivery_free_min_km,
             delivery_free_min_value: formData.delivery_free_min_value,
-            delivery_max_km: formData.delivery_max_km
+            delivery_max_km: formData.delivery_max_km,
+            delivery_radius_km: formData.delivery_max_km,
+            min_order_value: formData.min_order_value,
+            allows_pickup: formData.allows_pickup,
+            complement: formData.complement
         };
 
         try {
@@ -435,24 +475,41 @@ const PharmacyDetails = () => {
 
                 // Criar Usuário Dono (Merchant) se dados fornecidos
                 if (formData.merchant_email && formData.merchant_password) {
+                    if (formData.merchant_password.length < 6) {
+                        alert("A senha do gestor deve ter pelo menos 6 caracteres.");
+                        return; // Don't try to create user
+                    }
                     console.log("Criando usuário merchant...", formData.merchant_email);
+
+                    // 🔥 OBTER TOKEN DE AUTENTICAÇÃO
+                    const { data: { session: currentSession } } = await supabase.auth.getSession();
+
+                    if (!currentSession?.access_token) {
+                        alert("Sessão expirada. Recarregue a página e faça login novamente.");
+                        return;
+                    }
 
                     const { data: authData, error: authErr } = await supabase.functions.invoke('create-user-admin', {
                         body: {
                             email: formData.merchant_email,
                             password: formData.merchant_password,
+                            auth_token: currentSession.access_token, // 🔥 TOKEN ADICIONADO
+                            pharmacy_id: pharmacyId, // 🔥 PHARMACY_ID NO CORPO PRINCIPAL
                             metadata: {
                                 full_name: formData.owner_name,
                                 role: 'merchant',
-                                pharmacy_id: pharmacyId, // VINCULAÇÃO CRUCIAL NO PERFIL
+                                pharmacy_id: pharmacyId, // Também em metadata para compatibilidade
                                 phone: formData.owner_phone
                             }
                         }
                     });
 
                     if (authErr) {
-                        console.error("Erro ao criar usuário merchant:", authErr);
-                        alert(`Farmácia criada, mas erro ao criar usuário: ${authErr.message}`);
+                        console.error("Erro ao criar usuário merchant (Detalhes):", authErr);
+                        // Tentar extrair mensagem de erro do corpo se disponível
+                        const errorBody = await authErr.context?.json().catch(() => ({}));
+                        const msg = errorBody?.error || authErr.message || "Erro desconhecido";
+                        alert(`Farmácia criada, mas erro ao criar usuário: ${msg}`);
                     } else if (authData?.user?.id) {
                         console.log("Usuário merchant criado com ID:", authData.user.id);
 
@@ -701,6 +758,25 @@ const PharmacyDetails = () => {
                                     </div>
                                 </section>
 
+                                {isNew && (
+                                    <section className="bg-white dark:bg-[#1a2e23] p-8 rounded-[40px] border border-slate-200 dark:border-white/5 shadow-xl">
+                                        <h3 className="text-lg font-black italic text-slate-900 dark:text-white mb-6 flex items-center gap-2">
+                                            <MaterialIcon name="badge" className="text-primary" />
+                                            Credenciais de Acesso (Gestor)
+                                        </h3>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                            <div className="flex flex-col gap-2">
+                                                <label className="text-[10px] font-black uppercase tracking-widest text-[#92c9a9] px-1">Email de Acesso *</label>
+                                                <input type="email" value={formData.merchant_email} onChange={e => setFormData({ ...formData, merchant_email: e.target.value })} className="h-14 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-2xl px-4 text-slate-900 dark:text-white font-bold outline-none focus:border-primary/50 transition-colors" placeholder="Login do gestor" />
+                                            </div>
+                                            <div className="flex flex-col gap-2">
+                                                <label className="text-[10px] font-black uppercase tracking-widest text-[#92c9a9] px-1">Senha Inicial *</label>
+                                                <input type="password" value={formData.merchant_password} onChange={e => setFormData({ ...formData, merchant_password: e.target.value })} className="h-14 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-2xl px-4 text-slate-900 dark:text-white font-bold outline-none focus:border-primary/50 transition-colors" placeholder="Mínimo 6 caracteres" />
+                                            </div>
+                                        </div>
+                                    </section>
+                                )}
+
                                 <section className="bg-white dark:bg-[#1a2e23] p-8 rounded-[40px] border border-slate-200 dark:border-white/5 shadow-xl">
                                     <h3 className="text-lg font-black italic text-slate-900 dark:text-white mb-6 flex items-center gap-2">
                                         <MaterialIcon name="location_on" className="text-primary" />
@@ -736,6 +812,10 @@ const PharmacyDetails = () => {
                                         <div className="col-span-12 md:col-span-4 flex flex-col gap-2">
                                             <label className="text-[10px] font-black uppercase tracking-widest text-[#92c9a9] px-1">Número</label>
                                             <input value={formData.number} onChange={e => setFormData({ ...formData, number: e.target.value })} className="h-14 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-2xl px-4 text-slate-900 dark:text-white font-bold outline-none focus:border-primary/50 transition-colors" />
+                                        </div>
+                                        <div className="col-span-12 md:col-span-4 flex flex-col gap-2">
+                                            <label className="text-[10px] font-black uppercase tracking-widest text-[#92c9a9] px-1">Complemento</label>
+                                            <input value={formData.complement} onChange={e => setFormData({ ...formData, complement: e.target.value })} className="h-14 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-2xl px-4 text-slate-900 dark:text-white font-bold outline-none focus:border-primary/50 transition-colors" placeholder="Apto, Bloco..." />
                                         </div>
                                         <div className="col-span-12 md:col-span-4 flex flex-col gap-2">
                                             <label className="text-[10px] font-black uppercase tracking-widest text-[#92c9a9] px-1">Bairro</label>
@@ -885,6 +965,16 @@ const PharmacyDetails = () => {
                                         </div>
 
                                         <div className="space-y-4">
+                                            <div className="flex items-center gap-3 bg-slate-50 dark:bg-black/20 p-4 rounded-2xl border border-slate-200 dark:border-white/10 mb-4">
+                                                <input type="checkbox" checked={formData.allows_pickup} onChange={e => setFormData({ ...formData, allows_pickup: e.target.checked })} className="size-5 accent-primary cursor-pointer" />
+                                                <label className="text-[10px] font-black uppercase tracking-widest text-[#92c9a9] cursor-pointer">Permite Retirada no Local?</label>
+                                            </div>
+
+                                            <div className="flex flex-col gap-2">
+                                                <label className="text-[10px] font-black uppercase tracking-widest text-[#92c9a9] px-1">Pedido Mínimo (R$)</label>
+                                                <input type="number" value={formData.min_order_value} onChange={e => setFormData({ ...formData, min_order_value: parseFloat(e.target.value) })} className="h-14 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-2xl px-4 text-slate-900 dark:text-white font-bold outline-none focus:border-primary/50" />
+                                            </div>
+
                                             <div className="flex flex-col gap-2">
                                                 <label className="text-[10px] font-black uppercase tracking-widest text-[#92c9a9] px-1">Raio Frete Grátis (KM)</label>
                                                 <input type="number" value={formData.delivery_free_min_km} onChange={e => setFormData({ ...formData, delivery_free_min_km: parseFloat(e.target.value) })} className="h-14 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-2xl px-4 text-slate-900 dark:text-white font-bold outline-none focus:border-primary/50" />

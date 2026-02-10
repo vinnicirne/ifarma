@@ -7,7 +7,7 @@ export interface User {
     phone?: string;
     avatar_url?: string;
     address?: string;
-    role: 'customer' | 'merchant' | 'motoboy' | 'admin';
+    role: 'customer' | 'merchant' | 'motoboy' | 'admin' | 'operator';
     is_active: boolean;
     is_online?: boolean;
     battery_level?: number;

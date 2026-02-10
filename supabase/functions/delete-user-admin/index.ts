@@ -14,18 +14,18 @@ serve(async (req) => {
     try {
         const supabaseClient = createClient(
             Deno.env.get('SUPABASE_URL') ?? '',
-            Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+            Deno.env.get('IFARMA_SERVICE_ROLE_KEY') ?? Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
         )
 
-        const { userId } = await req.json()
+        const { user_id } = await req.json()
 
-        if (!userId) {
+        if (!user_id) {
             throw new Error('ID do usuário não fornecido')
         }
 
-        console.log(`Tentando excluir usuário ID: ${userId}`)
+        console.log(`Tentando excluir usuário ID: ${user_id}`)
 
-        const { error } = await supabaseClient.auth.admin.deleteUser(userId)
+        const { error } = await supabaseClient.auth.admin.deleteUser(user_id)
 
         if (error) throw error
 
