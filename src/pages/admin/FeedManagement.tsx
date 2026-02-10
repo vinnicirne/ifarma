@@ -2,62 +2,169 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import {
     MaterialIcon,
-    LoadingSpinner,
-    PageHeader
+    LoadingSpinner
 } from '../../components/Shared';
+
+// Config Modal Component
+const ConfigModal = ({ section, onClose, onSave, onUpload }: { section: any, onClose: () => void, onSave: (cfg: any, title: string) => void, onUpload: (f: File) => Promise<string | null> }) => {
+    const [title, setTitle] = useState(section.title);
+    const [config, setConfig] = useState(section.config || {});
+    const [uploading, setUploading] = useState(false);
+
+    const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (!e.target.files || e.target.files.length === 0) return;
+        setUploading(true);
+        const url = await onUpload(e.target.files[0]);
+        if (url) {
+            // Add to images array
+            const currentImages = config.images || [];
+            setConfig({ ...config, images: [...currentImages, url] });
+        }
+        setUploading(false);
+    };
+
+    const removeImage = (index: number) => {
+        const newImages = [...(config.images || [])];
+        newImages.splice(index, 1);
+        setConfig({ ...config, images: newImages });
+    };
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <div className="bg-white dark:bg-[#1e293b] rounded-3xl p-6 w-full max-w-lg shadow-2xl border border-white/10">
+                <div className="flex justify-between items-center mb-6">
+                    <h3 className="text-xl font-bold text-slate-900 dark:text-white">Editar Seção</h3>
+                    <button onClick={onClose} className="p-2 hover:bg-slate-100 dark:hover:bg-white/5 rounded-full">
+                        <MaterialIcon name="close" />
+                    </button>
+                </div>
+
+                <div className="space-y-6 max-h-[70vh] overflow-y-auto pr-2">
+                    {/* Título */}
+                    <div>
+                        <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Título da Seção</label>
+                        <input
+                            type="text"
+                            value={title}
+                            onChange={e => setTitle(e.target.value)}
+                            className="w-full p-3 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-xl"
+                        />
+                    </div>
+
+                    {/* Limit Config (Listas) */}
+                    {(section.type.includes('list') || section.type.includes('grid')) && (
+                        <div>
+                            <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Limite de Itens</label>
+                            <input
+                                type="number"
+                                value={config.limit || 5}
+                                onChange={e => setConfig({ ...config, limit: parseInt(e.target.value) })}
+                                className="w-full p-3 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-xl"
+                            />
+                        </div>
+                    )}
+
+                    {/* Banner Config */}
+                    {section.type === 'banner.top' && (
+                        <div className="space-y-4">
+                            <label className="block text-xs font-bold uppercase text-slate-500">Banners (Carrossel)</label>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                {config.images?.map((img: string, idx: number) => (
+                                    <div key={idx} className="relative group aspect-video rounded-xl overflow-hidden border border-white/10">
+                                        <img src={img} className="w-full h-full object-cover" />
+                                        <button
+                                            onClick={() => removeImage(idx)}
+                                            className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-all"
+                                        >
+                                            <MaterialIcon name="close" className="text-sm" />
+                                        </button>
+                                    </div>
+                                ))}
+
+                                <label className="aspect-video rounded-xl border-2 border-dashed border-slate-300 dark:border-white/20 flex flex-col items-center justify-center cursor-pointer hover:border-primary hover:text-primary transition-all text-slate-400">
+                                    {uploading ? <LoadingSpinner /> : (
+                                        <>
+                                            <MaterialIcon name="add_photo_alternate" className="text-2xl mb-1" />
+                                            <span className="text-xs font-bold uppercase">Adicionar</span>
+                                        </>
+                                    )}
+                                    <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} disabled={uploading} />
+                                </label>
+                            </div>
+                            <p className="text-[10px] text-slate-400">Recomendado: 1200x400px (JPG/PNG)</p>
+                        </div>
+                    )}
+                </div>
+
+                <div className="flex gap-4 mt-8 pt-4 border-t border-slate-100 dark:border-white/5">
+                    <button onClick={onClose} className="flex-1 py-3 rounded-xl font-bold bg-slate-100 dark:bg-white/5 hover:bg-slate-200 text-slate-600">Cancelar</button>
+                    <button onClick={() => onSave(config, title)} className="flex-1 py-3 rounded-xl font-bold bg-primary text-black hover:brightness-110">Salvar Alterações</button>
+                </div>
+            </div>
+        </div>
+    );
+};
 
 export const FeedManagement = ({ profile }: { profile: any }) => {
     const [sections, setSections] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
+    const [editingSection, setEditingSection] = useState<any | null>(null);
 
     const fetchSections = async () => {
         setLoading(true);
-        const { data, error } = await supabase
-            .from('app_feed_sections')
-            .select('*')
-            .order('position', { ascending: true });
-
+        const { data, error } = await supabase.from('app_feed_sections').select('*').order('position');
         if (data) setSections(data);
-        if (error) console.error('Error fetching feed sections:', error);
+        if (error) console.error('Error:', error);
         setLoading(false);
     };
 
-    useEffect(() => {
-        fetchSections();
-    }, []);
+    useEffect(() => { fetchSections(); }, []);
 
-    const handleToggleActive = async (id: string, currentStatus: boolean) => {
-        const { error } = await supabase
-            .from('app_feed_sections')
-            .update({ is_active: !currentStatus })
-            .eq('id', id);
-
-        if (!error) {
-            setSections(prev => prev.map(s => s.id === id ? { ...s, is_active: !currentStatus } : s));
-        }
+    const handleToggleActive = async (id: string, current: boolean) => {
+        await supabase.from('app_feed_sections').update({ is_active: !current }).eq('id', id);
+        setSections(s => s.map(x => x.id === id ? { ...x, is_active: !current } : x));
     };
 
     const handleMove = async (index: number, direction: 'up' | 'down') => {
         if ((direction === 'up' && index === 0) || (direction === 'down' && index === sections.length - 1)) return;
-
         const newSections = [...sections];
         const swapIndex = direction === 'up' ? index - 1 : index + 1;
-
-        // Swap locally
-        const temp = newSections[index];
-        newSections[index] = newSections[swapIndex];
-        newSections[swapIndex] = temp;
-
-        // Update local state smoothly
+        [newSections[index], newSections[swapIndex]] = [newSections[swapIndex], newSections[index]];
         setSections(newSections);
 
-        // Update DB
-        const updates = newSections.map((s, i) => ({ id: s.id, position: i }));
+        // Update DB Positions
+        for (let i = 0; i < newSections.length; i++) {
+            await supabase.from('app_feed_sections').update({ position: i }).eq('id', newSections[i].id);
+        }
+    };
 
-        // Batch update is tricky in Supabase without RPC, doing serial for now (or use upsert if configured)
-        // Optimization: Create a DB function for reordering, but for < 10 items serial is fine.
-        for (const update of updates) {
-            await supabase.from('app_feed_sections').update({ position: update.position }).eq('id', update.id);
+    const handleUpload = async (file: File) => {
+        try {
+            const fileName = `banners/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.]/g, '')}`;
+            const { error: uploadError } = await supabase.storage.from('app-assets').upload(fileName, file);
+            if (uploadError) throw uploadError;
+            const { data } = supabase.storage.from('app-assets').getPublicUrl(fileName);
+            return data.publicUrl;
+        } catch (e: any) {
+            alert('Erro ao enviar imagem: ' + e.message);
+            return null;
+        }
+    };
+
+    const handleSave = async (newConfig: any, newTitle: string) => {
+        if (!editingSection) return;
+
+        const { error } = await supabase
+            .from('app_feed_sections')
+            .update({ config: newConfig, title: newTitle })
+            .eq('id', editingSection.id);
+
+        if (!error) {
+            setSections(prev => prev.map(s => s.id === editingSection.id ? { ...s, config: newConfig, title: newTitle } : s));
+            setEditingSection(null);
+        } else {
+            alert('Erro ao salvar: ' + error.message);
         }
     };
 
@@ -68,23 +175,18 @@ export const FeedManagement = ({ profile }: { profile: any }) => {
             <header className="flex items-center justify-between p-4 bg-white dark:bg-[#111a16] rounded-3xl border border-slate-200 dark:border-white/5 shadow-sm">
                 <div>
                     <h1 className="text-2xl font-black italic tracking-tighter text-slate-900 dark:text-white">Gerenciador do Feed</h1>
-                    <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mt-1">Controle o que aparece na Home do App</p>
+                    <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mt-1">Personalize a Home do App</p>
                 </div>
-                <button
-                    onClick={fetchSections}
-                    className="p-2 bg-slate-100 dark:bg-white/5 rounded-full hover:rotate-180 transition-all text-slate-600 dark:text-slate-300"
-                >
+                <button onClick={fetchSections} className="p-2 bg-slate-100 dark:bg-white/5 rounded-full hover:rotate-180 transition-all text-slate-600 dark:text-slate-300">
                     <MaterialIcon name="refresh" />
                 </button>
             </header>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                {/* Visualizador / Editor de Lista */}
+                {/* Visualizador da Lista */}
                 <div className="lg:col-span-2 space-y-4">
                     {sections.map((section, index) => (
                         <div key={section.id} className={`flex items-center gap-4 p-4 rounded-2xl border-l-[6px] shadow-sm transition-all group ${section.is_active ? 'bg-white dark:bg-[#111a16] border-primary' : 'bg-slate-50 dark:bg-white/5 border-slate-300 opacity-60'}`}>
-
-                            {/* Drag Handles (Visual) */}
                             <div className="flex flex-col gap-1 text-slate-300 hover:text-primary">
                                 <button onClick={() => handleMove(index, 'up')} disabled={index === 0} className="hover:text-primary disabled:opacity-20"><MaterialIcon name="expand_less" /></button>
                                 <button onClick={() => handleMove(index, 'down')} disabled={index === sections.length - 1} className="hover:text-primary disabled:opacity-20"><MaterialIcon name="expand_more" /></button>
@@ -99,35 +201,20 @@ export const FeedManagement = ({ profile }: { profile: any }) => {
                                 <p className="text-[10px] font-mono text-slate-400 mt-1 uppercase bg-slate-100 dark:bg-black/20 px-2 py-0.5 rounded w-fit">{section.type}</p>
                             </div>
 
-                            {/* Config Preview */}
-                            <div className="hidden sm:block text-[10px] font-mono text-slate-400 max-w-[150px] truncate">
-                                {JSON.stringify(section.config)}
-                            </div>
-
-                            {/* Actions */}
                             <div className="flex items-center gap-2 border-l border-slate-100 dark:border-white/5 pl-4">
-                                <button
-                                    onClick={() => handleToggleActive(section.id, section.is_active)}
-                                    className={`p-2 rounded-xl transition-all ${section.is_active ? 'text-primary bg-primary/10 hover:bg-red-500 hover:text-white' : 'text-slate-400 bg-slate-100 dark:bg-white/5 hover:bg-primary hover:text-white'}`}
-                                    title={section.is_active ? "Desativar" : "Ativar"}
-                                >
+                                <button onClick={() => handleToggleActive(section.id, section.is_active)} className={`p-2 rounded-xl transition-all ${section.is_active ? 'text-primary' : 'text-slate-400'}`}>
                                     <MaterialIcon name={section.is_active ? "visibility" : "visibility_off"} />
                                 </button>
-                                <button className="p-2 rounded-xl text-slate-400 hover:bg-primary hover:text-white bg-slate-100 dark:bg-white/5 transition-all">
+                                <button onClick={() => setEditingSection(section)} className="p-2 rounded-xl text-slate-400 hover:bg-primary hover:text-white bg-slate-100 dark:bg-white/5 transition-all">
                                     <MaterialIcon name="settings" />
                                 </button>
                             </div>
                         </div>
                     ))}
-
-                    <button className="w-full py-4 border-2 border-dashed border-slate-300 dark:border-white/10 rounded-2xl flex items-center justify-center gap-2 text-slate-400 font-bold hover:border-primary hover:text-primary transition-all uppercase tracking-widest text-xs">
-                        <MaterialIcon name="add_circle_outline" />
-                        Adicionar Nova Seção
-                    </button>
                 </div>
 
-                {/* Preview Mobile (Simulação) */}
-                <div className="bg-slate-900 rounded-[40px] border-4 border-slate-800 p-4 shadow-2xl h-[600px] sticky top-4 overflow-hidden relative">
+                {/* Preview Mobile */}
+                <div className="bg-slate-900 rounded-[40px] border-4 border-slate-800 p-4 shadow-2xl h-[600px] sticky top-4 overflow-hidden relative hidden lg:block">
                     <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-6 bg-slate-800 rounded-b-xl z-20"></div>
                     <div className="h-full w-full bg-white dark:bg-background-dark rounded-[32px] overflow-hidden relative flex flex-col">
                         <div className="bg-primary h-14 w-full shrink-0 flex items-end pb-2 px-4 justify-center">
@@ -135,15 +222,30 @@ export const FeedManagement = ({ profile }: { profile: any }) => {
                         </div>
                         <div className="flex-1 overflow-y-auto no-scrollbar p-2 space-y-2 bg-slate-50 dark:bg-black/20">
                             {sections.filter(s => s.is_active).map(s => (
-                                <div key={s.id} className="w-full min-h-[60px] bg-white dark:bg-[#1e293b] rounded-xl border border-dashed border-slate-200 dark:border-white/10 flex flex-col items-center justify-center p-2 opacity-80">
-                                    <span className="text-[8px] font-black uppercase text-slate-400">{s.title}</span>
-                                    <span className="text-[6px] font-mono text-slate-300">{s.type}</span>
+                                <div key={s.id} className="w-full relative group overflow-hidden bg-white dark:bg-[#1e293b] rounded-xl border border-dashed border-slate-200 dark:border-white/10 flex flex-col items-center justify-center p-2">
+                                    {s.type === 'banner.top' && s.config?.images?.length > 0 ? (
+                                        <img src={s.config.images[0]} className="w-full h-20 object-cover rounded-lg" />
+                                    ) : (
+                                        <>
+                                            <span className="text-[8px] font-black uppercase text-slate-400">{s.title || 'Sem Título'}</span>
+                                            <span className="text-[6px] font-mono text-slate-300">{s.type}</span>
+                                        </>
+                                    )}
                                 </div>
                             ))}
                         </div>
                     </div>
                 </div>
             </div>
+
+            {editingSection && (
+                <ConfigModal
+                    section={editingSection}
+                    onClose={() => setEditingSection(null)}
+                    onSave={handleSave}
+                    onUpload={handleUpload}
+                />
+            )}
         </div>
     );
 };

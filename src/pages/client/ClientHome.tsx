@@ -133,15 +133,15 @@ export const ClientHome = ({ userLocation, sortedPharmacies, session }: { userLo
     const renderFeedSection = (section: any) => {
         switch (section.type) {
             case 'banner.top':
-                return <PromoCarousel key={section.id} />;
+                return <PromoCarousel key={section.id} config={section.config || {}} />;
             case 'category_grid':
-                return <CategoryGrid key={section.id} />;
+                return <CategoryGrid key={section.id} config={section.config || {}} title={section.title} />;
             case 'pharmacy_list.featured':
-                return <FeaturedPharmacies key={section.id} pharmacies={sortedPharmacies} />;
+                return <FeaturedPharmacies key={section.id} pharmacies={sortedPharmacies} config={section.config || {}} title={section.title} />;
             case 'pharmacy_list.bonus':
-                return <SpecialHighlights key={section.id} pharmacies={sortedPharmacies} />;
+                return <SpecialHighlights key={section.id} pharmacies={sortedPharmacies} config={section.config || {}} title={section.title} />;
             case 'pharmacy_list.nearby':
-                return <NearbyPharmacies key={section.id} pharmacies={sortedPharmacies} />;
+                return <NearbyPharmacies key={section.id} pharmacies={sortedPharmacies} config={section.config || {}} title={section.title} />;
             default:
                 return null;
         }
