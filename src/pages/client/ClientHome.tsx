@@ -273,7 +273,13 @@ export const ClientHome = ({ userLocation, sortedPharmacies, session }: { userLo
                         {loadingFeed ? (
                             <div className="p-8 flex justify-center"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div></div>
                         ) : feedSections.length > 0 ? (
-                            feedSections.map(section => renderFeedSection(section))
+                            <>
+                                {feedSections.map(section => renderFeedSection(section))}
+                                {/* Garantia de lista geral no final */}
+                                {feedSections.every(s => s.type !== 'pharmacy_list.nearby') && (
+                                    <NearbyPharmacies pharmacies={sortedPharmacies} />
+                                )}
+                            </>
                         ) : (
                             // Fallback se não configurado
                             <div className="flex flex-col gap-8 pb-10">

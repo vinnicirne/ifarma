@@ -113,18 +113,25 @@ export const CategoryGrid = ({ config, title }: { config?: any, title?: string }
 
 // --- FEATURED PHARMACIES ---
 export const FeaturedPharmacies = ({ pharmacies, config, title }: { pharmacies: any[], config?: any, title?: string }) => {
-    // Determine which pharmacies to show (Featured or fallback to all)
-    const featured = pharmacies?.filter(p => p.is_featured === true) || [];
-    const list = featured.length > 0 ? featured : (pharmacies || []);
-    const limit = config?.limit || 10;
-    const displayList = list.slice(0, limit);
+    // 1. Tentar anúncios (is_featured)
+    let displayList = (pharmacies || []).filter(p => p.is_featured === true).slice(0, config?.limit || 10);
+    let isFallback = false;
+
+    // 2. Fallback: Se não houver anúncios, mostrar as Top 5 da região (melhor score/ranking)
+    if (displayList.length === 0 && pharmacies && pharmacies.length > 0) {
+        displayList = pharmacies.slice(0, 5);
+        isFallback = true;
+    }
 
     if (displayList.length === 0) return null;
 
     return (
         <div className="w-full py-4">
-            <div className="px-5 mb-4">
-                <h3 className="text-white text-xl font-black italic tracking-tight">{title || 'Farmácias em Destaque'}</h3>
+            <div className="px-5 mb-4 flex items-baseline justify-between">
+                <h3 className="text-white text-xl font-black italic tracking-tight">
+                    {isFallback ? 'Destaques na Região' : (title || 'Farmácias em Destaque')}
+                </h3>
+                {isFallback && <span className="text-[10px] font-black text-primary uppercase animate-pulse">Populares</span>}
             </div>
             <div className="w-full overflow-x-auto hide-scrollbar scroll-smooth">
                 <div className="flex px-4 gap-4 pb-2" style={{ minWidth: 'max-content' }}>
@@ -168,65 +175,124 @@ export const FeaturedPharmacies = ({ pharmacies, config, title }: { pharmacies: 
     );
 };
 
-// --- SPECIAL HIGHLIGHTS ---
-export const SpecialHighlights = ({ pharmacies, config, title }: { pharmacies: any[], config?: any, title?: string }) => (
-    <>
-        <div className="px-5 pt-8 pb-3 flex items-center gap-2">
-            <div className="bg-yellow-100 dark:bg-yellow-900/30 p-2 rounded-full">
-                <MaterialIcon name="stars" className="text-yellow-600 dark:text-yellow-400" />
-            </div>
-            <div>
-                <h3 className="text-[#0d161b] dark:text-white text-lg font-black italic tracking-tight leading-none">
-                    {title || 'Seleção Especial'}
-                </h3>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Farmácias em Alta</p>
-            </div>
-        </div>
+// --- SPECIAL HIGHLIGHTS (ADS DE PRODUTOS COM FALLBACK) ---
+export const SpecialHighlights = ({ config, title, pharmacies }: { pharmacies: any[], config?: any, title?: string }) => {
+    const [products, setProducts] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [isFallback, setIsFallback] = useState(false);
 
-        <div className="flex overflow-x-auto hide-scrollbar pb-4 pl-4">
-            <div className="flex items-stretch gap-3 pr-4">
-                {pharmacies.filter(p => !p.is_featured).slice(0, config?.limit || 10).map(pharma => {
-                    const isOpen = isPharmacyOpen(pharma);
+    useEffect(() => {
+        const fetchProductAds = async () => {
+            // 1. Tentar anúncios de produtos ou promoções
+            let { data, error } = await supabase
+                .from('products')
+                .select(`
+                    id, 
+                    name, 
+                    price, 
+                    promotional_price, 
+                    image_url, 
+                    pharmacy_id,
+                    pharmacies!inner(name, plan, status)
+                `)
+                .eq('pharmacies.status', 'approved')
+                .or(`promotional_price.not.is.null, pharmacies.plan.in.("premium","pro")`)
+                .limit(config?.limit || 10);
 
-                    return (
+            // 2. Fallback: Se não houver banners pagos ou promoções, pegar produtos das top farmácias da região
+            if ((!data || data.length === 0) && pharmacies && pharmacies.length > 0) {
+                const nearPharmacyIds = pharmacies.slice(0, 3).map(p => p.id);
+                const { data: fallbackData } = await supabase
+                    .from('products')
+                    .select(`
+                        id, 
+                        name, 
+                        price, 
+                        promotional_price, 
+                        image_url, 
+                        pharmacy_id,
+                        pharmacies!inner(name, plan, status)
+                    `)
+                    .in('pharmacy_id', nearPharmacyIds)
+                    .limit(10);
+
+                data = fallbackData;
+                setIsFallback(true);
+            }
+
+            // Randomizar a ordem dos anúncios para ser justo com os anunciantes
+            if (data && !isFallback) {
+                data = data.sort(() => Math.random() - 0.5);
+            }
+
+            if (data) setProducts(data);
+            setLoading(false);
+        };
+        fetchProductAds();
+    }, [config, pharmacies]);
+
+    if (loading || products.length === 0) return null;
+
+    return (
+        <>
+            <div className="px-5 pt-8 pb-3 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                    <div className="bg-yellow-100 dark:bg-yellow-900/30 p-2 rounded-full">
+                        <MaterialIcon name={isFallback ? "trending_up" : "local_offer"} className="text-yellow-600 dark:text-yellow-400" />
+                    </div>
+                    <div>
+                        <h3 className="text-[#0d161b] dark:text-white text-lg font-black italic tracking-tight leading-none">
+                            {isFallback ? 'Mais Vendidos' : (title || 'Ofertas Especiais')}
+                        </h3>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                            {isFallback ? 'Destaques da região' : 'Produtos em Anúncio'}
+                        </p>
+                    </div>
+                </div>
+                {isFallback && (
+                    <span className="text-[8px] font-black bg-blue-500/10 text-blue-500 px-2 py-1 rounded-full uppercase tracking-tighter">
+                        Top Vendas
+                    </span>
+                )}
+            </div>
+
+            <div className="flex overflow-x-auto hide-scrollbar pb-4 pl-4">
+                <div className="flex items-stretch gap-3 pr-4">
+                    {products.map(item => (
                         <Link
-                            to={`/pharmacy/${pharma.id}`}
-                            key={pharma.id}
-                            className={`min-w-[260px] bg-white dark:bg-[#1e293b] p-3 rounded-[24px] border-b-4 border-yellow-400 shadow-lg shadow-slate-200/50 dark:shadow-black/20 flex items-center gap-3 transition-transform active:scale-95 ${!isOpen ? 'grayscale opacity-80' : ''}`}
+                            to={`/product/${item.id}`}
+                            key={item.id}
+                            className={`min-w-[160px] bg-white dark:bg-[#1e293b] p-3 rounded-[24px] border border-slate-100 dark:border-white/5 shadow-lg flex flex-col gap-2 transition-transform active:scale-95`}
                         >
-                            {/* Logo Avatar */}
-                            <div className="size-14 rounded-2xl bg-slate-50 dark:bg-black/20 shrink-0 border border-slate-100 dark:border-white/5 flex items-center justify-center p-1 overflow-hidden">
-                                {pharma.logo_url ? (
-                                    <img src={pharma.logo_url} alt={pharma.name} className="w-full h-full object-cover rounded-xl" />
+                            <div className="aspect-square rounded-2xl bg-slate-50 dark:bg-black/20 flex items-center justify-center p-2 overflow-hidden relative">
+                                {item.image_url ? (
+                                    <img src={item.image_url} alt={item.name} className="w-full h-full object-contain" />
                                 ) : (
-                                    <span className="text-xl font-black text-slate-300">{pharma.name.charAt(0)}</span>
+                                    <MaterialIcon name="medication" className="text-3xl text-primary/20" />
+                                )}
+                                {(item.promotional_price || isFallback) && (
+                                    <div className={`absolute top-1 right-1 ${item.promotional_price ? 'bg-red-500' : 'bg-blue-500'} text-white text-[8px] font-black px-1.5 py-0.5 rounded-full`}>
+                                        {item.promotional_price ? 'OFERTA' : 'POPULAR'}
+                                    </div>
                                 )}
                             </div>
-
-                            {/* Info */}
-                            <div className="flex-1 min-w-0">
-                                <h4 className="font-bold text-slate-800 dark:text-white text-sm truncate leading-tight mb-1">{pharma.name}</h4>
-
-                                <div className="flex items-center gap-2">
-                                    <div className="flex items-center gap-1 bg-yellow-50 dark:bg-yellow-900/20 px-1.5 py-0.5 rounded-md">
-                                        <MaterialIcon name="star" className="text-[10px] text-yellow-500" fill />
-                                        <span className="text-[10px] font-bold text-yellow-700 dark:text-yellow-400">{pharma.rating || '4.8'}</span>
-                                    </div>
-                                    <span className="text-[10px] font-medium text-slate-400">15-25 min</span>
+                            <div>
+                                <h4 className="font-bold text-slate-800 dark:text-white text-xs truncate leading-tight">{item.name}</h4>
+                                <p className="text-[8px] text-slate-400 truncate mb-1">{item.pharmacies.name}</p>
+                                <div className="flex items-baseline gap-1">
+                                    <span className="text-primary font-black text-sm italic">R$ {(item.promotional_price || item.price).toFixed(2)}</span>
+                                    {item.promotional_price && (
+                                        <span className="text-[8px] text-slate-400 line-through">R$ {item.price.toFixed(2)}</span>
+                                    )}
                                 </div>
                             </div>
-
-                            {/* Arrow Action */}
-                            <div className="size-8 rounded-full bg-slate-100 dark:bg-white/5 flex items-center justify-center text-slate-400">
-                                <MaterialIcon name="arrow_forward" className="text-sm" />
-                            </div>
                         </Link>
-                    );
-                })}
+                    ))}
+                </div>
             </div>
-        </div>
-    </>
-);
+        </>
+    );
+};
 
 // --- NEARBY PHARMACIES ---
 export const NearbyPharmacies = ({ pharmacies, config, title }: { pharmacies: any[], config?: any, title?: string }) => (

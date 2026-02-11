@@ -320,20 +320,19 @@ function App() {
         }
       }
 
-      // Feature Flag
-      const is_featured = p.is_featured || p.plan === 'Premium' || p.plan === 'Pro' || p.plan === 'Destaque';
+      // Feature Flag - Somente planos pagos aparecem como Destaque (Ads de Loja)
+      const plan = p.plan?.toLowerCase();
+      const is_featured = p.is_featured || ['premium', 'pro', 'destaque'].includes(plan);
 
       // 🧠 ALGORITMO DE RANQUEAMENTO INTELIGENTE (iFood Style)
       // ======================================================
 
       // 1. Proximidade (Peso Alto - 35%)
-      const distKm = distance / 1000;
-      const scoreProx = Math.max(0, 100 - (distKm * 6)); // ~16km zera pontos
+      const distKm = (distance || 0) / 1000;
+      const scoreProx = Math.max(0, 100 - (distKm * 6));
 
       // 2. Tempo de Entrega (Peso Médio - 25%)
-      const minTime = Number(p.delivery_time_min) || 30;
-      const maxTime = Number(p.delivery_time_max) || 60;
-      const avgTime = (minTime + maxTime) / 2;
+      const avgTime = (Number(p.delivery_time_min || 30) + Number(p.delivery_time_max || 60)) / 2;
       const scoreTime = Math.max(0, 100 - (avgTime * 1.5));
 
       // 3. Performance Operacional / SLA (Peso 20%)
@@ -353,16 +352,36 @@ function App() {
         (scoreRating * 0.15) +
         (scorePromo * 0.05);
 
-      // BOOSTS (Fura-Fila)
-      if (p.is_sponsored) finalScore += 500; // Ads Pagos
-      if (isOpen) finalScore += 2000; // Abertos têm prioridade total
-      else finalScore -= 2000; // Fechados vão para o fundo
+      // BOOSTS E RANDOMIZAÇÃO (Fair Rotation)
+      // =====================================
+      if (is_featured) {
+        // 1. Boost massivo para garantir que fiquem no topo (Tier 1)
+        finalScore += 10000;
 
-      if (isNew) finalScore += 50; // Boost novidade
+        // 2. Jitter Aleatório: Adiciona entre 0 e 2000 pontos extras
+        // Isso garante que a ordem entre os anunciantes mude a cada refresh
+        finalScore += Math.random() * 2000;
+      }
+
+      if (p.is_sponsored) finalScore += 5000; // Ads específicos (Banner de busca, etc)
+
+      if (isOpen) {
+        finalScore += 5000; // Lojas abertas sempre acima das fechadas no mesmo tier
+      } else {
+        finalScore -= 100;
+      }
+
+      if (isNew) finalScore += 50;
 
       return { ...p, distance, isNew, isOpen, is_featured, score: finalScore };
-    }).sort((a, b) => b.score - a.score); // Ordena pelo Score decrescente
+    }).sort((a, b) => b.score - a.score);
   }, [allPharmacies, userLocation]);
+
+  useEffect(() => {
+    if (allPharmacies.length > 0) {
+      console.log(`✅ Lojas carregadas: ${allPharmacies.length} | Ordenadas: ${sortedPharmacies.length}`);
+    }
+  }, [allPharmacies, sortedPharmacies]);
 
   if (loading || !contextLoaded) {
     return (
