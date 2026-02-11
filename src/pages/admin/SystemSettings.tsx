@@ -29,8 +29,10 @@ export const SystemSettings = ({ profile }: { profile: any }) => {
                     'asaas_api_key': 'asaas_key',
                     'admob_enabled': 'admob_enabled',
                     'admob_app_id_android': 'admob_app_id',
-                    'admob_banner_id_android': 'admob_banner_id',
-                    'admob_interstitial_id_android': 'admob_interstitial_id'
+                    'admob_app_open_id_android': 'admob_app_open_id',
+                    'admob_rewarded_id_android': 'admob_rewarded_id',
+                    'admob_rewarded_interstitial_id_android': 'admob_rewarded_interstitial_id',
+                    'admob_native_id_android': 'admob_native_id'
                 };
 
                 Object.entries(mappings).forEach(([key, id]) => {
@@ -70,7 +72,11 @@ export const SystemSettings = ({ profile }: { profile: any }) => {
             { key: 'admob_enabled', value: getCheck('admob_enabled') },
             { key: 'admob_app_id_android', value: getVal('admob_app_id') },
             { key: 'admob_banner_id_android', value: getVal('admob_banner_id') },
-            { key: 'admob_interstitial_id_android', value: getVal('admob_interstitial_id') }
+            { key: 'admob_interstitial_id_android', value: getVal('admob_interstitial_id') },
+            { key: 'admob_app_open_id_android', value: getVal('admob_app_open_id') },
+            { key: 'admob_rewarded_id_android', value: getVal('admob_rewarded_id') },
+            { key: 'admob_rewarded_interstitial_id_android', value: getVal('admob_rewarded_interstitial_id') },
+            { key: 'admob_native_id_android', value: getVal('admob_native_id') }
         ];
 
         const { error } = await supabase
@@ -319,8 +325,31 @@ export const SystemSettings = ({ profile }: { profile: any }) => {
                             <label className="flex flex-col gap-2">
                                 <span className="text-[10px] font-black uppercase tracking-widest text-[#92c9a9]">Interstitial ID (Opcional)</span>
                                 <input id="admob_interstitial_id" placeholder="ca-app-pub-.../..." className="h-12 bg-black/20 border border-white/10 rounded-xl px-4 text-sm font-bold" />
-                                <span className="text-[10px] text-slate-500">ID do bloco de anúncio tipo Interstitial (Tela cheia)</span>
                             </label>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <label className="flex flex-col gap-2">
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-[#92c9a9]">App Open ID (Abertura)</span>
+                                    <input id="admob_app_open_id" placeholder="ca-app-pub-.../..." className="h-12 bg-black/20 border border-white/10 rounded-xl px-4 text-sm font-bold" />
+                                </label>
+
+                                <label className="flex flex-col gap-2">
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-[#92c9a9]">Rewarded ID (Recompensa)</span>
+                                    <input id="admob_rewarded_id" placeholder="ca-app-pub-.../..." className="h-12 bg-black/20 border border-white/10 rounded-xl px-4 text-sm font-bold" />
+                                </label>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <label className="flex flex-col gap-2">
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-[#92c9a9]">Rew. Interstitial ID</span>
+                                    <input id="admob_rewarded_interstitial_id" placeholder="ca-app-pub-.../..." className="h-12 bg-black/20 border border-white/10 rounded-xl px-4 text-sm font-bold" />
+                                </label>
+
+                                <label className="flex flex-col gap-2">
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-[#92c9a9]">Native ID</span>
+                                    <input id="admob_native_id" placeholder="ca-app-pub-.../..." className="h-12 bg-black/20 border border-white/10 rounded-xl px-4 text-sm font-bold" />
+                                </label>
+                            </div>
 
                             <div className="bg-blue-500/10 p-4 rounded-xl border border-blue-500/20 mt-4">
                                 <p className="text-[10px] text-blue-400 font-bold">

@@ -41,39 +41,44 @@ export const ClientHome = ({ userLocation, sortedPharmacies, session }: { userLo
                 .eq('is_active', true)
                 .order('position', { ascending: true });
 
+            const { data: settingsData } = await supabase
+                .from('system_settings')
+                .select('*');
+
             if (data && data.length > 0) {
                 setFeedSections(data);
-                handleAdMob(data);
+                const settingsMap: any = {};
+                settingsData?.forEach(s => settingsMap[s.key] = s.value);
+                handleAdMob(data, settingsMap);
             }
             setLoadingFeed(false);
         };
 
-        const handleAdMob = async (feedData: any[]) => {
+        const handleAdMob = async (feedData: any[], settings: any) => {
             if (!Capacitor.isNativePlatform()) return;
-
-            // Find AdMob section
-            const admobSection = feedData.find(s => s.type === 'admob.banner');
+            if (settings.admob_enabled !== 'true') {
+                await AdMob.hideBanner().catch(() => { });
+                return;
+            }
 
             try {
-                if (admobSection) {
-                    await AdMob.initialize();
+                await AdMob.initialize();
 
-                    // Logic: If index 0 => TOP, else BOTTOM
+                // 1. Banner Logic
+                const admobSection = feedData.find(s => s.type === 'admob.banner');
+                if (admobSection) {
                     const index = feedData.findIndex(s => s.type === 'admob.banner');
                     const position = index === 0 ? 'TOP_CENTER' : 'BOTTOM_CENTER';
-
-                    // If bottom, margin 0 (BottomNav handles itself to go up)
-                    const margin = 0;
+                    const bannerId = settings.admob_banner_id_android || 'ca-app-pub-3940256099942544/6300978111';
 
                     await AdMob.showBanner({
-                        adId: 'ca-app-pub-3940256099942544/6300978111',
+                        adId: bannerId,
                         adSize: BannerAdSize.ADAPTIVE_BANNER,
                         position: BannerAdPosition[position as keyof typeof BannerAdPosition] || BannerAdPosition.BOTTOM_CENTER,
-                        margin: margin,
-                        isTesting: true
+                        margin: 0,
+                        isTesting: bannerId.includes('3940256099942544')
                     });
                 } else {
-                    // If not in feed, hide it
                     await AdMob.hideBanner().catch(() => { });
                 }
             } catch (e) {
@@ -203,7 +208,7 @@ export const ClientHome = ({ userLocation, sortedPharmacies, session }: { userLo
                 session={session}
             />
 
-            <main className="flex-1 pb-20">
+            <main className="flex-1 pb-32">
                 {searchQuery.length > 0 ? (
                     <div className="p-4">
                         <div className="flex justify-between items-center mb-4">

@@ -7,7 +7,7 @@ export const PharmacyList = ({ pharmacies, session }: { pharmacies: any[], sessi
     const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
     return (
-        <div className="relative flex min-h-screen w-full max-w-[430px] mx-auto flex-col bg-background-light dark:bg-background-dark overflow-x-hidden shadow-2xl pb-24">
+        <div className="relative flex min-h-screen w-full max-w-[430px] mx-auto flex-col bg-background-light dark:bg-background-dark overflow-x-hidden shadow-2xl pb-32">
             <header className="sticky top-0 z-50 bg-background-light/80 dark:bg-background-dark/80 backdrop-blur-md px-4 pt-6 pb-2">
                 <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-3">
