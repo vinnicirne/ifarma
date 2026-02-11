@@ -7,7 +7,7 @@ export const CategoryManagement = ({ profile }: { profile: any }) => {
     const [loading, setLoading] = useState(true);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editMode, setEditMode] = useState(false);
-    const [currentCategory, setCurrentCategory] = useState<any>({ name: '', slug: '', icon_url: '', parent_id: null, description: '' });
+    const [currentCategory, setCurrentCategory] = useState<any>({ name: '', slug: '', image_url: '', parent_id: null, description: '', banner_price: '', banner_color: '', banner_link: '', banner_description: '' });
 
     useEffect(() => {
         fetchCategories();
@@ -38,9 +38,13 @@ export const CategoryManagement = ({ profile }: { profile: any }) => {
             const payload = {
                 name: currentCategory.name,
                 slug: currentCategory.slug,
-                icon_url: currentCategory.icon_url,
+                image_url: currentCategory.image_url,
                 parent_id: currentCategory.parent_id || null,
-                description: currentCategory.description
+                description: currentCategory.description,
+                banner_price: currentCategory.banner_price,
+                banner_color: currentCategory.banner_color,
+                banner_link: currentCategory.banner_link,
+                banner_description: currentCategory.banner_description
             };
 
             if (editMode && currentCategory.id) {
@@ -58,7 +62,7 @@ export const CategoryManagement = ({ profile }: { profile: any }) => {
             fetchCategories();
             setIsModalOpen(false);
             setEditMode(false);
-            setCurrentCategory({ name: '', slug: '', icon_url: '', parent_id: null, description: '' });
+            setCurrentCategory({ name: '', slug: '', image_url: '', parent_id: null, description: '', banner_price: '', banner_color: '', banner_link: '', banner_description: '' });
         } catch (error) {
             console.error('Erro ao salvar categoria:', error);
             alert('Erro ao salvar categoria.');
@@ -171,36 +175,53 @@ export const CategoryManagement = ({ profile }: { profile: any }) => {
                             </label>
 
                             <label className="flex flex-col gap-2">
-                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-[#92c9a9]">Ícone URL</span>
+                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-[#92c9a9]">Ícone/Imagem URL</span>
                                 <input
                                     className="h-12 bg-slate-100 dark:bg-black/20 rounded-xl px-4 font-bold text-slate-900 dark:text-white border-transparent focus:border-primary focus:ring-0"
-                                    value={currentCategory.icon_url || ''}
-                                    onChange={e => setCurrentCategory({ ...currentCategory, icon_url: e.target.value })}
+                                    value={currentCategory.image_url || ''}
+                                    onChange={e => setCurrentCategory({ ...currentCategory, image_url: e.target.value })}
                                     placeholder="https://..."
                                 />
                             </label>
 
+                            <div className="grid grid-cols-2 gap-4">
+                                <label className="flex flex-col gap-2">
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-[#92c9a9]">Preço Banner</span>
+                                    <input
+                                        className="h-12 bg-slate-100 dark:bg-black/20 rounded-xl px-4 font-bold text-slate-900 dark:text-white border-transparent focus:border-primary focus:ring-0"
+                                        value={currentCategory.banner_price || ''}
+                                        onChange={e => setCurrentCategory({ ...currentCategory, banner_price: e.target.value })}
+                                        placeholder="Ex: R$ 12,99"
+                                    />
+                                </label>
+                                <label className="flex flex-col gap-2">
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-[#92c9a9]">Cor Banner (Red/Hex)</span>
+                                    <input
+                                        className="h-12 bg-slate-100 dark:bg-black/20 rounded-xl px-4 font-bold text-slate-900 dark:text-white border-transparent focus:border-primary focus:ring-0"
+                                        value={currentCategory.banner_color || ''}
+                                        onChange={e => setCurrentCategory({ ...currentCategory, banner_color: e.target.value })}
+                                        placeholder="Ex: red ou #ff0000"
+                                    />
+                                </label>
+                            </div>
+
                             <label className="flex flex-col gap-2">
-                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-[#92c9a9]">Categoria Pai (Opcional)</span>
-                                <select
+                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-[#92c9a9]">Texto Banner (Destaque)</span>
+                                <input
                                     className="h-12 bg-slate-100 dark:bg-black/20 rounded-xl px-4 font-bold text-slate-900 dark:text-white border-transparent focus:border-primary focus:ring-0"
-                                    value={currentCategory.parent_id || ''}
-                                    onChange={e => setCurrentCategory({ ...currentCategory, parent_id: e.target.value || null })}
-                                >
-                                    <option value="">Nenhuma (Raiz)</option>
-                                    {categories.filter(c => c.id !== currentCategory.id).map(c => (
-                                        <option key={c.id} value={c.id}>{c.name}</option>
-                                    ))}
-                                </select>
+                                    value={currentCategory.banner_description || ''}
+                                    onChange={e => setCurrentCategory({ ...currentCategory, banner_description: e.target.value })}
+                                    placeholder="Ex: tudo por"
+                                />
                             </label>
 
                             <label className="flex flex-col gap-2">
-                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-[#92c9a9]">Descrição</span>
-                                <textarea
-                                    className="h-24 bg-slate-100 dark:bg-black/20 rounded-xl p-4 font-medium text-slate-900 dark:text-white border-transparent focus:border-primary focus:ring-0 resize-none"
-                                    value={currentCategory.description || ''}
-                                    onChange={e => setCurrentCategory({ ...currentCategory, description: e.target.value })}
-                                    placeholder="Descrição da categoria para SEO..."
+                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-[#92c9a9]">Link de Destino</span>
+                                <input
+                                    className="h-12 bg-slate-100 dark:bg-black/20 rounded-xl px-4 font-bold text-slate-900 dark:text-white border-transparent focus:border-primary focus:ring-0"
+                                    value={currentCategory.banner_link || ''}
+                                    onChange={e => setCurrentCategory({ ...currentCategory, banner_link: e.target.value })}
+                                    placeholder="Link para loja, categoria ou oferta"
                                 />
                             </label>
 

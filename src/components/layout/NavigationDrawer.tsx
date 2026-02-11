@@ -91,7 +91,7 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({ isOpen, onCl
                     <MenuLink icon="shopping_cart" label="Carrinho" to="/cart" onClick={onClose} active={location.pathname === '/cart'} />
                     <MenuLink icon="receipt_long" label="Pedidos" to="/meus-pedidos" onClick={onClose} active={location.pathname === '/meus-pedidos'} />
                     <MenuLink icon="favorite" label="Favoritos" to="/favorites" onClick={onClose} active={location.pathname === '/favorites'} />
-                    <MenuLink icon="explore" label="Explorar Farmácias" to="/pharmacies" onClick={onClose} active={location.pathname === '/pharmacies'} />
+                    <MenuLink icon="explore" label="Explorar" to="/pharmacies" onClick={onClose} active={location.pathname === '/pharmacies'} />
 
                     <div className="mt-auto grid grid-cols-2 gap-3 pt-4 border-t border-gray-100 dark:border-white/5">
                         <MenuLinkSmall icon="help" label="Ajuda" to="/help" onClick={onClose} />

@@ -82,34 +82,83 @@ export const PromoCarousel = ({ config }: { config?: any }) => {
     );
 };
 
-// --- CATEGORIES ---
-export const CategoryGrid = ({ config, title }: { config?: any, title?: string }) => (
-    <>
-        <div className="flex items-center justify-between px-5 pt-8 pb-3">
-            <h3 className="text-[#0d161b] dark:text-white text-xl font-bold italic tracking-tight leading-none">{title || 'Categorias'}</h3>
-            <button className="text-primary text-xs font-black uppercase tracking-widest">Ver todas</button>
-        </div>
-        <div className="grid grid-cols-2 gap-4 p-4 pt-0">
-            {[
-                { name: 'Dor e Febre', icon: 'pill' },
-                { name: 'Higiene', icon: 'clean_hands' },
-                { name: 'Infantil', icon: 'child_care' },
-                { name: 'Suplementos', icon: 'fitness_center' },
-                ...(config?.limit && config.limit > 4 ? [
-                    { name: 'Dermocosméticos', icon: 'face' },
-                    { name: 'Primeiros Socorros', icon: 'medical_services' }
-                ] : [])
-            ].slice(0, config?.limit || 4).map(cat => (
-                <div key={cat.name} className="flex flex-1 gap-3 rounded-3xl border border-slate-100 dark:border-white/5 bg-white dark:bg-[#1a2e23] p-5 items-center shadow-lg shadow-black/5 active:scale-95 transition-transform">
-                    <div className="text-primary bg-primary/10 size-10 flex items-center justify-center rounded-xl shrink-0">
-                        <MaterialIcon name={cat.icon} />
-                    </div>
-                    <h2 className="text-[#0d161b] dark:text-white text-sm font-black italic truncate leading-tight">{cat.name}</h2>
-                </div>
-            ))}
-        </div>
-    </>
-);
+// --- CATEGORIES (VERTICAL BANNERS) ---
+export const CategoryGrid = ({ config, title }: { config?: any, title?: string }) => {
+    const [categories, setCategories] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        const fetchCategories = async () => {
+            const { data } = await supabase
+                .from('categories')
+                .select('*')
+                .eq('is_active', true)
+                .order('position', { ascending: true })
+                .limit(config?.limit || 10);
+
+            if (data) setCategories(data);
+            setLoading(false);
+        };
+        fetchCategories();
+    }, [config]);
+
+    if (loading || categories.length === 0) return null;
+
+    return (
+        <>
+            <div className="flex items-center justify-between px-5 pt-8 pb-3">
+                <h3 className="text-[#0d161b] dark:text-white text-xl font-bold italic tracking-tight leading-none">{title || 'Categorias'}</h3>
+                <button className="text-primary text-xs font-black uppercase tracking-widest">Ver todas</button>
+            </div>
+            <div className="flex overflow-x-auto hide-scrollbar gap-4 px-5 pb-4">
+                {categories.map((cat) => (
+                    <Link
+                        to={cat.banner_link || `/category/${cat.id}`}
+                        key={cat.id}
+                        className="relative min-w-[140px] h-[200px] rounded-[32px] overflow-hidden shadow-xl shrink-0 active:scale-95 transition-transform"
+                        style={{ backgroundColor: cat.banner_color || '#1a2e23' }}
+                    >
+                        {/* Header Text */}
+                        <div className="absolute top-4 left-0 right-0 px-4 text-center z-20">
+                            {cat.banner_description && (
+                                <p className="text-[10px] font-black uppercase tracking-tighter text-white/80 leading-tight">
+                                    {cat.banner_description}
+                                </p>
+                            )}
+                            <h2 className="text-white text-lg font-black leading-tight truncate">
+                                {cat.name}
+                            </h2>
+                            {cat.banner_price && (
+                                <div className="mt-1 flex flex-col items-center">
+                                    <span className="text-white text-[10px] font-bold opacity-70 leading-none">por</span>
+                                    <span className="text-white text-xl font-black italic tracking-tighter leading-none">
+                                        {cat.banner_price}
+                                    </span>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Product/Category Image at Bottom */}
+                        <div className="absolute bottom-0 left-0 right-0 h-1/2 flex items-end justify-center p-2 z-10">
+                            {cat.image_url ? (
+                                <img
+                                    src={cat.image_url}
+                                    alt={cat.name}
+                                    className="w-full h-full object-contain transform hover:scale-110 transition-transform"
+                                />
+                            ) : (
+                                <MaterialIcon name="category" className="text-5xl text-white/10 mb-4" />
+                            )}
+                        </div>
+
+                        {/* Subtle Gradient Overlay */}
+                        <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-transparent to-black/40 pointer-events-none" />
+                    </Link>
+                ))}
+            </div>
+        </>
+    );
+};
 
 // --- FEATURED PHARMACIES ---
 export const FeaturedPharmacies = ({ pharmacies, config, title }: { pharmacies: any[], config?: any, title?: string }) => {
@@ -141,7 +190,7 @@ export const FeaturedPharmacies = ({ pharmacies, config, title }: { pharmacies: 
                         return (
                             <Link to={`/pharmacy/${pharma.id}`} key={pharma.id}
                                 className={`flex flex-col gap-3 shrink-0 transition-transform active:scale-95 ${!isOpen ? 'grayscale opacity-60' : ''}`}>
-                                <div className="relative size-36 rounded-[40px] bg-[#1a2e23] border border-white/5 shadow-2xl overflow-hidden p-4 flex items-center justify-center">
+                                <div className={`relative size-36 rounded-[40px] bg-[#1a2e23] border border-white/5 shadow-2xl overflow-hidden p-4 flex items-center justify-center ${!isFallback ? 'border-b-4 border-yellow-500 shadow-[0_4px_10px_rgba(234,179,8,0.2)]' : ''}`}>
                                     {pharma.logo_url ? (
                                         <img src={pharma.logo_url} alt={pharma.name} className="w-full h-full object-contain rounded-2xl" />
                                     ) : (
@@ -262,7 +311,7 @@ export const SpecialHighlights = ({ config, title, pharmacies }: { pharmacies: a
                         <Link
                             to={`/product/${item.id}`}
                             key={item.id}
-                            className={`min-w-[160px] bg-white dark:bg-[#1e293b] p-3 rounded-[24px] border border-slate-100 dark:border-white/5 shadow-lg flex flex-col gap-2 transition-transform active:scale-95`}
+                            className={`min-w-[160px] bg-white dark:bg-[#1e293b] p-3 rounded-[24px] border border-slate-100 dark:border-white/5 shadow-lg flex flex-col gap-2 transition-transform active:scale-95 border-b-4 border-yellow-500/60 shadow-[0_4px_10px_rgba(234,179,8,0.1)]`}
                         >
                             <div className="aspect-square rounded-2xl bg-slate-50 dark:bg-black/20 flex items-center justify-center p-2 overflow-hidden relative">
                                 {item.image_url ? (
