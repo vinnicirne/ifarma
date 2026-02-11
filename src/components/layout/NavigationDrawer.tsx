@@ -100,7 +100,7 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({ isOpen, onCl
                 </nav>
 
                 {/* Footer: Sign Out / Login */}
-                <div className="p-4 pb-8 border-t border-gray-100 dark:border-white/5 shrink-0 bg-gray-50 dark:bg-black/20">
+                <div className="p-4 pb-24 border-t border-gray-100 dark:border-white/5 shrink-0 bg-gray-50 dark:bg-black/20">
                     {session ? (
                         <button
                             onClick={handleSignOut}

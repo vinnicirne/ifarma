@@ -176,11 +176,18 @@ export const FeaturedPharmacies = ({ pharmacies, config, title }: { pharmacies: 
 
     return (
         <div className="w-full py-4">
-            <div className="px-5 mb-4 flex items-baseline justify-between">
-                <h3 className="text-white text-xl font-black italic tracking-tight">
-                    {isFallback ? 'Destaques na Região' : (title || 'Farmácias em Destaque')}
-                </h3>
-                {isFallback && <span className="text-[10px] font-black text-primary uppercase animate-pulse">Populares</span>}
+            <div className="px-5 mb-4 flex items-center gap-3">
+                <div className="size-10 rounded-full bg-yellow-500/10 flex items-center justify-center border border-yellow-500/20">
+                    <MaterialIcon name="star" className="text-yellow-500 text-xl" fill />
+                </div>
+                <div>
+                    <h3 className="text-white text-xl font-black italic tracking-tighter leading-none">
+                        {isFallback ? 'Destaques na Região' : (title || 'Ofertas Especiais')}
+                    </h3>
+                    <p className="text-[10px] font-black text-primary/60 uppercase tracking-widest mt-1">
+                        {isFallback ? 'POPULARES' : 'FARMÁCIAS EM ALTA'}
+                    </p>
+                </div>
             </div>
             <div className="w-full overflow-x-auto hide-scrollbar scroll-smooth">
                 <div className="flex px-4 gap-4 pb-2" style={{ minWidth: 'max-content' }}>
@@ -212,7 +219,8 @@ export const FeaturedPharmacies = ({ pharmacies, config, title }: { pharmacies: 
                                             <MaterialIcon name="star" className="text-[10px] text-yellow-500" fill />
                                             <span className="text-[11px] font-black text-slate-300">{pharma.rating || '5.0'}</span>
                                         </div>
-                                        <span className="text-[9px] font-bold text-slate-500 ml-auto lowercase">30 min</span>
+                                        <span className="text-[9px] font-bold text-slate-500 ml-auto lowercase">20 min</span>
+                                        <MaterialIcon name="arrow_forward" className="text-white/20 text-xs ml-1" />
                                     </div>
                                 </div>
                             </Link>
@@ -284,25 +292,18 @@ export const SpecialHighlights = ({ config, title, pharmacies }: { pharmacies: a
 
     return (
         <>
-            <div className="px-5 pt-8 pb-3 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                    <div className="bg-yellow-100 dark:bg-yellow-900/30 p-2 rounded-full">
-                        <MaterialIcon name={isFallback ? "trending_up" : "local_offer"} className="text-yellow-600 dark:text-yellow-400" />
-                    </div>
-                    <div>
-                        <h3 className="text-[#0d161b] dark:text-white text-lg font-black italic tracking-tight leading-none">
-                            {isFallback ? 'Mais Vendidos' : (title || 'Ofertas Especiais')}
-                        </h3>
-                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                            {isFallback ? 'Destaques da região' : 'Produtos em Anúncio'}
-                        </p>
-                    </div>
+            <div className="px-5 pt-8 pb-3 flex items-center gap-3">
+                <div className="size-10 rounded-full bg-yellow-500/10 flex items-center justify-center border border-yellow-500/20">
+                    <MaterialIcon name="local_offer" className="text-yellow-500 text-xl" />
                 </div>
-                {isFallback && (
-                    <span className="text-[8px] font-black bg-blue-500/10 text-blue-500 px-2 py-1 rounded-full uppercase tracking-tighter">
-                        Top Vendas
-                    </span>
-                )}
+                <div>
+                    <h3 className="text-[#0d161b] dark:text-white text-xl font-black italic tracking-tighter leading-none">
+                        {isFallback ? 'Mais Vendidos' : (title || 'Ofertas Especiais')}
+                    </h3>
+                    <p className="text-[10px] font-black text-primary/60 uppercase tracking-widest mt-1">
+                        {isFallback ? 'DESTAQUES DA REGIÃO' : 'PRODUTOS EM ALTA'}
+                    </p>
+                </div>
             </div>
 
             <div className="flex overflow-x-auto hide-scrollbar pb-4 pl-4">
@@ -350,16 +351,16 @@ export const NearbyPharmacies = ({ pharmacies, config, title }: { pharmacies: an
             <h3 className="text-[#0d161b] dark:text-white text-lg font-bold leading-tight tracking-[-0.015em]">{title || 'Farmácias Próximas'}</h3>
             <Link to="/pharmacies" className="text-primary text-sm font-bold opacity-80 hover:opacity-100">Ver tudo</Link>
         </div>
-        <div className="px-4 flex flex-col gap-3 pb-24">
+        <div className="px-4 flex flex-col gap-2 pb-24">
             {pharmacies.slice(0, config?.limit || 20).map(pharma => {
                 const isOpen = isPharmacyOpen(pharma);
 
                 return (
-                    <Link to={`/pharmacy/${pharma.id}`} key={pharma.id} className={`flex gap-3 p-3 rounded-2xl border transition-all active:scale-[0.98] ${!isOpen
+                    <Link to={`/pharmacy/${pharma.id}`} key={pharma.id} className={`flex gap-3 p-2.5 rounded-2xl border transition-all active:scale-[0.98] ${!isOpen
                         ? 'bg-transparent grayscale opacity-60 border-slate-100 dark:border-white/5'
-                        : 'bg-white dark:bg-[#1e293b] border-slate-100 dark:border-white/5 hover:border-primary/30 shadow-sm'
+                        : 'bg-white dark:bg-[#1a2e23] border-slate-100 dark:border-white/5 hover:border-primary/20 shadow-sm'
                         } items-center`}>
-                        <div className="size-16 rounded-xl bg-slate-50 dark:bg-black/20 flex items-center justify-center shrink-0 border border-slate-100 dark:border-white/5 overflow-hidden p-1">
+                        <div className="size-14 rounded-xl bg-slate-50 dark:bg-black/20 flex items-center justify-center shrink-0 border border-slate-100 dark:border-white/5 overflow-hidden p-1">
                             {pharma.logo_url ? (
                                 <img src={pharma.logo_url} alt={pharma.name} className="w-full h-full object-contain rounded-lg" />
                             ) : (
