@@ -6,8 +6,8 @@ import { TopAppBar } from '../../components/layout/TopAppBar';
 import { BottomNav } from '../../components/layout/BottomNav';
 import { useCartCount } from '../../hooks/useCartCount';
 import { useCart } from '../../hooks/useCart';
-import { AdMobBanner } from '../../components/AdMobBanner';
-
+import { AdMob, BannerAdSize, BannerAdPosition } from '@capacitor-community/admob';
+import { Capacitor } from '@capacitor/core';
 
 // --- Shared Helper for Distance ---
 import { calculateDistance } from '../../lib/geoUtils';
@@ -33,7 +33,7 @@ export const ClientHome = ({ userLocation, sortedPharmacies, session }: { userLo
 
     const { addToCart } = useCart();
 
-    // Fetch Feed Configuration
+    // Fetch Feed Configuration & Handle AdMob Position
     useEffect(() => {
         const fetchFeed = async () => {
             const { data, error } = await supabase
@@ -44,10 +44,57 @@ export const ClientHome = ({ userLocation, sortedPharmacies, session }: { userLo
 
             if (data && data.length > 0) {
                 setFeedSections(data);
+                handleAdMob(data);
             }
             setLoadingFeed(false);
         };
+
+        const handleAdMob = async (feedData: any[]) => {
+            if (!Capacitor.isNativePlatform()) return;
+
+            // Find AdMob section
+            const admobSection = feedData.find(s => s.type === 'admob.banner');
+
+            try {
+                if (admobSection) {
+                    await AdMob.initialize();
+
+                    // Logic: If index 0 => TOP, else BOTTOM
+                    const index = feedData.findIndex(s => s.type === 'admob.banner');
+                    const position = index === 0 ? 'TOP_CENTER' : 'BOTTOM_CENTER';
+
+                    // If bottom, margin 0 (BottomNav handles itself to go up)
+                    const margin = 0;
+
+                    await AdMob.showBanner({
+                        adId: 'ca-app-pub-3940256099942544/6300978111',
+                        adSize: BannerAdSize.ADAPTIVE_BANNER,
+                        position: BannerAdPosition[position as keyof typeof BannerAdPosition] || BannerAdPosition.BOTTOM_CENTER,
+                        margin: margin,
+                        isTesting: true
+                    });
+                } else {
+                    // If not in feed, hide it
+                    await AdMob.hideBanner().catch(() => { });
+                }
+            } catch (e) {
+                console.error('AdMob Control Error:', e);
+            }
+        };
+
         fetchFeed();
+
+        // Realtime Updates
+        const channel = supabase.channel('feed_updates_home')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'app_feed_sections' }, () => {
+                fetchFeed();
+            })
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+            if (Capacitor.isNativePlatform()) AdMob.hideBanner().catch(() => { });
+        };
     }, []);
 
     const handleAddToCart = async (productId: string) => {
@@ -142,6 +189,8 @@ export const ClientHome = ({ userLocation, sortedPharmacies, session }: { userLo
                 return <SpecialHighlights key={section.id} pharmacies={sortedPharmacies} config={section.config || {}} title={section.title} />;
             case 'pharmacy_list.nearby':
                 return <NearbyPharmacies key={section.id} pharmacies={sortedPharmacies} config={section.config || {}} title={section.title} />;
+            case 'admob.banner':
+                return null; // Invisible in list, handled by effect
             default:
                 return null;
         }
@@ -154,8 +203,6 @@ export const ClientHome = ({ userLocation, sortedPharmacies, session }: { userLo
                 userLocation={userLocation}
                 session={session}
             />
-            <AdMobBanner />
-
 
             <main className="flex-1 pb-32">
                 {searchQuery.length > 0 ? (

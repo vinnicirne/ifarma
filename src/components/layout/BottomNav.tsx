@@ -1,16 +1,52 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { MaterialIcon } from '../Shared';
 import { useCartCount } from '../../hooks/useCartCount';
 import { useNotifications } from '../../hooks/useNotifications';
+import { supabase } from '../../lib/supabase';
 
 export const BottomNav = ({ session }: { session: any }) => {
     const location = useLocation();
     const currentPath = location.pathname;
     const userId = session?.user?.id;
+    const [hasAdMob, setHasAdMob] = useState(false);
 
     const cartCount = useCartCount(userId);
     const { unreadCount } = useNotifications(userId);
+
+    useEffect(() => {
+        const checkAdMobPosition = async () => {
+            const { data } = await supabase
+                .from('app_feed_sections')
+                .select('position, is_active')
+                .eq('type', 'admob.banner')
+                .single();
+
+            // Se existir, estiver ativo, e a posição NÃO for 0 (0 = Topo), então Menu sobe
+            if (data && data.is_active && data.position > 0) {
+                setHasAdMob(true);
+            } else {
+                setHasAdMob(false);
+            }
+        };
+
+        checkAdMobPosition();
+
+        // Realtime Subscription para Feed Updates
+        const channel = supabase.channel('feed-bottom-nav')
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'app_feed_sections' },
+                () => {
+                    checkAdMobPosition();
+                }
+            )
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    }, []);
 
     const navItems = [
         { path: '/', label: 'Início', icon: 'home' },
@@ -21,7 +57,7 @@ export const BottomNav = ({ session }: { session: any }) => {
     ];
 
     return (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[92%] max-w-[440px] z-50">
+        <div className={`fixed transition-all duration-300 left-1/2 -translate-x-1/2 w-[92%] max-w-[440px] z-50 ${hasAdMob ? 'bottom-[100px]' : 'bottom-6'}`}>
             <nav className="bg-zinc-900/95 dark:bg-zinc-800/95 backdrop-blur-xl rounded-[32px] px-6 py-3 flex items-center justify-between shadow-2xl border border-white/10 ring-1 ring-white/5">
                 {navItems.map((item) => {
                     const isActive = currentPath === item.path || (item.path !== '/' && currentPath.startsWith(item.path));

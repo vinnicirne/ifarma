@@ -6,9 +6,10 @@ import {
 } from '../../components/Shared';
 
 // Config Modal Component
-const ConfigModal = ({ section, onClose, onSave, onUpload }: { section: any, onClose: () => void, onSave: (cfg: any, title: string) => void, onUpload: (f: File) => Promise<string | null> }) => {
+const ConfigModal = ({ section, onClose, onSave, onUpload }: { section: any, onClose: () => void, onSave: (cfg: any, title: string, isActive: boolean) => void, onUpload: (f: File) => Promise<string | null> }) => {
     const [title, setTitle] = useState(section.title);
     const [config, setConfig] = useState(section.config || {});
+    const [isActive, setIsActive] = useState(section.is_active);
     const [uploading, setUploading] = useState(false);
 
     const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -40,6 +41,20 @@ const ConfigModal = ({ section, onClose, onSave, onUpload }: { section: any, onC
                 </div>
 
                 <div className="space-y-6 max-h-[70vh] overflow-y-auto pr-2">
+                    {/* Status Toggle */}
+                    <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-black/20 rounded-xl border border-slate-100 dark:border-white/5">
+                        <div className="flex flex-col">
+                            <span className="text-sm font-bold text-slate-800 dark:text-white">Status da Seção</span>
+                            <span className="text-xs text-slate-400">{isActive ? 'Visível no App' : 'Oculto no App'}</span>
+                        </div>
+                        <button
+                            onClick={() => setIsActive(!isActive)}
+                            className={`relative w-12 h-7 rounded-full transition-colors ${isActive ? 'bg-primary' : 'bg-slate-300 dark:bg-slate-600'}`}
+                        >
+                            <div className={`absolute top-1 left-1 w-5 h-5 bg-white rounded-full transition-transform ${isActive ? 'translate-x-5' : 'translate-x-0'} shadow-sm`} />
+                        </button>
+                    </div>
+
                     {/* Título */}
                     <div>
                         <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Título da Seção</label>
@@ -99,7 +114,7 @@ const ConfigModal = ({ section, onClose, onSave, onUpload }: { section: any, onC
 
                 <div className="flex gap-4 mt-8 pt-4 border-t border-slate-100 dark:border-white/5">
                     <button onClick={onClose} className="flex-1 py-3 rounded-xl font-bold bg-slate-100 dark:bg-white/5 hover:bg-slate-200 text-slate-600">Cancelar</button>
-                    <button onClick={() => onSave(config, title)} className="flex-1 py-3 rounded-xl font-bold bg-primary text-black hover:brightness-110">Salvar Alterações</button>
+                    <button onClick={() => onSave(config, title, isActive)} className="flex-1 py-3 rounded-xl font-bold bg-primary text-black hover:brightness-110">Salvar Alterações</button>
                 </div>
             </div>
         </div>
@@ -152,16 +167,16 @@ export const FeedManagement = ({ profile }: { profile: any }) => {
         }
     };
 
-    const handleSave = async (newConfig: any, newTitle: string) => {
+    const handleSave = async (newConfig: any, newTitle: string, newIsActive: boolean) => {
         if (!editingSection) return;
 
         const { error } = await supabase
             .from('app_feed_sections')
-            .update({ config: newConfig, title: newTitle })
+            .update({ config: newConfig, title: newTitle, is_active: newIsActive })
             .eq('id', editingSection.id);
 
         if (!error) {
-            setSections(prev => prev.map(s => s.id === editingSection.id ? { ...s, config: newConfig, title: newTitle } : s));
+            setSections(prev => prev.map(s => s.id === editingSection.id ? { ...s, config: newConfig, title: newTitle, is_active: newIsActive } : s));
             setEditingSection(null);
         } else {
             alert('Erro ao salvar: ' + error.message);
