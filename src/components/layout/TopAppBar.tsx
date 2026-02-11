@@ -50,23 +50,25 @@ export const TopAppBar = ({ onSearch, userLocation, session }: { onSearch: (quer
 
     return (
         <div className="sticky top-0 z-50 bg-white/80 dark:bg-background-dark/80 backdrop-blur-md">
-            <div className="relative flex items-center justify-between p-4 pb-2">
+            <div className="grid grid-cols-[60px_1fr_104px] items-center p-4 pb-2 w-full">
                 {/* Left: Menu Button */}
-                <button
-                    onClick={() => setIsDrawerOpen(true)}
-                    className="p-2 -ml-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-slate-700 dark:text-slate-200 z-20 relative"
-                >
-                    <MaterialIcon name="menu" className="text-2xl" />
-                </button>
+                <div className="flex items-center justify-start">
+                    <button
+                        onClick={() => setIsDrawerOpen(true)}
+                        className="flex size-10 items-center justify-center rounded-xl bg-slate-100/50 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 transition-colors text-slate-700 dark:text-slate-200 active:scale-95 shadow-sm"
+                    >
+                        <MaterialIcon name="menu" className="text-2xl" />
+                    </button>
+                </div>
 
-                {/* Center: Location (Absolute) */}
-                <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center w-full max-w-[60%] pointer-events-none z-10 pt-2">
-                    <div className="flex items-center gap-1.5 opacity-60">
+                {/* Center: Location */}
+                <div className="flex flex-col items-center justify-center min-w-0 px-2 overflow-hidden">
+                    <div className="flex items-center gap-1 opacity-50">
                         <MaterialIcon name="location_on" className="text-[10px] text-primary" />
-                        <span className="text-[9px] uppercase font-bold tracking-widest text-slate-400">Entregar em</span>
+                        <span className="text-[10px] uppercase font-bold tracking-widest text-slate-400">Entregar em</span>
                     </div>
-                    <button className="flex items-center gap-1 pointer-events-auto active:scale-95 transition-transform max-w-full">
-                        <h2 className="text-[#0d161b] dark:text-white text-sm font-bold leading-tight truncate text-center">
+                    <button className="flex items-center gap-1 active:scale-95 transition-transform max-w-full">
+                        <h2 className="text-[#0d161b] dark:text-white text-xs font-bold leading-tight truncate">
                             {address || 'Localização Atual'}
                         </h2>
                         <MaterialIcon name="keyboard_arrow_down" className="text-sm shrink-0" />
@@ -74,19 +76,19 @@ export const TopAppBar = ({ onSearch, userLocation, session }: { onSearch: (quer
                 </div>
 
                 {/* Right: Icons */}
-                <div className="flex items-center gap-2 z-20 relative">
-                    <Link to="/cart" className="relative flex items-center justify-center rounded-full w-10 h-10 bg-slate-100 dark:bg-slate-800 active:scale-95 transition-transform">
+                <div className="flex items-center justify-end gap-2">
+                    <Link to="/cart" className="relative flex items-center justify-center rounded-xl size-10 bg-slate-100/50 dark:bg-white/5 active:scale-95 transition-transform shadow-sm">
                         <MaterialIcon name="shopping_cart" className="text-[#0d161b] dark:text-white" />
                         {cartCount > 0 && (
-                            <span className="absolute top-1 right-1 bg-primary text-background-dark text-[8px] font-black rounded-full w-4 h-4 flex items-center justify-center border border-white dark:border-background-dark">
+                            <span className="absolute -top-1 -right-1 bg-primary text-background-dark text-[8px] font-black rounded-full size-4 flex items-center justify-center border-2 border-white dark:border-background-dark">
                                 {cartCount}
                             </span>
                         )}
                     </Link>
-                    <Link to="/notifications" className="relative flex items-center justify-center rounded-full w-10 h-10 bg-slate-100 dark:bg-slate-800 active:scale-95 transition-transform">
+                    <Link to="/notifications" className="relative flex items-center justify-center rounded-xl size-10 bg-slate-100/50 dark:bg-white/5 active:scale-95 transition-transform shadow-sm">
                         <MaterialIcon name="notifications" className="text-[#0d161b] dark:text-white" />
                         {notificationCount > 0 && (
-                            <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[8px] font-black rounded-full w-4 h-4 flex items-center justify-center border border-white dark:border-background-dark animate-pulse">
+                            <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[8px] font-black rounded-full size-4 flex items-center justify-center border-2 border-white dark:border-background-dark">
                                 {notificationCount}
                             </span>
                         )}
