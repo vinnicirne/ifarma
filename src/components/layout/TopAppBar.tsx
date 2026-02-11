@@ -49,46 +49,44 @@ export const TopAppBar = ({ onSearch, userLocation, session }: { onSearch: (quer
     };
 
     return (
-        <div className="sticky top-0 z-50 bg-white/80 dark:bg-background-dark/80 backdrop-blur-md">
-            <div className="grid grid-cols-[60px_1fr_104px] items-center p-4 pb-2 w-full">
+        <div className="sticky top-0 z-50 bg-[#101a22] border-b border-white/5 shadow-lg pt-[env(safe-area-inset-top,20px)]">
+            <div className="flex h-16 items-center px-4 w-full gap-4">
                 {/* Left: Menu Button */}
-                <div className="flex items-center justify-start">
-                    <button
-                        onClick={() => setIsDrawerOpen(true)}
-                        className="flex size-10 items-center justify-center rounded-xl bg-slate-100/50 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 transition-colors text-slate-700 dark:text-slate-200 active:scale-95 shadow-sm"
-                    >
-                        <MaterialIcon name="menu" className="text-2xl" />
-                    </button>
-                </div>
+                <button
+                    onClick={() => setIsDrawerOpen(true)}
+                    className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-white/10 hover:bg-white/15 transition-all text-white active:scale-90 shadow-md border border-white/10"
+                >
+                    <MaterialIcon name="menu" className="text-2xl" />
+                </button>
 
                 {/* Center: Location */}
-                <div className="flex flex-col items-center justify-center min-w-0 px-2 overflow-hidden">
-                    <div className="flex items-center gap-1 opacity-50">
+                <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
+                    <div className="flex items-center gap-1.5 opacity-60">
                         <MaterialIcon name="location_on" className="text-[10px] text-primary" />
-                        <span className="text-[10px] uppercase font-bold tracking-widest text-slate-400">Entregar em</span>
+                        <span className="text-[9px] uppercase font-black tracking-widest text-slate-400">Entregar em</span>
                     </div>
                     <button className="flex items-center gap-1 active:scale-95 transition-transform max-w-full">
-                        <h2 className="text-[#0d161b] dark:text-white text-xs font-bold leading-tight truncate">
+                        <h2 className="text-white text-xs font-black leading-tight truncate italic">
                             {address || 'Localização Atual'}
                         </h2>
-                        <MaterialIcon name="keyboard_arrow_down" className="text-sm shrink-0" />
+                        <MaterialIcon name="keyboard_arrow_down" className="text-sm shrink-0 text-primary" />
                     </button>
                 </div>
 
                 {/* Right: Icons */}
-                <div className="flex items-center justify-end gap-2">
-                    <Link to="/cart" className="relative flex items-center justify-center rounded-xl size-10 bg-slate-100/50 dark:bg-white/5 active:scale-95 transition-transform shadow-sm">
-                        <MaterialIcon name="shopping_cart" className="text-[#0d161b] dark:text-white" />
+                <div className="flex items-center justify-end gap-2.5">
+                    <Link to="/cart" className="relative flex items-center justify-center rounded-2xl size-11 bg-white/10 active:scale-90 transition-all shadow-md border border-white/10">
+                        <MaterialIcon name="shopping_cart" className="text-white" />
                         {cartCount > 0 && (
-                            <span className="absolute -top-1 -right-1 bg-primary text-background-dark text-[8px] font-black rounded-full size-4 flex items-center justify-center border-2 border-white dark:border-background-dark">
+                            <span className="absolute -top-1.5 -right-1.5 bg-primary text-background-dark text-[10px] font-black rounded-full size-5 flex items-center justify-center border-2 border-[#101a22] shadow-sm">
                                 {cartCount}
                             </span>
                         )}
                     </Link>
-                    <Link to="/notifications" className="relative flex items-center justify-center rounded-xl size-10 bg-slate-100/50 dark:bg-white/5 active:scale-95 transition-transform shadow-sm">
-                        <MaterialIcon name="notifications" className="text-[#0d161b] dark:text-white" />
+                    <Link to="/notifications" className="relative flex items-center justify-center rounded-2xl size-11 bg-white/10 active:scale-90 transition-all shadow-md border border-white/10 text-white">
+                        <MaterialIcon name="notifications" />
                         {notificationCount > 0 && (
-                            <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[8px] font-black rounded-full size-4 flex items-center justify-center border-2 border-white dark:border-background-dark">
+                            <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[9px] font-black rounded-full size-4.5 flex items-center justify-center border-2 border-[#101a22] shadow-sm animate-pulse">
                                 {notificationCount}
                             </span>
                         )}

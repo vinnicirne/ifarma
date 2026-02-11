@@ -20,39 +20,49 @@ export const PromoCarousel = ({ config }: { config?: any }) => {
             }
 
             // 2. Fallback: Buscar da tabela 'promotions' (Legado)
-            const { data } = await supabase
-                .from('promotions')
-                .select('*')
-                .eq('active', true)
-                .gte('end_date', new Date().toISOString().split('T')[0]);
+            try {
+                const { data } = await supabase
+                    .from('promotions')
+                    .select('*')
+                    .eq('active', true)
+                    .gte('end_date', new Date().toISOString().split('T')[0]);
 
-            if (data && data.length > 0) {
-                setPromotions(data);
-            } else {
-                // 3. Fallback Final: Mock
-                setPromotions([
-                    { id: 'mk1', title: 'Ofertas da Semana', subtitle: 'Até 50% OFF', color1: '#1392ec', color2: '#0056b3' },
-                    { id: 'mk2', title: 'Saúde em Dia', subtitle: 'Vitaminas & Suplementos', color1: '#f59e0b', color2: '#d97706' }
-                ]);
+                if (data && data.length > 0) {
+                    setPromotions(data);
+                    return;
+                }
+            } catch (e) {
+                console.warn("Error loading banners:", e);
             }
+
+            // 3. Fallback Final: Mock (Sempre garante algo visual)
+            setPromotions([
+                { id: 'mk1', title: 'Ofertas da Semana', subtitle: 'Até 50% OFF', color1: '#132218', color2: '#13ec6d' },
+                { id: 'mk2', title: 'Saúde em Dia', subtitle: 'Vitaminas & Suplementos', color1: '#1a2e23', color2: '#1392ec' }
+            ]);
         };
         loadBanners();
     }, [config]);
 
+    if (promotions.length === 0) return null;
+
     return (
-        <div className="flex overflow-x-auto hide-scrollbar">
-            <div className="flex items-stretch p-4 gap-3">
+        <div className="flex overflow-x-auto hide-scrollbar scroll-smooth snap-x">
+            <div className="flex items-stretch p-4 gap-4">
                 {promotions.map((promo: any) => (
-                    <div key={promo.id} className="flex h-full flex-1 flex-col gap-3 rounded-xl min-w-[320px] snap-center">
-                        <div className="w-full bg-center bg-no-repeat aspect-[21/9] bg-cover rounded-xl flex flex-col relative overflow-hidden shadow-lg shadow-black/10 transition-transform active:scale-95"
+                    <div key={promo.id} className="flex h-full flex-1 flex-col gap-3 rounded-[28px] min-w-[300px] snap-center">
+                        <div className="w-full bg-center bg-no-repeat aspect-[21/9] bg-cover rounded-[28px] flex flex-col relative overflow-hidden shadow-xl shadow-black/10 transition-transform active:scale-95 border border-white/5"
                             style={{
                                 backgroundImage: promo.image_url ? `url(${promo.image_url})` : undefined,
-                                background: promo.image_url ? undefined : `linear-gradient(135deg, ${promo.color1 || '#1392ec'} 0%, ${promo.color2 || '#0056b3'} 100%)`
+                                background: promo.image_url ? undefined : `linear-gradient(135deg, ${promo.color1 || '#132218'} 0%, ${promo.color2 || '#13ec6d'} 100%)`
                             }}>
                             {!promo.image_url && (
-                                <div className="p-4 flex flex-col justify-center h-full text-white bg-black/10 backdrop-blur-[1px]">
-                                    <p className="text-xs font-bold uppercase tracking-widest opacity-90">{promo.name || promo.title}</p>
-                                    <p className="text-xl font-bold leading-tight">{promo.subtitle || 'Confira as novidades'}</p>
+                                <div className="p-6 flex flex-col justify-center h-full text-white bg-black/20 backdrop-blur-[2px]">
+                                    <p className="text-[10px] font-black uppercase tracking-[0.2em] opacity-60 mb-1">{promo.name || promo.title}</p>
+                                    <p className="text-2xl font-black leading-tight italic">{promo.subtitle || 'Confira as novidades'}</p>
+                                    <div className="mt-4 flex items-center gap-2">
+                                        <div className="px-3 py-1 bg-white/20 rounded-full text-[8px] font-black uppercase tracking-widest backdrop-blur-md">Ver Oferta</div>
+                                    </div>
                                 </div>
                             )}
                         </div>
@@ -66,11 +76,11 @@ export const PromoCarousel = ({ config }: { config?: any }) => {
 // --- CATEGORIES ---
 export const CategoryGrid = ({ config, title }: { config?: any, title?: string }) => (
     <>
-        <div className="flex items-center justify-between px-4 pt-4 pb-2">
-            <h3 className="text-[#0d161b] dark:text-white text-lg font-bold leading-tight tracking-[-0.015em]">{title || 'Categorias'}</h3>
-            <button className="text-primary text-sm font-semibold">Ver todas</button>
+        <div className="flex items-center justify-between px-5 pt-8 pb-3">
+            <h3 className="text-[#0d161b] dark:text-white text-xl font-bold italic tracking-tight leading-none">{title || 'Categorias'}</h3>
+            <button className="text-primary text-xs font-black uppercase tracking-widest">Ver todas</button>
         </div>
-        <div className="grid grid-cols-2 gap-3 p-4 pt-0">
+        <div className="grid grid-cols-2 gap-4 p-4 pt-0">
             {[
                 { name: 'Dor e Febre', icon: 'pill' },
                 { name: 'Higiene', icon: 'clean_hands' },
@@ -81,11 +91,11 @@ export const CategoryGrid = ({ config, title }: { config?: any, title?: string }
                     { name: 'Primeiros Socorros', icon: 'medical_services' }
                 ] : [])
             ].slice(0, config?.limit || 4).map(cat => (
-                <div key={cat.name} className="flex flex-1 gap-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/50 p-4 items-center shadow-sm active:scale-95 transition-transform">
-                    <div className="text-primary bg-primary/10 p-2 rounded-lg">
+                <div key={cat.name} className="flex flex-1 gap-3 rounded-3xl border border-slate-100 dark:border-white/5 bg-white dark:bg-[#1a2e23] p-5 items-center shadow-lg shadow-black/5 active:scale-95 transition-transform">
+                    <div className="text-primary bg-primary/10 size-10 flex items-center justify-center rounded-xl shrink-0">
                         <MaterialIcon name={cat.icon} />
                     </div>
-                    <h2 className="text-[#0d161b] dark:text-white text-sm font-bold leading-tight">{cat.name}</h2>
+                    <h2 className="text-[#0d161b] dark:text-white text-sm font-black italic truncate leading-tight">{cat.name}</h2>
                 </div>
             ))}
         </div>
@@ -93,44 +103,53 @@ export const CategoryGrid = ({ config, title }: { config?: any, title?: string }
 );
 
 // --- FEATURED PHARMACIES ---
-export const FeaturedPharmacies = ({ pharmacies, config, title }: { pharmacies: any[], config?: any, title?: string }) => (
-    <>
-        <div className="px-4 pt-6 pb-2">
-            <h3 className="text-[#0d161b] dark:text-white text-lg font-bold leading-tight tracking-[-0.015em]">{title || 'Farmácias em Destaque'}</h3>
-        </div>
-        <div className="flex overflow-x-auto hide-scrollbar">
-            <div className="flex items-stretch p-4 pt-0 gap-4">
-                {pharmacies.filter(p => p.is_featured).slice(0, config?.limit || 10).map(pharma => {
-                    const isOpen = isPharmacyOpen(pharma);
+export const FeaturedPharmacies = ({ pharmacies, config, title }: { pharmacies: any[], config?: any, title?: string }) => {
+    const featuredList = pharmacies.filter(p => p.is_featured);
+    const displayList = featuredList.length > 0 ? featuredList : pharmacies.slice(0, 5);
 
-                    return (
-                        <Link to={`/pharmacy/${pharma.id}`} key={pharma.id} className={`min-w-[140px] w-[140px] flex flex-col gap-2 transition-all active:scale-95 ${!isOpen ? 'grayscale opacity-70' : ''}`}>
-                            <div className="w-full aspect-square rounded-2xl bg-white dark:bg-[#1e293b] flex items-center justify-center p-2 border border-slate-100 dark:border-white/5 overflow-hidden relative shadow-sm">
-                                {pharma.logo_url ? (
-                                    <img src={pharma.logo_url} alt={pharma.name} className="w-full h-full object-contain" />
-                                ) : (
-                                    <div className={`w-full h-full bg-gradient-to-br from-primary/10 to-primary/20 flex items-center justify-center text-primary font-black text-4xl italic`}>
-                                        {pharma.name.charAt(0)}
-                                    </div>
-                                )}
-
-                                {pharma.isNew && (
-                                    <div className="absolute top-2 left-2 bg-blue-500 text-white text-[8px] px-1.5 py-0.5 rounded-md font-black uppercase tracking-widest shadow-sm">NOVO</div>
-                                )}
-                            </div>
-                            <div>
-                                <p className="text-[#0d161b] dark:text-white text-sm font-bold truncate">{pharma.name}</p>
-                                <p className="text-slate-500 text-xs flex items-center gap-1 font-medium">
-                                    <MaterialIcon name="star" className="text-[10px] text-yellow-500" fill /> {pharma.rating || '5.0'} • 20 min
-                                </p>
-                            </div>
-                        </Link>
-                    );
-                })}
+    return (
+        <>
+            <div className="px-5 pt-8 pb-3">
+                <h3 className="text-[#0d161b] dark:text-white text-xl font-bold italic tracking-tight leading-none">{title || 'Farmácias em Destaque'}</h3>
             </div>
-        </div>
-    </>
-);
+            <div className="flex overflow-x-auto hide-scrollbar scroll-smooth snap-x pl-4">
+                <div className="flex items-stretch gap-4 pr-4">
+                    {displayList.slice(0, config?.limit || 10).map(pharma => {
+                        const isOpen = isPharmacyOpen(pharma);
+
+                        return (
+                            <Link to={`/pharmacy/${pharma.id}`} key={pharma.id} className={`min-w-[150px] w-[150px] flex flex-col gap-3 transition-all active:scale-95 snap-center ${!isOpen ? 'grayscale opacity-70' : ''}`}>
+                                <div className="w-full aspect-square rounded-[32px] bg-white dark:bg-[#1a2e23] flex items-center justify-center p-3 border border-slate-100 dark:border-white/5 overflow-hidden relative shadow-xl shadow-black/5 ring-1 ring-black/5">
+                                    {pharma.logo_url ? (
+                                        <img src={pharma.logo_url} alt={pharma.name} className="w-full h-full object-contain rounded-2xl" />
+                                    ) : (
+                                        <div className={`w-full h-full bg-gradient-to-br from-primary/10 to-primary/20 flex items-center justify-center text-primary font-black text-4xl italic`}>
+                                            {pharma.name.charAt(pharma.name.startsWith('Farmácia') ? 9 : 0)}
+                                        </div>
+                                    )}
+
+                                    {pharma.isNew && (
+                                        <div className="absolute top-3 left-3 bg-blue-500 text-white text-[8px] px-2 py-0.5 rounded-full font-black uppercase tracking-widest shadow-lg">NOVO</div>
+                                    )}
+                                </div>
+                                <div className="px-1">
+                                    <p className="text-[#0d161b] dark:text-white text-sm font-black italic truncate leading-none mb-1">{pharma.name}</p>
+                                    <div className="flex items-center gap-2">
+                                        <div className="flex items-center gap-1">
+                                            <MaterialIcon name="star" className="text-[10px] text-yellow-500" fill />
+                                            <span className="text-[10px] font-black text-slate-700 dark:text-slate-300">{pharma.rating || '5.0'}</span>
+                                        </div>
+                                        <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest leading-none">20 min</span>
+                                    </div>
+                                </div>
+                            </Link>
+                        );
+                    })}
+                </div>
+            </div>
+        </>
+    );
+};
 
 // --- SPECIAL HIGHLIGHTS ---
 export const SpecialHighlights = ({ pharmacies, config, title }: { pharmacies: any[], config?: any, title?: string }) => (
