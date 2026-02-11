@@ -4,6 +4,7 @@ import { supabase } from './lib/supabase';
 import { useNotifications } from './hooks/useNotifications';
 import { initAppContext } from './lib/appContext';
 import { calculateDistance } from './lib/geoUtils';
+import { Capacitor } from '@capacitor/core';
 import { AppRoutes } from './routes/AppRoutes';
 
 function App() {
@@ -124,21 +125,32 @@ function App() {
   // Detect Geolocation
   useEffect(() => {
     const initLocation = async () => {
+      console.log("🎯 App: Iniciando Geolocation...");
       try {
         const { Geolocation } = await import('@capacitor/geolocation');
+
+        // Request permissions explicitly first if native
+        if (Capacitor.isNativePlatform()) {
+          const perm = await Geolocation.requestPermissions();
+          console.log("📌 App: Permissão de Localização:", perm.location);
+          if (perm.location !== 'granted') {
+            console.warn("🚫 App: Permissão de localização negada pelo usuário.");
+            return;
+          }
+        }
+
         const pos = await Geolocation.getCurrentPosition({
-          enableHighAccuracy: false,
-          timeout: 5000
+          enableHighAccuracy: true, // Aumentado para ter certeza no APK
+          timeout: 10000 // Aumentado para 10s
         });
 
         setUserLocation({
           lat: pos.coords.latitude,
           lng: pos.coords.longitude
         });
-        console.log("📍 Localização inicial obtida:", pos.coords.latitude, pos.coords.longitude);
+        console.log("📍 App: Localização obtida com sucesso:", pos.coords.latitude, pos.coords.longitude);
       } catch (error: any) {
-        // Silently fail for initial location to avoid annoying alerts
-        console.warn("⚠️ Não foi possível obter localização inicial:", error.message);
+        console.error("❌ App: Falha crítica ao obter localização:", error.message, error);
       }
     };
     initLocation();

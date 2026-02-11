@@ -54,13 +54,20 @@ foreach ($flavor in $flavors) {
                 New-Item -ItemType Directory -Path $dest -Force | Out-Null
             }
             Copy-Item "$source/*" "$dest" -Recurse -Force
+            Remove-Item "$source/*" -Recurse -Force
         }
     }
     
     # Move splash logic (styles.xml usually modified by capacitor-assets? No, it creates ic_launcher_background.xml in values sometimes)
     # Check for values/ic_launcher_background.xml
-    if (Test-Path "$androidSrcPath/main/res/values/ic_launcher_background.xml") {
-        Copy-Item "$androidSrcPath/main/res/values/ic_launcher_background.xml" "$destPath/values/" -Force
+    $bgSource = "$androidSrcPath/main/res/values/ic_launcher_background.xml"
+    if (Test-Path $bgSource) {
+        $valDest = "$destPath/values"
+        if (!(Test-Path $valDest)) {
+            New-Item -ItemType Directory -Path $valDest -Force | Out-Null
+        }
+        Copy-Item $bgSource "$valDest/" -Force
+        Remove-Item $bgSource -Force
     }
 
     Write-Host "Concluido para $flavor"

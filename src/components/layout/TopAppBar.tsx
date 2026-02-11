@@ -15,7 +15,11 @@ export const TopAppBar = ({ onSearch, userLocation, session }: { onSearch: (quer
 
     useEffect(() => {
         const fetchAddress = async () => {
-            if (!userLocation) return;
+            console.log("📍 TopAppBar: Tentando buscar endereço para:", userLocation);
+            if (!userLocation) {
+                console.warn("⚠️ TopAppBar: userLocation é nulo");
+                return;
+            }
 
             try {
                 const { data: settings } = await supabase
@@ -25,18 +29,32 @@ export const TopAppBar = ({ onSearch, userLocation, session }: { onSearch: (quer
                     .single();
 
                 if (settings?.value) {
-                    const response = await fetch(
-                        `https://maps.googleapis.com/maps/api/geocode/json?latlng=${userLocation.lat},${userLocation.lng}&key=${settings.value}`
-                    );
+                    console.log("🔑 TopAppBar: API Key encontrada (fim: ..." + settings.value.slice(-4) + ")");
+                    const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${userLocation.lat},${userLocation.lng}&key=${settings.value}`;
+
+                    const response = await fetch(url);
                     const data = await response.json();
+
+                    if (data.status !== "OK") {
+                        console.error("❌ TopAppBar: Google Maps retornou erro:", data.status, data.error_message);
+                        setAddress(`Erro Maps: ${data.status}`);
+                        return;
+                    }
+
                     if (data.results && data.results[0]) {
                         const fullAddress = data.results[0].formatted_address;
                         const shortAddress = fullAddress.split(',').slice(0, 2).join(',');
+                        console.log("✅ TopAppBar: Endereço obtido:", shortAddress);
                         setAddress(shortAddress);
+                    } else {
+                        console.warn("⚠️ TopAppBar: Nenhum resultado de endereço");
                     }
+                } else {
+                    console.error("❌ TopAppBar: Google Maps API Key não encontrada nas configurações");
                 }
             } catch (error) {
-                console.error("Erro na geocodificação reversa:", error);
+                console.error("❌ TopAppBar: Erro na geocodificação reversa:", error);
+                setAddress("Erro de Conexão");
             }
         };
         fetchAddress();
