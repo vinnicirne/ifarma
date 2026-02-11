@@ -2,18 +2,18 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useFavorites } from '../hooks/useFavorites';
+import { NavigationDrawer } from '../components/layout/NavigationDrawer';
 
 const MaterialIcon = ({ name, className = "", style = {} }: { name: string, className?: string, style?: React.CSSProperties }) => (
     <span className={`material-symbols-outlined ${className}`} style={style}>{name}</span>
 );
-
-import { BottomNav } from '../components/layout/BottomNav';
 
 const Favorites = ({ session }: { session: any }) => {
     const navigate = useNavigate();
     const [activeTab, setActiveTab] = useState<'Medicamentos' | 'Farmácias'>('Medicamentos');
     const [favProductsData, setFavProductsData] = useState<any[]>([]);
     const [favPharmaciesData, setFavPharmaciesData] = useState<any[]>([]);
+    const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
     const { favoriteProducts, favoritePharmacies, toggleProductFavorite, togglePharmacyFavorite, loading } = useFavorites(session?.user?.id);
 
@@ -73,10 +73,10 @@ const Favorites = ({ session }: { session: any }) => {
             {/* TopAppBar */}
             <div className="flex items-center bg-background-light dark:bg-background-dark p-4 pb-2 justify-between sticky top-0 z-10 border-b border-gray-100 dark:border-white/5">
                 <button
-                    onClick={() => navigate(-1)}
+                    onClick={() => setIsDrawerOpen(true)}
                     className="text-gray-900 dark:text-white flex size-12 shrink-0 items-center justify-start cursor-pointer active:scale-95 transition-transform"
                 >
-                    <MaterialIcon name="chevron_left" />
+                    <MaterialIcon name="menu" className="text-2xl" />
                 </button>
                 <h2 className="text-gray-900 dark:text-white text-lg font-bold leading-tight tracking-[-0.015em] flex-1 text-center">Meus Favoritos</h2>
                 <div className="flex w-12 items-center justify-end">
@@ -85,6 +85,8 @@ const Favorites = ({ session }: { session: any }) => {
                     </button>
                 </div>
             </div>
+
+            <NavigationDrawer isOpen={isDrawerOpen} onClose={() => setIsDrawerOpen(false)} session={session} />
 
             {/* SegmentedButtons */}
             <div className="flex px-4 py-3">
@@ -211,9 +213,6 @@ const Favorites = ({ session }: { session: any }) => {
                     </>
                 )}
             </div>
-
-            {/* Bottom Navigation Bar */}
-            <BottomNav session={session} />
         </div>
     );
 };

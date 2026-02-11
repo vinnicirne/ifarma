@@ -2,9 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { MaterialIcon } from '../../components/Shared';
-import { BottomNav } from '../../components/layout/BottomNav';
 import { useCart } from '../../hooks/useCart';
 import { useNotifications } from '../../hooks/useNotifications';
+import { NavigationDrawer } from '../../components/layout/NavigationDrawer';
 
 export const PharmacyPage = ({ session }: { session: any }) => {
     const { id } = useParams();
@@ -14,6 +14,7 @@ export const PharmacyPage = ({ session }: { session: any }) => {
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
     const [activeCategory, setActiveCategory] = useState('Todos');
+    const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
     const { unreadCount: notificationCount } = useNotifications(session?.user?.id);
     const { addToCart } = useCart();
@@ -183,9 +184,17 @@ export const PharmacyPage = ({ session }: { session: any }) => {
                                 </span>
                             )}
                         </Link>
+                        <button
+                            onClick={() => setIsDrawerOpen(true)}
+                            className="flex items-center justify-center size-10 rounded-full bg-white dark:bg-zinc-800 shadow-sm border border-zinc-100 dark:border-zinc-700 active:scale-95 transition-transform"
+                        >
+                            <MaterialIcon name="menu" className="text-slate-800 dark:text-white" />
+                        </button>
                     </div>
                 </div>
             </div>
+
+            <NavigationDrawer isOpen={isDrawerOpen} onClose={() => setIsDrawerOpen(false)} session={session} />
 
             {/* Header Image & Profile Overlay */}
             <div className="relative w-full mt-16">
@@ -299,7 +308,7 @@ export const PharmacyPage = ({ session }: { session: any }) => {
                 )}
             </div>
 
-            <BottomNav session={session} />
+
         </div>
     );
 };

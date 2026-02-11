@@ -1,13 +1,12 @@
-import { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { AddressAutocomplete } from '../components/AddressAutocomplete';
+import { NavigationDrawer } from '../components/layout/NavigationDrawer';
 
 const MaterialIcon = ({ name, className = "", style = {} }: { name: string, className?: string, style?: React.CSSProperties }) => (
     <span className={`material-symbols-outlined ${className}`} style={style}>{name}</span>
 );
-
-import { BottomNav } from '../components/layout/BottomNav';
 
 const UserProfile = ({ session, profile, onRefresh }: { session: any, profile: any, onRefresh?: () => void }) => {
     const navigate = useNavigate();
@@ -24,6 +23,7 @@ const UserProfile = ({ session, profile, onRefresh }: { session: any, profile: a
     });
     const [loading, setLoading] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
+    const [isDrawerOpen, setIsDrawerOpen] = useState(false);
     const [formData, setFormData] = useState({
         full_name: '',
         cpf: '',
@@ -160,10 +160,10 @@ const UserProfile = ({ session, profile, onRefresh }: { session: any, profile: a
             <header className="sticky top-0 z-50 bg-background-light dark:bg-background-dark/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800">
                 <div className="flex items-center p-4 justify-between max-w-md mx-auto">
                     <button
-                        onClick={() => navigate(-1)}
+                        onClick={() => setIsDrawerOpen(true)}
                         className="flex size-10 shrink-0 items-center justify-center rounded-full hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors cursor-pointer active:scale-95"
                     >
-                        <MaterialIcon name="arrow_back_ios_new" className="text-slate-900 dark:text-white" />
+                        <MaterialIcon name="menu" className="text-2xl text-slate-900 dark:text-white" />
                     </button>
                     <h1 className="text-slate-900 dark:text-white text-lg font-bold leading-tight tracking-[-0.015em] flex-1 text-center">Perfil</h1>
                     <div className="flex w-10 items-center justify-end">
@@ -173,6 +173,8 @@ const UserProfile = ({ session, profile, onRefresh }: { session: any, profile: a
                     </div>
                 </div>
             </header>
+
+            <NavigationDrawer isOpen={isDrawerOpen} onClose={() => setIsDrawerOpen(false)} session={session} />
 
             <main className="flex-1 max-w-md mx-auto w-full pb-24">
                 {/* Profile Header Section */}
@@ -512,7 +514,7 @@ const UserProfile = ({ session, profile, onRefresh }: { session: any, profile: a
             )}
 
             {/* Bottom Navigation Bar */}
-            <BottomNav session={session} />
+
         </div>
     );
 };

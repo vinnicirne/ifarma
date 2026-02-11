@@ -2,13 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { MaterialIcon } from '../../components/Shared';
-import { BottomNav } from '../../components/layout/BottomNav';
+import { NavigationDrawer } from '../../components/layout/NavigationDrawer';
 
 export const Cart = ({ session }: { session: any }) => {
     const navigate = useNavigate();
     const [loading, setLoading] = useState(false);
     const [cartItems, setCartItems] = useState<any[]>([]);
     const [total, setTotal] = useState(0);
+    const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
     useEffect(() => {
         if (session) {
@@ -122,8 +123,16 @@ export const Cart = ({ session }: { session: any }) => {
                 <button onClick={() => navigate(-1)} className="text-[#0d1b13] dark:text-white flex size-12 shrink-0 items-center justify-start cursor-pointer transition-colors hover:opacity-70">
                     <MaterialIcon name="arrow_back_ios" />
                 </button>
-                <h2 className="text-[#0d1b13] dark:text-white text-lg font-bold leading-tight tracking-[-0.015em] flex-1 text-center pr-12">Meu Carrinho</h2>
+                <h2 className="text-[#0d1b13] dark:text-white text-lg font-bold leading-tight tracking-[-0.015em] flex-1 text-center pr-2">Meu Carrinho</h2>
+                <button
+                    onClick={() => setIsDrawerOpen(true)}
+                    className="flex size-10 shrink-0 items-center justify-center rounded-full hover:bg-slate-100 dark:hover:bg-white/10 text-[#0d1b13] dark:text-white transition-all active:scale-95"
+                >
+                    <MaterialIcon name="menu" className="text-2xl" />
+                </button>
             </header>
+
+            <NavigationDrawer isOpen={isDrawerOpen} onClose={() => setIsDrawerOpen(false)} session={session} />
 
             <main className="flex-1 flex flex-col gap-2 p-2">
                 {cartItems.length === 0 ? (
@@ -231,7 +240,7 @@ export const Cart = ({ session }: { session: any }) => {
                     </button>
                 </div>
             )}
-            <BottomNav session={session} />
+
         </div>
     );
 };

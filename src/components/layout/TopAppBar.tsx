@@ -4,10 +4,12 @@ import { supabase } from '../../lib/supabase';
 import { useCartCount } from '../../hooks/useCartCount';
 import { MaterialIcon } from '../Shared';
 import { useNotifications } from '../../hooks/useNotifications';
+import { NavigationDrawer } from './NavigationDrawer';
 
 export const TopAppBar = ({ onSearch, userLocation, session }: { onSearch: (query: string) => void, userLocation: { lat: number, lng: number } | null, session?: any }) => {
     const [query, setQuery] = useState('');
     const [address, setAddress] = useState('Localização Atual');
+    const [isDrawerOpen, setIsDrawerOpen] = useState(false);
     const cartCount = useCartCount(session?.user?.id);
     const { unreadCount: notificationCount } = useNotifications(session?.user?.id);
 
@@ -48,21 +50,32 @@ export const TopAppBar = ({ onSearch, userLocation, session }: { onSearch: (quer
 
     return (
         <div className="sticky top-0 z-50 bg-white/80 dark:bg-background-dark/80 backdrop-blur-md">
-            <div className="flex items-center p-4 pb-2 justify-between">
-                <div className="flex items-center gap-2">
-                    <div className="text-primary flex size-6 shrink-0 items-center">
-                        <MaterialIcon name="location_on" />
+            <div className="relative flex items-center justify-between p-4 pb-2">
+                {/* Left: Menu Button */}
+                <button
+                    onClick={() => setIsDrawerOpen(true)}
+                    className="p-2 -ml-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-slate-700 dark:text-slate-200 z-20 relative"
+                >
+                    <MaterialIcon name="menu" className="text-2xl" />
+                </button>
+
+                {/* Center: Location (Absolute) */}
+                <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center w-full max-w-[60%] pointer-events-none z-10 pt-2">
+                    <div className="flex items-center gap-1.5 opacity-60">
+                        <MaterialIcon name="location_on" className="text-[10px] text-primary" />
+                        <span className="text-[9px] uppercase font-bold tracking-widest text-slate-400">Entregar em</span>
                     </div>
-                    <div className="flex flex-col">
-                        <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400">Entregar em</span>
-                        <h2 className="text-[#0d161b] dark:text-white text-sm font-bold leading-tight flex items-center gap-1">
+                    <button className="flex items-center gap-1 pointer-events-auto active:scale-95 transition-transform max-w-full">
+                        <h2 className="text-[#0d161b] dark:text-white text-sm font-bold leading-tight truncate text-center">
                             {address || 'Localização Atual'}
-                            <MaterialIcon name="keyboard_arrow_down" className="text-sm" />
                         </h2>
-                    </div>
+                        <MaterialIcon name="keyboard_arrow_down" className="text-sm shrink-0" />
+                    </button>
                 </div>
-                <div className="flex items-center gap-2">
-                    <Link to="/cart" className="relative flex items-center justify-center rounded-full w-10 h-10 bg-slate-100 dark:bg-slate-800">
+
+                {/* Right: Icons */}
+                <div className="flex items-center gap-2 z-20 relative">
+                    <Link to="/cart" className="relative flex items-center justify-center rounded-full w-10 h-10 bg-slate-100 dark:bg-slate-800 active:scale-95 transition-transform">
                         <MaterialIcon name="shopping_cart" className="text-[#0d161b] dark:text-white" />
                         {cartCount > 0 && (
                             <span className="absolute top-1 right-1 bg-primary text-background-dark text-[8px] font-black rounded-full w-4 h-4 flex items-center justify-center border border-white dark:border-background-dark">
@@ -70,7 +83,7 @@ export const TopAppBar = ({ onSearch, userLocation, session }: { onSearch: (quer
                             </span>
                         )}
                     </Link>
-                    <Link to="/notifications" className="relative flex items-center justify-center rounded-full w-10 h-10 bg-slate-100 dark:bg-slate-800">
+                    <Link to="/notifications" className="relative flex items-center justify-center rounded-full w-10 h-10 bg-slate-100 dark:bg-slate-800 active:scale-95 transition-transform">
                         <MaterialIcon name="notifications" className="text-[#0d161b] dark:text-white" />
                         {notificationCount > 0 && (
                             <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[8px] font-black rounded-full w-4 h-4 flex items-center justify-center border border-white dark:border-background-dark animate-pulse">
@@ -80,6 +93,7 @@ export const TopAppBar = ({ onSearch, userLocation, session }: { onSearch: (quer
                     </Link>
                 </div>
             </div>
+
             <div className="px-4 py-3">
                 <label className="flex flex-col min-w-40 h-12 w-full">
                     <div className="flex w-full flex-1 items-stretch rounded-xl h-full shadow-sm">
@@ -95,6 +109,12 @@ export const TopAppBar = ({ onSearch, userLocation, session }: { onSearch: (quer
                     </div>
                 </label>
             </div>
-        </div >
+
+            <NavigationDrawer
+                isOpen={isDrawerOpen}
+                onClose={() => setIsDrawerOpen(false)}
+                session={session}
+            />
+        </div>
     );
 };

@@ -1,15 +1,22 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { MaterialIcon } from '../../components/Shared';
-import { BottomNav } from '../../components/layout/BottomNav';
+import { NavigationDrawer } from '../../components/layout/NavigationDrawer';
 
 export const PharmacyList = ({ pharmacies, session }: { pharmacies: any[], session: any }) => {
+    const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+
     return (
         <div className="relative flex min-h-screen w-full max-w-[430px] mx-auto flex-col bg-background-light dark:bg-background-dark overflow-x-hidden shadow-2xl pb-24">
             <header className="sticky top-0 z-50 bg-background-light/80 dark:bg-background-dark/80 backdrop-blur-md px-4 pt-6 pb-2">
                 <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-2">
-                        <MaterialIcon name="location_on" className="text-[#0d1b13] dark:text-white" />
+                    <div className="flex items-center gap-3">
+                        <button
+                            onClick={() => setIsDrawerOpen(true)}
+                            className="flex items-center justify-center size-10 rounded-full bg-white dark:bg-white/5 text-slate-800 dark:text-white shadow-sm hover:scale-105 active:scale-95 transition-all"
+                        >
+                            <MaterialIcon name="menu" className="text-2xl" />
+                        </button>
                         <div className="flex flex-col">
                             <span className="text-[10px] uppercase tracking-wider text-gray-500 font-bold">Entregar em</span>
                             <span className="text-sm font-semibold text-[#0d1b13] dark:text-white">Localização Atual</span>
@@ -43,6 +50,8 @@ export const PharmacyList = ({ pharmacies, session }: { pharmacies: any[], sessi
                     </button>
                 </div>
             </header>
+
+            <NavigationDrawer isOpen={isDrawerOpen} onClose={() => setIsDrawerOpen(false)} session={session} />
 
             <main className="flex-1 px-4 py-2 space-y-4">
                 {pharmacies.length === 0 ? (
@@ -145,7 +154,6 @@ export const PharmacyList = ({ pharmacies, session }: { pharmacies: any[], sessi
                     })
                 )}
             </main>
-            <BottomNav session={session} />
         </div >
     );
 };

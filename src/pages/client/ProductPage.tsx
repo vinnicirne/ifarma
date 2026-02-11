@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { MaterialIcon } from '../../components/Shared';
 import { useCart } from '../../hooks/useCart';
+import { NavigationDrawer } from '../../components/layout/NavigationDrawer';
 
 export const ProductPage = ({ session }: { session: any }) => {
     const { id } = useParams();
@@ -10,6 +11,7 @@ export const ProductPage = ({ session }: { session: any }) => {
     const [product, setProduct] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [qty, setQty] = useState(1);
+    const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
     const { addToCart: addToCartHook } = useCart();
 
@@ -44,7 +46,6 @@ export const ProductPage = ({ session }: { session: any }) => {
 
             if (error) {
                 console.error("Error fetching product:", error);
-                console.error("Error fetching product:", error);
                 navigate('/');
                 return;
             }
@@ -66,9 +67,19 @@ export const ProductPage = ({ session }: { session: any }) => {
 
     return (
         <div className="max-w-[480px] mx-auto min-h-screen bg-white dark:bg-background-dark pb-32">
+
+            <NavigationDrawer isOpen={isDrawerOpen} onClose={() => setIsDrawerOpen(false)} session={session} />
+
             <div className="relative h-64 bg-slate-50 dark:bg-slate-900 flex items-center justify-center p-12 overflow-hidden">
-                <button onClick={() => navigate(-1)} className="absolute top-4 left-4 size-10 bg-white/90 dark:bg-slate-800 rounded-full flex items-center justify-center shadow-lg z-10 text-slate-800 dark:text-white">
+                <button onClick={() => navigate(-1)} className="absolute top-4 left-4 size-10 bg-white/90 dark:bg-slate-800 rounded-full flex items-center justify-center shadow-lg z-20 text-slate-800 dark:text-white active:scale-95 transition-transform">
                     <MaterialIcon name="arrow_back" />
+                </button>
+
+                <button
+                    onClick={() => setIsDrawerOpen(true)}
+                    className="absolute top-4 right-4 size-10 bg-white/90 dark:bg-slate-800 rounded-full flex items-center justify-center shadow-lg z-20 text-slate-800 dark:text-white active:scale-95 transition-transform"
+                >
+                    <MaterialIcon name="menu" />
                 </button>
 
                 {product.image_url ? (

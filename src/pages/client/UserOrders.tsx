@@ -2,8 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { MaterialIcon } from '../../components/Shared';
-import { BottomNav } from '../../components/layout/BottomNav';
 import { useNotifications } from '../../hooks/useNotifications';
+import { NavigationDrawer } from '../../components/layout/NavigationDrawer';
 
 const UserOrders = ({ session }: { session: any }) => {
     const navigate = useNavigate();
@@ -11,6 +11,7 @@ const UserOrders = ({ session }: { session: any }) => {
     const [activeOrders, setActiveOrders] = useState<any[]>([]);
     const [historyOrders, setHistoryOrders] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
+    const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
     useEffect(() => {
         supabase.auth.getSession().then(({ data: { session } }) => {
@@ -106,8 +107,11 @@ const UserOrders = ({ session }: { session: any }) => {
     return (
         <div className="bg-background-light dark:bg-background-dark min-h-screen flex flex-col font-display">
             <header className="sticky top-0 z-50 bg-background-light/80 dark:bg-background-dark/80 backdrop-blur-md p-4 flex items-center justify-between border-b border-slate-100 dark:border-white/5">
-                <button onClick={() => navigate(-1)} className="p-2 text-slate-900 dark:text-white">
-                    <MaterialIcon name="arrow_back_ios" />
+                <button
+                    onClick={() => setIsDrawerOpen(true)}
+                    className="p-2 text-slate-900 dark:text-white active:scale-95 transition-transform"
+                >
+                    <MaterialIcon name="menu" className="text-2xl" />
                 </button>
                 <h1 className="font-bold text-lg text-slate-900 dark:text-white">Meus Pedidos</h1>
                 <button
@@ -122,6 +126,8 @@ const UserOrders = ({ session }: { session: any }) => {
                     )}
                 </button>
             </header>
+
+            <NavigationDrawer isOpen={isDrawerOpen} onClose={() => setIsDrawerOpen(false)} session={session} />
 
             <main className="flex-1 p-4 pb-24 max-w-md mx-auto w-full">
                 {loading ? (
@@ -156,8 +162,6 @@ const UserOrders = ({ session }: { session: any }) => {
                     </>
                 )}
             </main>
-
-            <BottomNav session={session} />
         </div>
     );
 };

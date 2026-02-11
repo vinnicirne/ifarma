@@ -25,6 +25,7 @@ const Checkout = lazy(() => import('../pages/client/Checkout'));
 const UserProfile = lazy(() => import('../pages/UserProfile'));
 const Favorites = lazy(() => import('../pages/Favorites'));
 const Notifications = lazy(() => import('../pages/Notifications'));
+const Settings = lazy(() => import('../pages/Settings').then(m => ({ default: m.Settings })));
 const UserOrderTracking = lazy(() => import('../pages/client/UserOrderTracking').then(m => ({ default: m.UserOrderTracking })));
 const UserOrders = lazy(() => import('../pages/client/UserOrders'));
 const PrescriptionUpload = lazy(() => import('../pages/client/PrescriptionUpload').then(m => ({ default: m.PrescriptionUpload })));
@@ -118,6 +119,7 @@ export const AppRoutes = ({ session, profile, userLocation, sortedPharmacies, re
             <Route path="/profile" element={<ProtectedRoute session={session}><Suspense fallback={<LoadingScreen />}><UserProfile session={session} profile={profile} onRefresh={refreshProfile} /></Suspense></ProtectedRoute>} />
             <Route path="/favorites" element={<ProtectedRoute session={session}><Suspense fallback={<LoadingScreen />}><Favorites session={session} /></Suspense></ProtectedRoute>} />
             <Route path="/notifications" element={<ProtectedRoute session={session}><Suspense fallback={<LoadingScreen />}><Notifications /></Suspense></ProtectedRoute>} />
+            <Route path="/settings" element={<ProtectedRoute session={session}><Suspense fallback={<LoadingScreen />}><Settings session={session} /></Suspense></ProtectedRoute>} />
             <Route path="/meus-pedidos" element={<ProtectedRoute session={session}><Suspense fallback={<LoadingScreen />}><UserOrders session={session} /></Suspense></ProtectedRoute>} />
             <Route path="/order-tracking/:orderId?" element={<ProtectedRoute session={session}><Suspense fallback={<LoadingScreen />}><UserOrderTracking /></Suspense></ProtectedRoute>} />
             <Route path="/pedido/:orderId?" element={<ProtectedRoute session={session}><Suspense fallback={<LoadingScreen />}><UserOrderTracking /></Suspense></ProtectedRoute>} />

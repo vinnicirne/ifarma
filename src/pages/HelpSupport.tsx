@@ -1,30 +1,41 @@
 
+import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { NavigationDrawer } from '../components/layout/NavigationDrawer';
+import { supabase } from '../lib/supabase';
 
 const MaterialIcon = ({ name, className = "" }: { name: string, className?: string }) => (
     <span className={`material-symbols-outlined ${className}`}>{name}</span>
 );
 
-import BottomNavigation from '../components/BottomNavigation';
-
 const HelpSupport = () => {
     const navigate = useNavigate();
+    const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+    const [session, setSession] = useState<any>(null);
+
+    useEffect(() => {
+        supabase.auth.getSession().then(({ data: { session } }) => {
+            setSession(session);
+        });
+    }, []);
 
     return (
         <div className="bg-background-light dark:bg-background-dark text-slate-900 dark:text-white min-h-screen pb-24 font-display transition-colors duration-200">
             {/* Top Navigation Bar */}
-            <header className="sticky top-0 z-50 bg-background-light/95 dark:bg-background-dark/95 backdrop-blur-md">
+            <header className="sticky top-0 z-50 bg-background-light/95 dark:bg-background-dark/95 backdrop-blur-md border-b border-gray-100 dark:border-white/5">
                 <div className="h-[44px]"></div> {/* iOS Status Bar placeholder */}
                 <div className="flex items-center px-4 py-2 justify-between">
                     <button
-                        onClick={() => navigate(-1)}
+                        onClick={() => setIsDrawerOpen(true)}
                         className="flex size-10 items-center justify-start cursor-pointer active:scale-95 transition-transform"
                     >
-                        <MaterialIcon name="chevron_left" />
+                        <MaterialIcon name="menu" className="text-2xl" />
                     </button>
                     <h1 className="text-lg font-bold leading-tight tracking-tight flex-1 text-center pr-10">Ajuda e Suporte</h1>
                 </div>
             </header>
+
+            <NavigationDrawer isOpen={isDrawerOpen} onClose={() => setIsDrawerOpen(false)} session={session} />
 
             <main className="max-w-md mx-auto">
                 {/* Search Bar Section */}
@@ -100,9 +111,6 @@ const HelpSupport = () => {
                 <MaterialIcon name="chat_bubble" className="text-[24px]" />
                 <span className="font-bold text-sm">Falar com Atendente</span>
             </button>
-
-            {/* Bottom Navigation Bar */}
-            <BottomNavigation />
         </div>
     );
 };

@@ -3,7 +3,6 @@ import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { MaterialIcon } from '../../components/Shared';
 import { TopAppBar } from '../../components/layout/TopAppBar';
-import { BottomNav } from '../../components/layout/BottomNav';
 import { useCartCount } from '../../hooks/useCartCount';
 import { useCart } from '../../hooks/useCart';
 import { AdMob, BannerAdSize, BannerAdPosition } from '@capacitor-community/admob';
@@ -204,7 +203,7 @@ export const ClientHome = ({ userLocation, sortedPharmacies, session }: { userLo
                 session={session}
             />
 
-            <main className="flex-1 pb-32">
+            <main className="flex-1 pb-20">
                 {searchQuery.length > 0 ? (
                     <div className="p-4">
                         <div className="flex justify-between items-center mb-4">
@@ -288,7 +287,6 @@ export const ClientHome = ({ userLocation, sortedPharmacies, session }: { userLo
                     </>
                 )}
             </main>
-            <BottomNav session={session} />
         </div>
     );
 };
