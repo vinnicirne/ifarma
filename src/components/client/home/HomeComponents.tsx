@@ -47,19 +47,31 @@ export const PromoCarousel = ({ config }: { config?: any }) => {
     if (promotions.length === 0) return null;
 
     return (
-        <div className="w-full overflow-x-auto hide-scrollbar">
-            <div className="flex px-4 py-2 gap-4">
+        <div className="w-full overflow-x-auto hide-scrollbar scroll-smooth">
+            <div className="flex px-4 py-3 gap-4" style={{ minWidth: 'max-content' }}>
                 {promotions.map((promo: any) => (
-                    <div key={promo.id} className="relative shrink-0 w-[85vw] max-w-[340px] aspect-[21/9] rounded-[28px] overflow-hidden shadow-2xl border border-white/5"
-                        style={{
-                            background: promo.image_url ? `url(${promo.image_url}) center/cover no-repeat` : `linear-gradient(135deg, ${promo.color1 || '#132218'} 0%, ${promo.color2 || '#13ec6d'} 100%)`
-                        }}>
+                    <div key={promo.id}
+                        className="relative w-[320px] h-[140px] rounded-[32px] overflow-hidden shadow-2xl border border-white/5 shrink-0">
+                        {/* Background Layer */}
+                        <div className="absolute inset-0 z-0"
+                            style={{
+                                background: promo.image_url ? `url(${promo.image_url}) center/cover no-repeat` : `linear-gradient(135deg, ${promo.color1 || '#132218'} 0%, ${promo.color2 || '#13ec6d'} 100%)`
+                            }}
+                        />
+
+                        {/* Overlay Layer */}
                         {!promo.image_url && (
-                            <div className="absolute inset-0 flex flex-col justify-center p-6 text-white bg-black/30">
-                                <p className="text-[10px] font-black uppercase tracking-[0.2em] opacity-90 mb-1">{promo.name || promo.title}</p>
-                                <p className="text-2xl font-black leading-tight italic">{promo.subtitle || 'Confira as novidades'}</p>
-                                <div className="mt-3">
-                                    <div className="inline-block px-3 py-1 bg-white/20 rounded-full text-[8px] font-black uppercase tracking-widest backdrop-blur-md border border-white/10">Ver Oferta</div>
+                            <div className="absolute inset-0 z-10 flex flex-col justify-center p-6 bg-black/40">
+                                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-white/80 mb-1">
+                                    {promo.name || promo.title || 'Oferta Ifarma'}
+                                </p>
+                                <h2 className="text-2xl font-black leading-tight italic text-white">
+                                    {promo.subtitle || 'Confira as novidades'}
+                                </h2>
+                                <div className="mt-4">
+                                    <span className="px-4 py-1.5 bg-primary/20 hover:bg-primary/30 rounded-full text-[9px] font-black uppercase tracking-widest text-primary border border-primary/30 backdrop-blur-md transition-colors">
+                                        Ver Agora
+                                    </span>
                                 </div>
                             </div>
                         )}
@@ -101,48 +113,50 @@ export const CategoryGrid = ({ config, title }: { config?: any, title?: string }
 
 // --- FEATURED PHARMACIES ---
 export const FeaturedPharmacies = ({ pharmacies, config, title }: { pharmacies: any[], config?: any, title?: string }) => {
-    if (!pharmacies || pharmacies.length === 0) return null;
-
-    // Filter logic: if no featured found, use all pharmacies (top 10)
-    const featured = pharmacies.filter(p => p.is_featured);
-    const list = featured.length > 0 ? featured : pharmacies;
-    const limit = config?.limit && config.limit > 0 ? config.limit : 10;
+    // Determine which pharmacies to show (Featured or fallback to all)
+    const featured = pharmacies?.filter(p => p.is_featured === true) || [];
+    const list = featured.length > 0 ? featured : (pharmacies || []);
+    const limit = config?.limit || 10;
     const displayList = list.slice(0, limit);
 
+    if (displayList.length === 0) return null;
+
     return (
-        <div className="w-full mt-2">
-            <div className="px-5 py-4">
+        <div className="w-full py-4">
+            <div className="px-5 mb-4">
                 <h3 className="text-white text-xl font-black italic tracking-tight">{title || 'Farmácias em Destaque'}</h3>
             </div>
-            <div className="w-full overflow-x-auto hide-scrollbar">
-                <div className="flex px-4 gap-4 pb-4">
+            <div className="w-full overflow-x-auto hide-scrollbar scroll-smooth">
+                <div className="flex px-4 gap-4 pb-2" style={{ minWidth: 'max-content' }}>
                     {displayList.map(pharma => {
                         const isOpen = isPharmacyOpen(pharma);
 
                         return (
                             <Link to={`/pharmacy/${pharma.id}`} key={pharma.id}
-                                className={`flex flex-col gap-2 transition-transform active:scale-95 ${!isOpen ? 'grayscale' : ''}`}>
-                                <div className="relative size-32 rounded-[32px] bg-[#1a2e23] border border-white/5 shadow-2xl overflow-hidden p-3 flex items-center justify-center">
+                                className={`flex flex-col gap-3 shrink-0 transition-transform active:scale-95 ${!isOpen ? 'grayscale opacity-60' : ''}`}>
+                                <div className="relative size-36 rounded-[40px] bg-[#1a2e23] border border-white/5 shadow-2xl overflow-hidden p-4 flex items-center justify-center">
                                     {pharma.logo_url ? (
                                         <img src={pharma.logo_url} alt={pharma.name} className="w-full h-full object-contain rounded-2xl" />
                                     ) : (
-                                        <div className="w-full h-full bg-primary/10 text-primary flex items-center justify-center font-black text-3xl italic">
+                                        <div className="w-full h-full bg-primary/10 text-primary flex items-center justify-center font-black text-4xl italic">
                                             {pharma.name.charAt(pharma.name.startsWith('Farmácia') ? 9 : 0)}
                                         </div>
                                     )}
 
                                     {!isOpen && (
-                                        <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                                            <span className="text-[10px] font-black text-white px-2 py-1 bg-black/60 rounded-full">FECHADO</span>
+                                        <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                                            <span className="text-[10px] font-black text-white px-3 py-1 bg-red-500/80 rounded-full">FECHADA</span>
                                         </div>
                                     )}
                                 </div>
-                                <div className="px-1 max-w-[128px]">
-                                    <p className="text-white text-xs font-black italic truncate mb-1">{pharma.name}</p>
-                                    <div className="flex items-center gap-1">
-                                        <MaterialIcon name="star" className="text-[10px] text-yellow-500" fill />
-                                        <span className="text-[10px] font-black text-slate-300">{pharma.rating || '5.0'}</span>
-                                        <span className="text-[8px] font-bold text-slate-500 ml-auto lowercase">30 min</span>
+                                <div className="px-2 max-w-[144px]">
+                                    <p className="text-white text-sm font-black italic truncate mb-1">{pharma.name}</p>
+                                    <div className="flex items-center gap-2">
+                                        <div className="flex items-center gap-1">
+                                            <MaterialIcon name="star" className="text-[10px] text-yellow-500" fill />
+                                            <span className="text-[11px] font-black text-slate-300">{pharma.rating || '5.0'}</span>
+                                        </div>
+                                        <span className="text-[9px] font-bold text-slate-500 ml-auto lowercase">30 min</span>
                                     </div>
                                 </div>
                             </Link>
