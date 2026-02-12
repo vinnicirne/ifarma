@@ -173,10 +173,7 @@ export const InternalAdCarousel = ({ region = 'global' }: { region?: string }) =
         <div className="w-full pb-4">
             <div className="px-8 mb-3 flex items-center gap-2">
                 <MaterialIcon name="verified" className="text-primary text-sm" />
-                <div className="flex flex-col">
-                    <span className="text-[10px] font-black uppercase text-white tracking-widest">Patrocinado</span>
-                    <span className="text-[8px] font-bold text-primary uppercase">Sugestões da Região</span>
-                </div>
+                <span className="text-[10px] font-black uppercase text-white tracking-widest">Patrocinado</span>
             </div>
 
             <div className="w-full overflow-x-auto hide-scrollbar scroll-smooth">
@@ -185,16 +182,10 @@ export const InternalAdCarousel = ({ region = 'global' }: { region?: string }) =
                         <div
                             key={ad.id}
                             onClick={() => handleAdClick(ad)}
-                            className="relative w-[260px] h-[130px] rounded-[28px] overflow-hidden shadow-xl border border-white/5 shrink-0 cursor-pointer active:scale-95 transition-all"
+                            className="relative w-[300px] h-[180px] rounded-[28px] overflow-hidden shadow-xl border border-white/5 shrink-0 cursor-pointer active:scale-95 transition-all"
                         >
                             <img src={ad.image_url} alt={ad.title} className="w-full h-full object-cover" />
-                            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent flex flex-col justify-end p-5">
-                                <h4 className="text-white font-black italic text-base leading-tight">{ad.title}</h4>
-                                {ad.subtitle && <p className="text-white/70 text-[9px] font-medium truncate">{ad.subtitle}</p>}
-                                <div className="mt-2 text-[8px] font-black uppercase tracking-widest text-primary border border-primary/20 bg-primary/10 w-fit px-3 py-1 rounded-full backdrop-blur-sm">
-                                    {ad.cta_text || 'Ver Agora'}
-                                </div>
-                            </div>
+                            {/* Overlay removido para não poluir o criativo conforme solicitado */}
                         </div>
                     ))}
                 </div>
@@ -378,7 +369,7 @@ export const SpecialHighlights = ({ config, title, pharmacies }: { pharmacies: a
                     pharmacy_id,
                     pharmacies!inner(name, plan, status)
                 `)
-                .eq('pharmacies.status', 'approved')
+                .eq('pharmacies.status', 'Aprovado')
                 .limit(config?.limit || 10);
 
             if ((!data || data.length === 0) && pharmacies && pharmacies.length > 0) {

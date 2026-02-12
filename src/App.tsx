@@ -163,7 +163,7 @@ function App() {
       const { data, error } = await supabase
         .from('pharmacies')
         .select('*')
-        .eq('status', 'approved');
+        .eq('status', 'Aprovado');
 
       if (error) console.error("Error fetching pharmacies:", error);
       else setAllPharmacies(data || []);

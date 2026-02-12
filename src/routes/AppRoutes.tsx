@@ -51,6 +51,7 @@ const PromotionManagement = lazy(() => import('../pages/admin/PromotionManagemen
 const CategoryManagement = lazy(() => import('../pages/admin/CategoryManagement').then(m => ({ default: m.CategoryManagement })));
 const CollectionManagement = lazy(() => import('../pages/admin/CollectionManagement').then(m => ({ default: m.CollectionManagement })));
 const FeedManagement = lazy(() => import('../pages/admin/FeedManagement').then(m => ({ default: m.FeedManagement })));
+const AdminNotifications = lazy(() => import('../pages/admin/AdminNotifications'));
 const SystemSettings = lazy(() => import('../pages/admin/SystemSettings').then(m => ({ default: m.SystemSettings })));
 const MonetizationManagement = lazy(() => import('../pages/admin/MonetizationManagement').then(m => ({ default: m.MonetizationManagement })));
 const FeaturePlaceholder = lazy(() => import('../pages/admin/FeaturePlaceholder').then(m => ({ default: m.FeaturePlaceholder })));
@@ -141,6 +142,7 @@ export const AppRoutes = ({ session, profile, userLocation, sortedPharmacies, re
                 <Route path="feed" element={<Suspense fallback={<LoadingScreen />}><FeedManagement profile={profile} /></Suspense>} />
                 <Route path="products" element={<Suspense fallback={<LoadingScreen />}><FeaturePlaceholder title="Gestão de Produtos" /></Suspense>} />
                 <Route path="reports" element={<Suspense fallback={<LoadingScreen />}><FeaturePlaceholder title="Relatórios e Analytics" /></Suspense>} />
+                <Route path="notifications" element={<Suspense fallback={<LoadingScreen />}><AdminNotifications /></Suspense>} />
                 <Route path="monetization" element={<Suspense fallback={<LoadingScreen />}><MonetizationManagement profile={profile} /></Suspense>} />
                 <Route path="settings" element={<Suspense fallback={<LoadingScreen />}><SystemSettings profile={profile} /></Suspense>} />
                 <Route path="logs" element={<Suspense fallback={<LoadingScreen />}><FeaturePlaceholder title="Logs do Sistema" /></Suspense>} />

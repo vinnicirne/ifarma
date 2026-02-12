@@ -160,7 +160,33 @@ export const useNotifications = (userId: string | null) => {
             const isNative = info.platform === 'android' || info.platform === 'ios';
 
             if (isNative) {
+                // Criar canal E exibir notificação local em foreground
+
+                // 1. Criar canal de alta prioridade
                 await createNotificationChannel();
+
+                // 2. Registrar listener para exibir Banner (Heads-up) quando app está aberto
+                const { PushNotifications } = await import('@capacitor/push-notifications');
+                const { LocalNotifications } = await import('@capacitor/local-notifications');
+
+                PushNotifications.addListener('pushNotificationReceived', async (notification) => {
+                    console.log('Push nativo recebido em foreground:', notification);
+
+                    // Exibir banner localmente para garantir que o usuário veja
+                    // Isso resolve o problema de "não aparecer em cima" quando o app está aberto
+                    await LocalNotifications.schedule({
+                        notifications: [{
+                            title: notification.title || 'Nova Notificação',
+                            body: notification.body || '',
+                            id: new Date().getTime(),
+                            schedule: { at: new Date(Date.now() + 100) }, // 100ms delay
+                            sound: 'bi_bi.mp3',
+                            channelId: 'chat_bibi_channel'
+                        }]
+                    });
+
+                    fetchNotifications();
+                });
             }
 
             await registerToken();
@@ -187,17 +213,9 @@ export const useNotifications = (userId: string | null) => {
                         .catch((err) => {
                             console.debug('Push listener error:', err);
                         });
-                } else {
-                    // Native Foreground listener
-                    const { PushNotifications } = await import('@capacitor/push-notifications');
-                    PushNotifications.addListener('pushNotificationReceived', (notification) => {
-                        console.log('Push nativo recebido em foreground:', notification);
-                        fetchNotifications();
-                    });
                 }
-
             } catch (error) {
-                console.debug('Push not available:', error);
+                console.debug('Push setup error:', error);
             }
         };
 

@@ -213,16 +213,18 @@ export const ClientHome = ({ userLocation, sortedPharmacies, session }: { userLo
 
             <main className="flex-1 pb-10">
                 {searchQuery.length > 0 ? (
-                    <div className="px-8 py-4">
-                        <div className="flex justify-between items-center mb-4">
-                            <h2 className="text-xl font-bold tracking-tight text-slate-800 dark:text-white italic">
-                                {isSearching ? 'Buscando...' : `Resultados para "${searchQuery}"`}
-                            </h2>
-                            {searchResults.length > 0 && (
-                                <span className="text-xs font-bold text-primary bg-primary/10 px-2 py-1 rounded-full uppercase">
-                                    {searchResults.length} {searchResults.length === 1 ? 'item' : 'itens'}
-                                </span>
-                            )}
+                    <div className="flex flex-col gap-4">
+                        <div className="px-8 py-4">
+                            <div className="flex justify-between items-center mb-4">
+                                <h2 className="text-xl font-bold tracking-tight text-slate-800 dark:text-white italic">
+                                    {isSearching ? 'Buscando...' : `Resultados para "${searchQuery}"`}
+                                </h2>
+                                {searchResults.length > 0 && (
+                                    <span className="text-xs font-bold text-primary bg-primary/10 px-2 py-1 rounded-full uppercase">
+                                        {searchResults.length} {searchResults.length === 1 ? 'item' : 'itens'}
+                                    </span>
+                                )}
+                            </div>
                         </div>
 
                         {searchResults.length === 0 && !isSearching ? (
@@ -232,7 +234,7 @@ export const ClientHome = ({ userLocation, sortedPharmacies, session }: { userLo
                                 <p className="text-xs opacity-60">Tente buscar por termos mais genéricos</p>
                             </div>
                         ) : (
-                            <div className="grid grid-cols-1 gap-4">
+                            <div className="px-4 grid grid-cols-1 gap-4">
                                 {searchResults.map((item, i) => (
                                     <div key={i} className="bg-white dark:bg-[#1a2e23] p-5 rounded-3xl border border-slate-100 dark:border-white/5 shadow-sm hover:shadow-md transition-all flex gap-4">
                                         <div className="size-24 rounded-2xl bg-slate-50 dark:bg-black/20 flex items-center justify-center shrink-0 border border-slate-100 dark:border-white/5 overflow-hidden">
@@ -278,16 +280,14 @@ export const ClientHome = ({ userLocation, sortedPharmacies, session }: { userLo
                     </div>
                 ) : (
                     <>
+
                         {loadingFeed ? (
                             <div className="p-8 flex justify-center">
                                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
                             </div>
                         ) : feedSections.length > 0 ? (
                             <>
-                                {/* Render all sections in order */}
                                 {feedSections.map(section => renderFeedSection(section))}
-
-                                {/* Fallback: Add NearbyPharmacies if not in feed */}
                                 {feedSections.every(s => s.type !== 'pharmacy_list.nearby') && (
                                     <NearbyPharmacies pharmacies={sortedPharmacies} />
                                 )}

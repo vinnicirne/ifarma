@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { MaterialIcon } from '../../components/Shared';
-import { AdminPushNotification } from '../../components/admin/AdminPushNotification';
+
 
 export const SystemSettings = ({ profile }: { profile: any }) => {
     const [isSaving, setIsSaving] = useState(false);
     const [success, setSuccess] = useState(false);
     const [isTesting, setIsTesting] = useState(false);
-    const [activeTab, setActiveTab] = useState<'general' | 'finance' | 'notifications' | 'ads'>('general');
+    const [activeTab, setActiveTab] = useState<'general' | 'finance' | 'ads'>('general');
     const defaultKeys = [
         'google_maps_api_key', 'whatsapp_api_url', 'whatsapp_api_key', 'whatsapp_instance_id',
         'global_charge_per_order', 'global_fixed_fee', 'global_charge_percentage', 'global_percentage_fee',
@@ -156,7 +156,7 @@ export const SystemSettings = ({ profile }: { profile: any }) => {
                         {[
                             { id: 'general', label: 'Geral', icon: 'settings' },
                             { id: 'finance', label: 'Financeiro', icon: 'payments' },
-                            { id: 'notifications', label: 'Avisos', icon: 'notifications' },
+
                             { id: 'ads', label: 'Anúncios', icon: 'campaign' }
                         ].map(tab => (
                             <button
@@ -371,37 +371,7 @@ export const SystemSettings = ({ profile }: { profile: any }) => {
                     </div>
                 )}
 
-                {activeTab === 'notifications' && (
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-fade-in">
-                        <div className="space-y-6">
-                            <AdminPushNotification />
-                        </div>
 
-                        <div className="bg-white dark:bg-[#193324] rounded-[32px] border border-slate-200 dark:border-white/5 p-8 flex flex-col items-center justify-center text-center">
-                            <div className="size-20 bg-primary/10 rounded-full flex items-center justify-center text-primary mb-6">
-                                <MaterialIcon name="notifications_active" className="text-4xl" />
-                            </div>
-                            <h3 className="text-lg font-black italic mb-2">Central de Avisos</h3>
-                            <p className="text-xs text-slate-500 uppercase tracking-widest font-black opacity-50">
-                                Envio de Push em Massa
-                            </p>
-                            <p className="text-[10px] text-slate-400 mt-4 leading-relaxed max-w-xs">
-                                Use esta ferramenta para anunciar promoções, feriados ou atualizações críticas para sua base de usuários.
-                            </p>
-
-                            <div className="mt-8 grid grid-cols-2 gap-4 w-full">
-                                <div className="p-4 bg-white/5 border border-white/5 rounded-2xl">
-                                    <p className="text-xl font-black text-primary">0</p>
-                                    <p className="text-[8px] font-black uppercase text-slate-500">Enviados hoje</p>
-                                </div>
-                                <div className="p-4 bg-white/5 border border-white/5 rounded-2xl">
-                                    <p className="text-xl font-black text-primary">100%</p>
-                                    <p className="text-[8px] font-black uppercase text-slate-500">Taxa de Entrega</p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                )}
 
                 {activeTab === 'ads' && (
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-fade-in">

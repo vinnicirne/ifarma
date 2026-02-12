@@ -395,11 +395,14 @@ const PharmacyDetails = () => {
 
         // Mapeia status de PT para EN (banco)
         const statusMap: Record<string, string> = {
-            'Aprovado': 'approved',
-            'Pendente': 'pending',
-            'Rejeitado': 'rejected',
-            'Suspenso': 'suspended',
-            'approved': 'approved',
+            'Aprovado': 'Aprovado',
+            'Pendente': 'Pendente',
+            'Rejeitado': 'Rejeitado',
+            'Suspenso': 'Suspenso',
+            'approved': 'Aprovado',
+            'pending': 'Pendente',
+            'rejected': 'Rejeitado',
+            'suspended': 'Suspenso'
             'pending': 'pending',
             'rejected': 'rejected',
             'suspended': 'suspended'

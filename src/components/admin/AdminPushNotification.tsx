@@ -32,8 +32,8 @@ export const AdminPushNotification = () => {
             if (res && res.success) {
                 if (res.warning === 'no_tokens') {
                     setStatus({
-                        type: 'success',
-                        message: 'Salvo no banco, mas nenhum dispositivo com push token encontrado.'
+                        type: 'error',
+                        message: 'Nenhum cliente com app ativo encontrado. Peça para acessarem o app.'
                     });
                 } else {
                     setStatus({

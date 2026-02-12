@@ -39,11 +39,12 @@ const Sidebar = ({ profile }: { profile?: any }) => {
             ]
         },
         {
-            title: 'CRESCIMENTO',
+            title: 'MARKETING',
             items: [
                 { icon: Layers, label: 'Feed do App', path: '/dashboard/feed', roles: ['admin', 'operator'] },
                 { icon: Megaphone, label: 'Banners & Ads', path: '/dashboard/ads', roles: ['admin', 'operator'] },
                 { icon: Tag, label: 'Promoções', path: '/dashboard/promotions', roles: ['admin', 'operator'] },
+                { icon: Bell, label: 'Notificações Push', path: '/dashboard/notifications', roles: ['admin', 'operator'] },
             ]
         },
         {
@@ -122,7 +123,7 @@ const Sidebar = ({ profile }: { profile?: any }) => {
             </div>
 
             {/* Navigation Sections */}
-            <nav className="flex-1 px-4 py-4 space-y-6 overflow-y-auto scrollbar-hide">
+            <nav className="flex-1 px-4 py-4 space-y-6 overflow-y-auto hide-scrollbar">
                 {menuSections.map((section, sIdx) => {
                     const filteredItems = section.items.filter(item =>
                         !item.roles || item.roles.includes(profile?.role || 'admin')

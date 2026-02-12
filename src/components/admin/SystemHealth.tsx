@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { MaterialIcon } from '../Shared';
+import { Store, Package, Megaphone, ChevronRight } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useNavigate } from 'react-router-dom';
 
@@ -52,7 +52,7 @@ export const SystemHealth = () => {
         {
             label: 'Farmácias Fechadas',
             count: offlinePharmacies,
-            icon: 'store_off',
+            icon: Store,
             color: offlinePharmacies > 5 ? 'text-red-500' : 'text-orange-500',
             bg: offlinePharmacies > 5 ? 'bg-red-500/10' : 'bg-orange-500/10',
             action: () => navigate('/dashboard/pharmacies')
@@ -60,7 +60,7 @@ export const SystemHealth = () => {
         {
             label: 'Estoque Crítico',
             count: lowStockProducts,
-            icon: 'inventory_2',
+            icon: Package,
             color: lowStockProducts > 20 ? 'text-red-500' : 'text-yellow-500',
             bg: lowStockProducts > 20 ? 'bg-red-500/10' : 'bg-yellow-500/10',
             action: () => navigate('/dashboard/products')
@@ -68,7 +68,7 @@ export const SystemHealth = () => {
         {
             label: 'Promoções Ativas',
             count: expiringPromotions,
-            icon: 'campaign',
+            icon: Megaphone,
             color: 'text-blue-500',
             bg: 'bg-blue-500/10',
             action: () => navigate('/dashboard/promotions')
@@ -85,7 +85,7 @@ export const SystemHealth = () => {
                 >
                     <div className="flex items-center gap-5">
                         <div className={`size-12 shrink-0 rounded-xl flex items-center justify-center ${item.bg} ${item.color} group-hover:scale-110 transition-transform`}>
-                            <MaterialIcon name={item.icon} className="text-2xl" />
+                            <item.icon size={24} />
                         </div>
                         <div>
                             <p className="text-slate-500 text-[10px] font-bold uppercase tracking-wide mb-1 opacity-80">{item.label}</p>
@@ -95,7 +95,7 @@ export const SystemHealth = () => {
                         </div>
                     </div>
                     <div className="size-8 rounded-full bg-white/5 flex items-center justify-center group-hover:bg-primary group-hover:text-background-dark transition-colors">
-                        <MaterialIcon name="chevron_right" />
+                        <ChevronRight size={20} />
                     </div>
                 </div>
             ))}

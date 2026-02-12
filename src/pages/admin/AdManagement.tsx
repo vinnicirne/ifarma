@@ -13,6 +13,7 @@ export const AdManagement = ({ profile }: { profile: any }) => {
         title: '',
         image_url: '',
         destination_id: '',
+        destination_type: 'store', // 'store' | 'external'
         days_period: '7',
         start_date: new Date().toISOString().split('T')[0]
     });
@@ -42,13 +43,22 @@ export const AdManagement = ({ profile }: { profile: any }) => {
 
         setUploading(true);
         try {
-            const fileExt = file.name.split('.').pop();
+            // Compressão da Imagem
+            const { compressImage } = await import('../../lib/imageUtils');
+            const compressedFile = await compressImage(file, {
+                maxWidth: 1200,
+                maxHeight: 600,
+                quality: 0.8,
+                fileType: 'image/webp'
+            });
+
+            const fileExt = 'webp'; // Forçando WEBP pós compressão
             const fileName = `${Date.now()}.${fileExt}`;
             const filePath = `${fileName}`;
 
             const { error: uploadError } = await supabase.storage
                 .from('ads-banners')
-                .upload(filePath, file);
+                .upload(filePath, compressedFile);
 
             if (uploadError) throw uploadError;
 
@@ -80,7 +90,7 @@ export const AdManagement = ({ profile }: { profile: any }) => {
                 .insert([{
                     title: formData.title,
                     image_url: formData.image_url,
-                    destination_type: 'store',
+                    destination_type: formData.destination_type,
                     destination_id: formData.destination_id,
                     start_date: formData.start_date,
                     end_date: end.toISOString(),
@@ -95,7 +105,14 @@ export const AdManagement = ({ profile }: { profile: any }) => {
             await supabase.from('ads_metrics').insert([{ campaign_id: campaign.id }]);
 
             alert('Parabéns! O destaque foi ativado.');
-            setFormData({ title: '', image_url: '', destination_id: '', days_period: '7', start_date: new Date().toISOString().split('T')[0] });
+            setFormData({
+                title: '',
+                image_url: '',
+                destination_id: '',
+                destination_type: 'store',
+                days_period: '7',
+                start_date: new Date().toISOString().split('T')[0]
+            });
             fetchHighlights();
         } catch (err: any) {
             alert('Erro ao ativar destaque: ' + err.message);
@@ -187,6 +204,9 @@ export const AdManagement = ({ profile }: { profile: any }) => {
                                         <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent flex flex-col justify-end p-6">
                                             <div className="flex items-center gap-2 mb-1">
                                                 <span className="bg-primary text-background-dark text-[8px] font-black px-2 py-0.5 rounded-lg">PATROCINADO</span>
+                                                <span className="bg-white/10 text-white text-[8px] font-black px-2 py-0.5 rounded-lg uppercase">
+                                                    {item.destination_type === 'external' ? 'Externo' : 'No App'}
+                                                </span>
                                             </div>
                                             <p className="text-white text-[10px] font-bold opacity-80 uppercase tracking-widest">Lojas em destaque por publicidade</p>
                                         </div>
@@ -197,6 +217,9 @@ export const AdManagement = ({ profile }: { profile: any }) => {
                                             <div>
                                                 <h4 className="text-lg font-black italic">{item.title}</h4>
                                                 <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mt-1">Vigência: <span className="text-primary">{formatDate(item.start_date)} → {formatDate(item.end_date)}</span></p>
+                                                {item.destination_type === 'external' && (
+                                                    <p className="text-[9px] font-bold text-slate-400 mt-1 truncate max-w-[200px]">{item.destination_id}</p>
+                                                )}
                                             </div>
                                             <div className="flex items-center gap-1.5 bg-green-500/10 px-3 py-1 rounded-full border border-green-500/20">
                                                 <div className="size-1.5 rounded-full bg-green-500 animate-pulse"></div>
@@ -232,14 +255,43 @@ export const AdManagement = ({ profile }: { profile: any }) => {
                         <h2 className="text-lg font-black italic uppercase tracking-tighter text-slate-400">ATIVAR / RENOVAR DESTAQUE</h2>
 
                         <div className="bg-white dark:bg-[#193324] rounded-[32px] p-8 border border-white/5 shadow-xl space-y-8">
+                            <div className="space-y-4">
+                                <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Tipo de Destaque</span>
+                                <div className="flex gap-2 p-1 bg-black/20 rounded-xl">
+                                    <button
+                                        onClick={() => setFormData({ ...formData, destination_type: 'store' })}
+                                        className={`flex-1 py-3 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${formData.destination_type === 'store' ? 'bg-primary text-background-dark shadow-lg' : 'text-slate-500 hover:text-white'}`}
+                                    >
+                                        Farmácia (App)
+                                    </button>
+                                    <button
+                                        onClick={() => setFormData({ ...formData, destination_type: 'external' })}
+                                        className={`flex-1 py-3 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${formData.destination_type === 'external' ? 'bg-primary text-background-dark shadow-lg' : 'text-slate-500 hover:text-white'}`}
+                                    >
+                                        Link Externo
+                                    </button>
+                                </div>
+                            </div>
+
                             <div className="space-y-2">
-                                <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Nome do Destaque (Interno)</span>
-                                <input type="text" placeholder="Ex: Campanha Farmácia Vida" className="w-full bg-black/20 border border-white/5 rounded-xl h-14 px-5 text-sm font-bold text-white shadow-inner"
+                                <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Nome da Campanha</span>
+                                <input type="text" placeholder="Ex: Campanha Dentista Sorriso" className="w-full bg-black/20 border border-white/5 rounded-xl h-14 px-5 text-sm font-bold text-white shadow-inner"
                                     value={formData.title} onChange={e => setFormData({ ...formData, title: e.target.value })} />
                             </div>
 
                             <div className="space-y-4">
-                                <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block">Banner da Farmácia</span>
+                                <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block">Banner da Campanha</span>
+                                <div className="mb-2 p-3 bg-blue-500/10 border border-blue-500/20 rounded-xl">
+                                    <p className="text-[10px] font-bold text-blue-400 uppercase tracking-widest mb-1 flex items-center gap-1">
+                                        <MaterialIcon name="info" className="text-sm" />
+                                        Dimensões Recomendadas
+                                    </p>
+                                    <ul className="text-[9px] text-blue-300 space-y-0.5 list-disc list-inside opacity-80">
+                                        <li>Tamanho Ideal: <strong>300x180 pixels</strong> (Proporção 5:3)</li>
+                                        <li>Zona de Segurança: Evite textos a <strong>30px</strong> dos cantos (arredondados).</li>
+                                        <li>Todo o espaço é utilizável (sem sobreposição de texto).</li>
+                                    </ul>
+                                </div>
                                 <label className={`flex flex-col items-center justify-center border-2 border-dashed rounded-2xl p-10 transition-all cursor-pointer ${formData.image_url ? 'border-primary/50 bg-primary/5' : 'border-white/10 hover:border-primary/30'}`}>
                                     {uploading ? (
                                         <MaterialIcon name="sync" className="text-3xl animate-spin text-primary" />
@@ -259,13 +311,23 @@ export const AdManagement = ({ profile }: { profile: any }) => {
                             </div>
 
                             <div className="space-y-2">
-                                <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Farmácia Beneficiada (ID)</span>
-                                <input type="text" placeholder="ID da Farmácia" className="w-full bg-black/20 border border-white/5 rounded-xl h-14 px-5 text-sm font-bold text-white"
-                                    value={formData.destination_id} onChange={e => setFormData({ ...formData, destination_id: e.target.value })} />
+                                <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
+                                    {formData.destination_type === 'store' ? 'ID da Farmácia ou Loja' : 'Link de Destino (URL)'}
+                                </span>
+                                <input
+                                    type="text"
+                                    placeholder={formData.destination_type === 'store' ? "Ex: a1b2-c3d4" : "Ex: https://clinica.com.br"}
+                                    className="w-full bg-black/20 border border-white/5 rounded-xl h-14 px-5 text-sm font-bold text-white"
+                                    value={formData.destination_id}
+                                    onChange={e => setFormData({ ...formData, destination_id: e.target.value })}
+                                />
+                                {formData.destination_type === 'external' && (
+                                    <p className="text-[9px] text-slate-500">O cliente será redirecionado para este site ao clicar.</p>
+                                )}
                             </div>
 
                             <div className="space-y-4">
-                                <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block">Período Selecionado</span>
+                                <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block">Período de Veiculação</span>
                                 <div className="grid grid-cols-3 gap-2">
                                     {['7', '15', '30'].map((p) => (
                                         <button key={p} onClick={() => setFormData({ ...formData, days_period: p })}
@@ -274,11 +336,6 @@ export const AdManagement = ({ profile }: { profile: any }) => {
                                         </button>
                                     ))}
                                 </div>
-                            </div>
-
-                            <div className="flex justify-between items-center py-4 border-t border-white/5">
-                                <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Local de Exibição</span>
-                                <span className="text-xs font-black italic text-white uppercase tracking-tighter">Destaques da Região</span>
                             </div>
 
                             <button onClick={handleActivate} disabled={isSaving || uploading}
