@@ -403,9 +403,6 @@ const PharmacyDetails = () => {
             'pending': 'Pendente',
             'rejected': 'Rejeitado',
             'suspended': 'Suspenso'
-            'pending': 'pending',
-            'rejected': 'rejected',
-            'suspended': 'suspended'
         };
 
         // Mapeia plano (PT -> EN) para satisfazer check constraint

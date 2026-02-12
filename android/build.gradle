@@ -39,6 +39,18 @@ subprojects {
                 }
             }
         }
+        
+        // Force Kotlin JVM Toolchain to 17
+        try {
+            if (project.extensions.findByName("kotlin")) {
+                project.kotlin {
+                    jvmToolchain(17)
+                }
+            }
+        } catch (e) {
+            // Ignore if kotlin extension not found or method not supported
+            println "Could not configure kotlin toolchain for ${project.name}: ${e.message}"
+        }
     }
 }
 
