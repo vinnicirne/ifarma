@@ -57,7 +57,7 @@ export const PromoCarousel = ({ config }: { config?: any }) => {
 
     return (
         <div className="w-full overflow-x-auto hide-scrollbar scroll-smooth">
-            <div className="flex px-6 py-3 gap-3" style={{ minWidth: 'max-content' }}>
+            <div className="flex px-8 py-3 gap-3" style={{ minWidth: 'max-content' }}>
                 {promotions.map((promo: any) => (
                     <div key={promo.id}
                         className="relative w-[320px] h-[140px] rounded-[32px] overflow-hidden shadow-2xl border border-white/5 shrink-0">
@@ -133,7 +133,7 @@ export const InternalAdCarousel = ({ region = 'global' }: { region?: string }) =
 
     return (
         <div className="w-full pb-4">
-            <div className="px-6 mb-3 flex items-center gap-2">
+            <div className="px-8 mb-3 flex items-center gap-2">
                 <MaterialIcon name="verified" className="text-primary text-sm" />
                 <div className="flex flex-col">
                     <span className="text-[10px] font-black uppercase text-white tracking-widest">Patrocinado</span>
@@ -142,7 +142,7 @@ export const InternalAdCarousel = ({ region = 'global' }: { region?: string }) =
             </div>
 
             <div className="w-full overflow-x-auto hide-scrollbar scroll-smooth">
-                <div className="flex px-6 gap-3" style={{ minWidth: 'max-content' }}>
+                <div className="flex px-8 gap-3" style={{ minWidth: 'max-content' }}>
                     {ads.map((ad: any) => (
                         <div
                             key={ad.id}
@@ -189,15 +189,15 @@ export const CategoryGrid = ({ config, title }: { config?: any, title?: string }
 
     return (
         <div className="w-full py-4">
-            <div className="flex items-center justify-between px-6 mb-4">
+            <div className="flex items-center justify-between px-8 mb-4">
                 <div className="flex flex-col gap-0.5">
                     <h3 className="text-white text-xl font-bold italic tracking-tight leading-none uppercase">{title || 'Categorias'}</h3>
                     <p className="text-[9px] font-black text-primary uppercase tracking-widest">Navegue por departamento</p>
                 </div>
                 <Link to="/categories" className="text-primary text-xs font-black uppercase tracking-widest">Ver todas</Link>
             </div>
-            <div className="w-full overflow-x-auto hide-scrollbar scroll-smooth snap-x snap-mandatory pb-2">
-                <div className="flex gap-3 px-6">
+            <div className="w-full overflow-x-auto hide-scrollbar scroll-smooth snap-x snap-mandatory pb-2 scroll-pl-8">
+                <div className="flex gap-3 px-8">
                     {categories.map((cat) => (
                         <Link
                             to={cat.banner_link || `/category/${cat.id}`}
@@ -260,7 +260,7 @@ export const FeaturedPharmacies = ({ pharmacies, config, title }: { pharmacies: 
 
     return (
         <div className="w-full py-4">
-            <div className="px-6 mb-4 flex items-center justify-between">
+            <div className="px-8 mb-4 flex items-center justify-between">
                 <div className="flex items-center gap-3">
                     <div className="size-10 rounded-full bg-yellow-500/10 flex items-center justify-center border border-yellow-500/20">
                         <MaterialIcon name="verified" className="text-yellow-500 text-xl" fill />
@@ -275,7 +275,7 @@ export const FeaturedPharmacies = ({ pharmacies, config, title }: { pharmacies: 
                 </Link>
             </div>
             <div className="w-full overflow-x-auto hide-scrollbar scroll-smooth">
-                <div className="flex px-6 gap-3 pb-5">
+                <div className="flex px-8 gap-3 pb-5">
                     {displayList.map(pharma => {
                         const isOpen = isPharmacyOpen(pharma);
                         return (
@@ -377,7 +377,7 @@ export const SpecialHighlights = ({ config, title, pharmacies }: { pharmacies: a
 
     return (
         <div className="w-full">
-            <div className="px-6 pt-8 pb-3 flex items-center gap-3">
+            <div className="px-8 pt-8 pb-3 flex items-center gap-3">
                 <div className="size-10 rounded-full bg-yellow-500/10 flex items-center justify-center border border-yellow-500/20">
                     <MaterialIcon name="verified" className="text-yellow-500 text-xl" fill />
                 </div>
@@ -391,8 +391,8 @@ export const SpecialHighlights = ({ config, title, pharmacies }: { pharmacies: a
                 </div>
             </div>
 
-            <div className="w-full overflow-x-auto hide-scrollbar scroll-smooth snap-x snap-mandatory pb-5">
-                <div className="flex gap-3 px-6">
+            <div className="w-full overflow-x-auto hide-scrollbar scroll-smooth snap-x snap-mandatory pb-5 scroll-pl-8">
+                <div className="flex gap-3 px-8">
                     {products.map(item => (
                         <Link
                             to={`/product/${item.id}`}
@@ -432,14 +432,14 @@ export const SpecialHighlights = ({ config, title, pharmacies }: { pharmacies: a
 // --- NEARBY PHARMACIES ---
 export const NearbyPharmacies = ({ pharmacies, config, title }: { pharmacies: any[], config?: any, title?: string }) => (
     <div className="w-full">
-        <div className="px-6 pt-6 pb-2 flex justify-between items-center">
+        <div className="px-8 pt-6 pb-2 flex justify-between items-center">
             <h3 className="text-[#0d161b] dark:text-white text-lg font-bold leading-tight tracking-[-0.015em]">{title || 'Farmácias Próximas'}</h3>
             <Link to="/pharmacies" className="text-primary text-xs font-black uppercase tracking-widest">
                 Mapa
             </Link>
         </div>
 
-        <div className="grid grid-cols-1 gap-3 px-6 pb-10">
+        <div className="grid grid-cols-1 gap-3 px-8 pb-10">
             {pharmacies.slice(0, config?.limit || 10).map((pharma) => {
                 const isOpen = isPharmacyOpen(pharma);
                 return (

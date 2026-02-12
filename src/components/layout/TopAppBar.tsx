@@ -68,7 +68,7 @@ export const TopAppBar = ({ onSearch, userLocation, session }: { onSearch: (quer
 
     return (
         <div className="sticky top-0 z-50 bg-[#101a22] border-b border-white/5 shadow-lg pt-[env(safe-area-inset-top,20px)]">
-            <div className="flex h-16 items-center px-4 w-full gap-4">
+            <div className="flex h-16 items-center px-8 w-full gap-4">
                 {/* Left: Menu Button */}
                 <button
                     onClick={() => setIsDrawerOpen(true)}
@@ -112,7 +112,7 @@ export const TopAppBar = ({ onSearch, userLocation, session }: { onSearch: (quer
                 </div>
             </div>
 
-            <div className="px-4 py-3">
+            <div className="px-8 py-3">
                 <label className="flex flex-col min-w-40 h-12 w-full">
                     <div className="flex w-full flex-1 items-stretch rounded-xl h-full shadow-sm">
                         <div className="text-[#4c799a] flex border-none bg-slate-100 dark:bg-slate-800 items-center justify-center pl-4 rounded-l-xl">

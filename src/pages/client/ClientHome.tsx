@@ -213,7 +213,7 @@ export const ClientHome = ({ userLocation, sortedPharmacies, session }: { userLo
 
             <main className="flex-1 pb-10">
                 {searchQuery.length > 0 ? (
-                    <div className="p-4">
+                    <div className="px-8 py-4">
                         <div className="flex justify-between items-center mb-4">
                             <h2 className="text-xl font-bold tracking-tight text-slate-800 dark:text-white italic">
                                 {isSearching ? 'Buscando...' : `Resultados para "${searchQuery}"`}
@@ -234,7 +234,7 @@ export const ClientHome = ({ userLocation, sortedPharmacies, session }: { userLo
                         ) : (
                             <div className="grid grid-cols-1 gap-4">
                                 {searchResults.map((item, i) => (
-                                    <div key={i} className="bg-white dark:bg-[#1a2e23] p-4 rounded-3xl border border-slate-100 dark:border-white/5 shadow-sm hover:shadow-md transition-all flex gap-4">
+                                    <div key={i} className="bg-white dark:bg-[#1a2e23] p-5 rounded-3xl border border-slate-100 dark:border-white/5 shadow-sm hover:shadow-md transition-all flex gap-4">
                                         <div className="size-24 rounded-2xl bg-slate-50 dark:bg-black/20 flex items-center justify-center shrink-0 border border-slate-100 dark:border-white/5 overflow-hidden">
                                             {item.product.image_url ? (
                                                 <img src={item.product.image_url} alt={item.product.name} className="w-full h-full object-cover" />
