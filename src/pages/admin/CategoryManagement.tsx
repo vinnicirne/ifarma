@@ -13,6 +13,17 @@ export const CategoryManagement = ({ profile }: { profile: any }) => {
         fetchCategories();
     }, []);
 
+    const getValidImageUrl = (url: string) => {
+        if (!url) return null;
+        if (url.includes('pexels.com') && !url.includes('images.pexels.com')) {
+            const idMatch = url.match(/(\d+)\/?$/);
+            if (idMatch && idMatch[1]) {
+                return `https://images.pexels.com/photos/${idMatch[1]}/pexels-photo-${idMatch[1]}.jpeg?auto=compress&cs=tinysrgb&w=800`;
+            }
+        }
+        return url;
+    };
+
     const fetchCategories = async () => {
         setLoading(true);
         const { data, error } = await supabase
@@ -112,7 +123,7 @@ export const CategoryManagement = ({ profile }: { profile: any }) => {
                             <div key={cat.id} className="bg-white dark:bg-[#193324] border border-slate-200 dark:border-white/5 rounded-[24px] p-5 flex flex-col gap-4 shadow-sm hover:shadow-md transition-all group">
                                 <div className="w-full h-32 bg-slate-100 dark:bg-black/20 rounded-2xl flex items-center justify-center overflow-hidden relative">
                                     {cat.image_url ? (
-                                        <img src={cat.image_url} alt={cat.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                                        <img src={getValidImageUrl(cat.image_url) || ''} alt={cat.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
                                     ) : (
                                         <MaterialIcon name="category" className="text-3xl text-primary opacity-50" />
                                     )}

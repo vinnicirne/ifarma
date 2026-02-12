@@ -15,6 +15,7 @@ import { calculateDistance } from '../../lib/geoUtils';
 
 import {
     PromoCarousel,
+    InternalAdCarousel,
     CategoryGrid,
     FeaturedPharmacies,
     SpecialHighlights,
@@ -185,6 +186,8 @@ export const ClientHome = ({ userLocation, sortedPharmacies, session }: { userLo
         switch (section.type) {
             case 'banner.top':
                 return <PromoCarousel key={section.id} config={section.config || {}} />;
+            case 'ads.internal':
+                return <InternalAdCarousel key={section.id} region="global" />;
             case 'category_grid':
                 return <CategoryGrid key={section.id} config={section.config || {}} title={section.title} />;
             case 'pharmacy_list.featured':
@@ -298,6 +301,7 @@ export const ClientHome = ({ userLocation, sortedPharmacies, session }: { userLo
                                 {sortedPharmacies.length > 0 ? (
                                     <>
                                         <FeaturedPharmacies pharmacies={sortedPharmacies} />
+                                        <InternalAdCarousel />
                                         <SpecialHighlights pharmacies={sortedPharmacies} />
                                         <CategoryGrid />
                                         <NearbyPharmacies pharmacies={sortedPharmacies} />
