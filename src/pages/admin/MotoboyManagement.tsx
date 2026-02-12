@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../../lib/supabase';
 import { MaterialIcon } from '../../components/Shared';
 import { ActionConfirmModal } from '../../components/admin/ActionConfirmModal';
 import { CheckCircle, AlertTriangle } from 'lucide-react';
+import { motoboyService } from '../../api/motoboyService';
+import type { Motoboy, MotoboyContract, MotoboyFormData } from '../../types/motoboy';
 
 export const MotoboyManagement = ({ profile }: { profile: any }) => {
     const [showAddForm, setShowAddForm] = useState(false);
-    const [motoboys, setMotoboys] = useState<any[]>([]);
+    const [motoboys, setMotoboys] = useState<Motoboy[]>([]);
     const [pharmacies, setPharmacies] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
@@ -30,7 +31,7 @@ export const MotoboyManagement = ({ profile }: { profile: any }) => {
         }
     }, [status]);
 
-    const [formData, setFormData] = useState({
+    const [formData, setFormData] = useState<MotoboyFormData>({
         name: '',
         cpf: '',
         phone: '', // login
@@ -43,48 +44,17 @@ export const MotoboyManagement = ({ profile }: { profile: any }) => {
 
     const fetchData = async () => {
         setLoading(true);
-        // Fetch Motoboys da tabela profiles
-        const { data: boys, error: boysError } = await supabase
-            .from('profiles')
-            .select('id, full_name, phone, email, pharmacy_id, is_active, is_online, created_at')
-            .eq('role', 'motoboy')
-            .order('full_name');
+        try {
+            const boys = await motoboyService.getMotoboys();
+            setMotoboys(boys);
 
-        if (boysError) console.error('Error fetching motoboys:', boysError);
-
-        // Buscar nomes das farmácias
-        const { data: pharms } = await supabase
-            .from('pharmacies')
-            .select('id, name');
-
-        const pharmaMap = (pharms || []).reduce((acc: any, p) => ({ ...acc, [p.id]: p.name }), {});
-
-        // Mapear motoboys com nome da farmácia
-        const formattedBoys = (boys || []).map(boy => ({
-            id: boy.id,
-            name: boy.full_name,
-            phone: boy.phone,
-            email: boy.email,
-            pharmacy_id: boy.pharmacy_id,
-            pharmacy: { name: pharmaMap[boy.pharmacy_id] || 'Sem farmácia' },
-            status: boy.is_online ? 'Disponível' : 'Offline',
-            is_active: boy.is_active, // Mantido raw para lógica
-            cpf: 'N/A',
-            vehicle_plate: 'N/A',
-            vehicle_model: 'N/A',
-            cnh_url: ''
-        }));
-
-        setMotoboys(formattedBoys);
-
-        // Fetch Pharmacies for dropdown
-        const { data: pharmsForDropdown } = await supabase
-            .from('pharmacies')
-            .select('id, name')
-            .order('name');
-        if (pharmsForDropdown) setPharmacies(pharmsForDropdown);
-
-        setLoading(false);
+            const pharmsDropdown = await motoboyService.getPharmaciesDropdown();
+            setPharmacies(pharmsDropdown);
+        } catch (error) {
+            console.error('Error fetching data:', error);
+        } finally {
+            setLoading(false);
+        }
     };
 
     useEffect(() => {
@@ -101,57 +71,11 @@ export const MotoboyManagement = ({ profile }: { profile: any }) => {
         setStatus(null);
 
         try {
-            // 1. Gerar e-mail de login baseado no telefone
-            const loginEmail = `${formData.phone.replace(/\D/g, '')}@motoboy.ifarma.com`;
-
-            // Manual Fetch to bypass potential Supabase Client invoke issues
-            const { data: { session: freshSession } } = await supabase.auth.getSession();
-            if (!freshSession) throw new Error("Sessão expirada. Por favor, faça login novamente.");
-
-            const baseUrl = import.meta.env.VITE_SUPABASE_URL;
-            const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-
-            console.log("🚀 Custom Invoke Start (Motoboy)");
-
-            const response = await fetch(`${baseUrl}/functions/v1/create-user-admin`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${freshSession.access_token}`,
-                    'apikey': anonKey
-                },
-                body: JSON.stringify({
-                    email: loginEmail,
-                    password: formData.password,
-                    metadata: {
-                        role: 'motoboy',
-                        full_name: formData.name,
-                        pharmacy_id: formData.pharmacy_id,
-                        phone: formData.phone,
-                        vehicle_plate: formData.vehicle_plate,
-                        vehicle_model: formData.vehicle_model,
-                        cnh_url: formData.cnh_url,
-                        is_active: true // Forçar ativo na criação
-                    }
-                })
-            });
-
-            console.log("📡 Response Status:", response.status);
-
-            const result = await response.json().catch(() => ({}));
-
-            if (!response.ok) {
-                console.error("❌ Edge Function Error Detail:", result);
-                const errorMsg = result.error || result.message || "Erro desconhecido na Edge Function";
-                throw new Error(errorMsg);
-            }
-
-            // Sucesso!
+            await motoboyService.createMotoboy(formData);
             setStatus({ type: 'success', message: `Motoboy cadastrado! Login: ${formData.phone}` });
             setShowAddForm(false);
             setFormData({ name: '', cpf: '', phone: '', pharmacy_id: '', vehicle_plate: '', vehicle_model: '', cnh_url: '', password: '' });
             fetchData();
-
         } catch (err: any) {
             console.error('Erro ao salvar motoboy:', err);
             setStatus({ type: 'error', message: "Erro ao salvar: " + err.message });
@@ -172,13 +96,12 @@ export const MotoboyManagement = ({ profile }: { profile: any }) => {
     };
 
     const handleDelete = async (id: string) => {
-        const { error } = await supabase.from('profiles').delete().eq('id', id);
-
-        if (error) {
-            setStatus({ type: 'error', message: "Erro ao remover: " + error.message });
-        } else {
+        try {
+            await motoboyService.deleteMotoboy(id);
             setStatus({ type: 'success', message: "Motoboy removido com sucesso." });
             fetchData();
+        } catch (error: any) {
+            setStatus({ type: 'error', message: "Erro ao remover: " + error.message });
         }
     };
 
@@ -209,12 +132,10 @@ export const MotoboyManagement = ({ profile }: { profile: any }) => {
         }
         setSaving(true);
         try {
-            const { error } = await supabase.from('profiles').update({
-                full_name: editData.name,
+            await motoboyService.updateMotoboyProfile(editData.id, {
+                name: editData.name,
                 phone: editData.phone
-            }).eq('id', editData.id);
-
-            if (error) throw error;
+            });
             setStatus({ type: 'success', message: 'Dados atualizados com sucesso!' });
             setShowEditModal(false);
             fetchData();
@@ -240,13 +161,13 @@ export const MotoboyManagement = ({ profile }: { profile: any }) => {
     };
 
     const handleToggleStatus = async (moto: any, newStatus: boolean) => {
-        const { error } = await supabase.from('profiles').update({ is_active: newStatus }).eq('id', moto.id);
-        if (error) {
+        try {
+            await motoboyService.updateMotoboyStatus(moto.id, newStatus);
+            setStatus({ type: 'success', message: `Motoboy ${newStatus ? 'desbloqueado' : 'bloqueado'} com sucesso.` });
+            fetchData();
+        } catch (error: any) {
             setStatus({ type: 'error', message: 'Erro ao atualizar status: ' + error.message });
-            return;
         }
-        setStatus({ type: 'success', message: `Motoboy ${newStatus ? 'desbloqueado' : 'bloqueado'} com sucesso.` });
-        fetchData();
     };
 
     const handleAssignPharmacy = (moto: any) => {
@@ -257,11 +178,7 @@ export const MotoboyManagement = ({ profile }: { profile: any }) => {
     const saveAssignPharmacy = async () => {
         setSaving(true);
         try {
-            const { error } = await supabase.from('profiles').update({
-                pharmacy_id: assignData.pharmacyId || null
-            }).eq('id', assignData.motoboyId);
-
-            if (error) throw error;
+            await motoboyService.assignPharmacy(assignData.motoboyId, assignData.pharmacyId || null);
             setStatus({ type: 'success', message: 'Vínculo de farmácia atualizado!' });
             setShowAssignModal(false);
             fetchData();
@@ -275,7 +192,7 @@ export const MotoboyManagement = ({ profile }: { profile: any }) => {
     // Contract Management State
     const [showContractModal, setShowContractModal] = useState(false);
     const [selectedMotoboy, setSelectedMotoboy] = useState<any>(null);
-    const [contractData, setContractData] = useState({
+    const [contractData, setContractData] = useState<MotoboyContract>({
         delivery_fee: 0,
         fixed_salary: 0,
         daily_rate: 0,
@@ -298,22 +215,13 @@ export const MotoboyManagement = ({ profile }: { profile: any }) => {
             productivity_bonus: 0
         });
 
-        // Fetch existing contract using the motoboy's pharmacy
-        const { data: contract } = await supabase
-            .from('courier_contracts')
-            .select('*')
-            .eq('courier_id', boy.id)
-            .eq('pharmacy_id', boy.pharmacy_id)
-            .single();
-
-        if (contract) {
-            setContractData({
-                delivery_fee: contract.delivery_fee || 0,
-                fixed_salary: contract.fixed_salary || 0,
-                daily_rate: contract.daily_rate || 0,
-                productivity_goal: contract.productivity_goal || 0,
-                productivity_bonus: contract.productivity_bonus || 0
-            });
+        try {
+            const contract = await motoboyService.getContract(boy.id, boy.pharmacy_id);
+            if (contract) {
+                setContractData(contract);
+            }
+        } catch (error) {
+            console.error('Error fetching contract:', error);
         }
         setShowContractModal(true);
     };
@@ -325,32 +233,7 @@ export const MotoboyManagement = ({ profile }: { profile: any }) => {
         setSaving(true);
         setStatus(null);
         try {
-            // Tentar via RPC (mais robusto, bypass RLS table permissions)
-            const { error: rpcError } = await supabase.rpc('upsert_courier_contract_admin', {
-                p_courier_id: selectedMotoboy.id,
-                p_pharmacy_id: selectedMotoboy.pharmacy_id,
-                p_delivery_fee: contractData.delivery_fee,
-                p_fixed_salary: contractData.fixed_salary,
-                p_daily_rate: contractData.daily_rate,
-                p_productivity_goal: contractData.productivity_goal,
-                p_productivity_bonus: contractData.productivity_bonus
-            });
-
-            if (rpcError) {
-                console.error('RPC Error:', rpcError);
-                // Fallback para o método antigo (caso o RPC não exista ainda no banco)
-                const { error: tableError } = await supabase
-                    .from('courier_contracts')
-                    .upsert({
-                        courier_id: selectedMotoboy.id,
-                        pharmacy_id: selectedMotoboy.pharmacy_id,
-                        ...contractData,
-                        updated_at: new Date().toISOString()
-                    });
-
-                if (tableError) throw tableError;
-            }
-
+            await motoboyService.saveContract(selectedMotoboy.id, selectedMotoboy.pharmacy_id, contractData);
             setStatus({ type: 'success', message: 'Contrato salvo com sucesso!' });
             setShowContractModal(false);
             fetchData();

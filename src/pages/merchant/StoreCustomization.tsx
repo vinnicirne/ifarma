@@ -185,17 +185,37 @@ const StoreCustomization = () => {
         }
     };
 
+    const [uploadingFile, setUploadingFile] = useState<{ logo: boolean, banner: boolean }>({ logo: false, banner: false });
+
     const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>, type: 'logo' | 'banner') => {
         const file = event.target.files?.[0];
         if (!file) return;
 
-        const reader = new FileReader();
-        reader.onloadend = () => {
-            const base64String = reader.result as string;
-            if (type === 'logo') setLogoUrl(base64String);
-            else setBannerUrl(base64String);
-        };
-        reader.readAsDataURL(file);
+        setUploadingFile(prev => ({ ...prev, [type]: true }));
+
+        try {
+            const fileExt = file.name.split('.').pop();
+            const fileName = `${pharmacy?.id || 'temp'}_${type}_${Date.now()}.${fileExt}`;
+            const filePath = `pharmacies/${fileName}`;
+
+            const { error: uploadError } = await supabase.storage
+                .from('app-assets')
+                .upload(filePath, file);
+
+            if (uploadError) throw uploadError;
+
+            const { data: { publicUrl } } = supabase.storage
+                .from('app-assets')
+                .getPublicUrl(filePath);
+
+            if (type === 'logo') setLogoUrl(publicUrl);
+            else setBannerUrl(publicUrl);
+        } catch (err: any) {
+            console.error('Erro no upload:', err);
+            alert('Erro ao enviar imagem: ' + err.message);
+        } finally {
+            setUploadingFile(prev => ({ ...prev, [type]: false }));
+        }
     };
 
     const handleCEPBlur = async () => {
@@ -326,8 +346,12 @@ const StoreCustomization = () => {
                 <div className="bg-white dark:bg-zinc-800 rounded-[32px] border border-slate-100 dark:border-white/5 overflow-hidden shadow-sm mb-8">
 
                     {/* BANNER AREA */}
-                    <div className="h-48 bg-slate-200 relative group cursor-pointer" onClick={() => bannerInputRef.current?.click()}>
-                        {bannerUrl ? (
+                    <div className="h-48 bg-slate-200 relative group cursor-pointer" onClick={() => !uploadingFile.banner && bannerInputRef.current?.click()}>
+                        {uploadingFile.banner ? (
+                            <div className="w-full h-full flex items-center justify-center bg-slate-100 animate-pulse">
+                                <MaterialIcon name="sync" className="animate-spin text-primary text-4xl" />
+                            </div>
+                        ) : bannerUrl ? (
                             <img src={bannerUrl} alt="Capa" className="w-full h-full object-cover" />
                         ) : (
                             <div className="w-full h-full flex items-center justify-center text-slate-400">
@@ -337,15 +361,17 @@ const StoreCustomization = () => {
                         <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                             <span className="text-white font-bold flex items-center gap-2"><MaterialIcon name="upload" /> Alterar Capa</span>
                         </div>
-                        <input type="file" ref={bannerInputRef} className="hidden" accept="image/*" onChange={(e) => handleFileChange(e, 'banner')} />
+                        <input type="file" ref={bannerInputRef} className="hidden" accept="image/*" onChange={(e) => handleFileChange(e, 'banner')} disabled={uploadingFile.banner} />
                     </div>
 
                     <div className="px-8 pb-8 relative">
                         {/* LOGO AREA - Overlaps Banner */}
                         <div className="-mt-12 mb-6 flex items-end justify-between">
-                            <div className="size-32 rounded-[32px] bg-white dark:bg-zinc-800 p-2 shadow-xl relative group cursor-pointer" onClick={() => logoInputRef.current?.click()}>
+                            <div className="size-32 rounded-[32px] bg-white dark:bg-zinc-800 p-2 shadow-xl relative group cursor-pointer" onClick={() => !uploadingFile.logo && logoInputRef.current?.click()}>
                                 <div className="w-full h-full rounded-[24px] bg-slate-100 dark:bg-black overflow-hidden flex items-center justify-center border border-slate-200 dark:border-white/10">
-                                    {logoUrl ? (
+                                    {uploadingFile.logo ? (
+                                        <MaterialIcon name="sync" className="animate-spin text-primary text-3xl" />
+                                    ) : logoUrl ? (
                                         <img src={logoUrl} alt="Logo" className="w-full h-full object-cover" />
                                     ) : (
                                         <MaterialIcon name="store" className="text-4xl text-slate-300" />
@@ -354,7 +380,7 @@ const StoreCustomization = () => {
                                 <div className="absolute inset-2 bg-black/50 rounded-[24px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                                     <MaterialIcon name="edit" className="text-white" />
                                 </div>
-                                <input type="file" ref={logoInputRef} className="hidden" accept="image/*" onChange={(e) => handleFileChange(e, 'logo')} />
+                                <input type="file" ref={logoInputRef} className="hidden" accept="image/*" onChange={(e) => handleFileChange(e, 'logo')} disabled={uploadingFile.logo} />
                             </div>
 
                             <div className="mb-2 text-right">

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Bike, Navigation, Clock, Search, Filter, Store, X, MapPin } from 'lucide-react';
 import AdminMap from '../../components/admin/AdminMap';
+import { calculateDistance } from '../../lib/geoUtils';
 import { supabase } from '../../lib/supabase';
 
 const OrderTracking = () => {
@@ -57,62 +58,59 @@ const OrderTracking = () => {
             })
             .subscribe();
 
-        return () => { channel.unsubscribe(); };
+        return () => { supabase.removeChannel(channel); };
     }, []);
 
     // 2. Busca de Pedidos Ativos Reais
+    const fetchOrders = async () => {
+        const { data } = await supabase
+            .from('orders')
+            .select('id, status, created_at, customer_name, address, pharmacy_id, pharmacies(name, latitude, longitude)')
+            .in('status', ['pendente', 'preparando', 'aguardando_motoboy', 'em_rota'])
+            .order('created_at', { ascending: false });
+
+        if (data) {
+            setActiveOrders(data.map((o: any) => ({
+                id: `#${o.id.substring(0, 4)}`,
+                fullId: o.id,
+                fullStatus: o.status,
+                status: o.status === 'em_rota' ? 'Em Trânsito' : o.status === 'aguardando_motoboy' ? 'Aguardando Entregador' : o.status === 'preparando' ? 'Em Preparo' : 'Pendente',
+                time: 'Calc...',
+                motoboy: 'Atribuindo...',
+                origin: o.pharmacies?.name || 'Farmácia',
+                dest: o.address,
+                lat: Number(o.pharmacies?.latitude),
+                lng: Number(o.pharmacies?.longitude)
+            })));
+        }
+    };
+
+    const fetchPharmacies = async () => {
+        const { data } = await supabase.from('pharmacies').select('id, name, latitude, longitude');
+        if (data) {
+            setAllPharmacies(data.map(p => ({
+                id: p.id,
+                lat: Number(p.latitude),
+                lng: Number(p.longitude),
+                type: 'pharmacy' as const
+            })));
+        }
+    };
+
     useEffect(() => {
-        const fetchOrders = async () => {
-            const { data } = await supabase
-                .from('orders')
-                .select('id, status, created_at, customer_name, address, pharmacy_id, pharmacies(name, latitude, longitude)')
-                .in('status', ['pendente', 'preparando', 'aguardando_motoboy', 'em_rota'])
-                .order('created_at', { ascending: false });
-
-            if (data) {
-                setActiveOrders(data.map((o: any) => ({
-                    id: `#${o.id.substring(0, 4)}`,
-                    fullId: o.id,
-                    fullStatus: o.status,
-                    status: o.status === 'em_rota' ? 'Em Trânsito' : o.status === 'aguardando_motoboy' ? 'Aguardando Entregador' : o.status === 'preparando' ? 'Em Preparo' : 'Pendente',
-                    time: 'Calc...',
-                    motoboy: 'Atribuindo...',
-                    origin: o.pharmacies?.name || 'Farmácia',
-                    dest: o.address,
-                    lat: Number(o.pharmacies?.latitude),
-                    lng: Number(o.pharmacies?.longitude)
-                })));
-            }
-        };
-
-        const fetchPharmacies = async () => {
-            const { data } = await supabase.from('pharmacies').select('id, name, latitude, longitude');
-            if (data) {
-                setAllPharmacies(data.map(p => ({
-                    id: p.id,
-                    lat: Number(p.latitude),
-                    lng: Number(p.longitude),
-                    type: 'pharmacy' as const
-                })));
-            }
-        };
-
         fetchOrders();
         fetchPharmacies();
-    }, []);
 
-    // Função para calcular distância entre dois pontos (Haversine)
-    const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
-        const R = 6371; // Raio da Terra em km
-        const dLat = (lat2 - lat1) * Math.PI / 180;
-        const dLon = (lon2 - lon1) * Math.PI / 180;
-        const a =
-            Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-            Math.sin(dLon / 2) * Math.sin(dLon / 2);
-        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        return R * c;
-    };
+        // Subscription para pedidos (Fase 2 antecipada para estabilidade)
+        const ordersChannel = supabase
+            .channel('orders_tracking_sync')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
+                fetchOrders();
+            })
+            .subscribe();
+
+        return () => { supabase.removeChannel(ordersChannel); };
+    }, []);
 
     // Abrir modal de atribuição
     const openAssignModal = async (order: any) => {
@@ -174,9 +172,6 @@ const OrderTracking = () => {
             alert('Motoboy atribuído com sucesso!');
             setShowAssignModal(false);
             setSelectedOrder(null);
-
-            // Recarregar pedidos
-            window.location.reload();
         } catch (error: any) {
             console.error('Erro ao atribuir motoboy:', error);
             alert('Erro ao atribuir motoboy: ' + error.message);

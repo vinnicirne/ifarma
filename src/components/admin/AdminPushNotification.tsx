@@ -28,16 +28,30 @@ export const AdminPushNotification = () => {
 
         try {
             const res = await sendBroadcastNotification(target, title, message);
-            if (res) {
-                setStatus({ type: 'success', message: 'Notificação enviada com sucesso!' });
+
+            if (res && res.success) {
+                if (res.warning === 'no_tokens') {
+                    setStatus({
+                        type: 'success',
+                        message: 'Salvo no banco, mas nenhum dispositivo com push token encontrado.'
+                    });
+                } else {
+                    setStatus({
+                        type: 'success',
+                        message: `Notificação enviada para ${res.pushCount || 0} dispositivos!`
+                    });
+                }
                 setTitle('');
                 setMessage('');
             } else {
-                setStatus({ type: 'error', message: 'Erro ao enviar. Verifique se há usuários com tokens.' });
+                setStatus({
+                    type: 'error',
+                    message: res?.error?.message || 'Erro ao enviar. Tente novamente mais tarde.'
+                });
             }
         } catch (error) {
             console.error(error);
-            setStatus({ type: 'error', message: 'Erro inesperado ao enviar.' });
+            setStatus({ type: 'error', message: 'Erro inesperado ao conectar com o servidor.' });
         } finally {
             setLoading(false);
         }

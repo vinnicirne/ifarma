@@ -3,14 +3,13 @@ import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { MaterialIcon } from '../components/MaterialIcon';
 import { useAudio } from '../hooks/useAudio';
+import { useMotoboyQueue } from '../hooks/useMotoboyQueue';
 
 const MotoboyOrders = () => {
     const navigate = useNavigate();
-    const [orders, setOrders] = useState<any[]>([]);
-    const [loading, setLoading] = useState(true);
     const [userId, setUserId] = useState<string | null>(null);
     const [activeTab, setActiveTab] = useState<'queue' | 'history'>('queue');
-    const { play: playAudio } = useAudio();
+    const [notificationSound] = useState<'voice' | 'bell'>(() => (localStorage.getItem('ifarma_motoboy_sound') as any) || 'bell');
 
     useEffect(() => {
         const checkUser = async () => {
@@ -24,35 +23,10 @@ const MotoboyOrders = () => {
         checkUser();
     }, [navigate]);
 
-    useEffect(() => {
-        if (!userId) return;
-
-        fetchOrders();
-
-        // REMOVIDO: O hook useMotoboyQueue (Dashboard) já cuida dos sons de notificação globais.
-        // Ter dois canais de Realtime abertos aqui estava causando sons 'embolados' (eco).
-        fetchOrders();
-
-        return () => { };
-    }, [userId]);
-
-    const fetchOrders = async () => {
-        try {
-            const { data, error } = await supabase
-                .from('orders')
-                .select('*, pharmacies(name, address)')
-                .eq('motoboy_id', userId)
-                .in('status', ['pendente', 'aceito', 'preparando', 'pronto_entrega', 'aguardando_retirada', 'retirado', 'em_rota'])
-                .order('created_at', { ascending: false });
-
-            if (error) throw error;
-            setOrders(data || []);
-        } catch (error) {
-            console.error('Erro ao buscar pedidos:', error);
-        } finally {
-            setLoading(false);
-        }
-    };
+    const {
+        ordersQueue: orders,
+        loading: isOrdersLoading
+    } = useMotoboyQueue(userId || undefined, notificationSound);
 
     const getStatusLabel = (status: string) => {
         const map: Record<string, string> = {
@@ -95,7 +69,7 @@ const MotoboyOrders = () => {
                         <div>
                             <h1 className="text-lg font-bold leading-tight tracking-tight text-slate-900 dark:text-white">Pedidos para Entrega</h1>
                             <p className="text-xs text-slate-400 dark:text-[#92a4c9]">
-                                {loading ? 'Atualizando...' : `${orders.length} pedido(s) ativo(s)`}
+                                {isOrdersLoading ? 'Atualizando...' : `${orders.length} pedido(s) ativo(s)`}
                             </p>
                         </div>
                     </div>
@@ -128,7 +102,7 @@ const MotoboyOrders = () => {
             <main className="flex-1 overflow-y-auto px-4 py-6 w-full space-y-4 pb-24">
                 {activeTab === 'queue' && (
                     <>
-                        {loading ? (
+                        {isOrdersLoading ? (
                             <div className="flex flex-col items-center justify-center py-20 space-y-4">
                                 <div className="animate-spin size-8 border-4 border-primary border-t-transparent rounded-full"></div>
                                 <p className="text-slate-500 text-sm">Carregando pedidos...</p>

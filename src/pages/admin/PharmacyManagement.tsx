@@ -2,17 +2,24 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { MaterialIcon } from '../../components/Shared';
+import { pharmacyService } from '../../api/pharmacyService';
+import type { Pharmacy } from '../../types/pharmacy';
 
 const PharmacyManagement = ({ profile }: { profile: any }) => {
     const navigate = useNavigate();
-    const [pharmacies, setPharmacies] = useState<any[]>([]);
+    const [pharmacies, setPharmacies] = useState<Pharmacy[]>([]);
     const [loading, setLoading] = useState(true);
 
     const fetchPharmacies = async () => {
         setLoading(true);
-        const { data, error } = await supabase.from('pharmacies').select('*').order('created_at', { ascending: false });
-        if (!error) setPharmacies(data || []);
-        setLoading(false);
+        try {
+            const data = await pharmacyService.getPharmacies();
+            setPharmacies(data);
+        } catch (error) {
+            console.error('Error fetching pharmacies:', error);
+        } finally {
+            setLoading(false);
+        }
     };
 
     useEffect(() => {
@@ -26,164 +33,19 @@ const PharmacyManagement = ({ profile }: { profile: any }) => {
         if (window.confirm('Deseja APROVAR esta farmácia e gerar as credenciais de acesso do lojista?')) {
             try {
                 setLoading(true);
+                const result = await pharmacyService.approvePharmacy(id);
 
-                // 1. Get Pharmacy Details
-                const { data: pharm, error: pharmErr } = await supabase.from('pharmacies').select('*').eq('id', id).single();
-                if (pharmErr || !pharm) throw new Error('Farmácia não encontrada');
-
-                const merchantEmail = pharm.owner_email;
-                if (!merchantEmail) {
-                    throw new Error('E-mail do dono não encontrado.');
-                }
-
-                // 2. Generate credentials and try to create user
-                const tempPassword = Math.random().toString(36).slice(-8) + 'A1@';
-
-                // Get current session token
-                const { data: { session: currentSession } } = await supabase.auth.getSession();
-
-                if (!currentSession?.access_token) {
-                    throw new Error("Sessão expirada. Recarregue a página e faça login novamente.");
-                }
-
-                const functionUrl = `${import.meta.env.VITE_SUPABASE_URL || 'https://isldwcghygyehuvohxaq.supabase.co'}/functions/v1/create-user-admin`;
-
-                console.log("Tentando criar/aprovar usuário:", merchantEmail);
-
-                const response = await fetch(functionUrl, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
-                        'Authorization': `Bearer ${currentSession.access_token}`
-                    },
-                    body: JSON.stringify({
-                        email: merchantEmail,
-                        password: tempPassword,
-                        auth_token: currentSession.access_token,
-                        pharmacy_id: id, // Send ID so Edge Function approves it directly (Bypass RLS)
-                        metadata: {
-                            full_name: pharm.owner_name || pharm.name,
-                            role: 'merchant'
-                        }
-                    })
+                setSuccessModal({
+                    open: true,
+                    email: result.email,
+                    password: result.password
                 });
-
-                const responseText = await response.text();
-                console.log("Resposta da Edge Function:", responseText);
-
-                let userWasCreated = false;
-                let userId: string | null = null;
-
-                if (!response.ok) {
-                    // 🔥 AUTO-LOGOUT SE JWT FOR INVÁLIDO
-                    if (response.status === 401) {
-                        try {
-                            const errorJson = JSON.parse(await response.clone().text());
-                            if (errorJson.message === 'Invalid JWT' || errorJson.error === 'Invalid JWT') {
-                                console.error("Sessão expirada detectada. Realizando logout forçado.");
-                                await supabase.auth.signOut();
-                                alert("Sua sessão expirou. Por favor, faça login novamente.");
-                                window.location.href = '/login';
-                                return;
-                            }
-                        } catch (e) {
-                            // ignore json parse error
-                        }
-                    }
-
-                    try {
-                        const errorJson = JSON.parse(responseText);
-
-                        // Check if user already exists (check error message text)
-                        const errorText = (errorJson.error || errorJson.message || '').toLowerCase();
-
-                        if (errorText.includes('already registered') ||
-                            errorText.includes('already exists') ||
-                            errorText.includes('already been registered')) {
-
-                            console.log("Usuário já existe, buscando ID...");
-
-                            // User exists, we need to find their ID
-                            // Check if profile exists first
-                            const { data: existingProfile } = await supabase.from('profiles')
-                                .select('id')
-                                .eq('email', merchantEmail)
-                                .single();
-
-                            if (existingProfile) {
-                                userId = existingProfile.id;
-                                console.log("Profile encontrado:", userId);
-                            } else {
-                                // Profile doesn't exist but user does in auth
-                                // We need to get user from auth - but we can't easily do this from client
-                                // We rely on the Edge Function having approved the pharmacy already.
-                                alert('✅ Farmácia aprovada!\n\n⚠️ O usuário já existe no sistema mas sem perfil vinculado.\nEntre em contato com o suporte para vincular o acesso.');
-                                fetchPharmacies();
-                                return;
-                            }
-                        } else {
-                            // Other error
-                            const errorMessage = errorJson.error || errorJson.message || JSON.stringify(errorJson);
-                            throw new Error(errorMessage);
-                        }
-                    } catch (e) {
-                        if (e instanceof Error && e.message.includes('Farmácia aprovada')) {
-                            throw e; // Re-throw our custom message
-                        }
-                        throw new Error(responseText.substring(0, 200));
-                    }
-                } else {
-                    // User was created successfully
-                    const authData = JSON.parse(responseText);
-                    const newUser = authData.user;
-                    userWasCreated = true;
-                    if (authData.user?.id) userId = authData.user.id; // Ensure we get ID
-                }
-
-                // 3. Create/Update Profile if we have userId
-                if (userId) {
-                    console.log("Vinculando perfil para usuário:", userId);
-                    const { error: profileErr } = await supabase.from('profiles').upsert({
-                        id: userId,
-                        email: merchantEmail,
-                        full_name: pharm.owner_name || pharm.name,
-                        role: 'merchant',
-                        phone: pharm.owner_phone,
-                        pharmacy_id: id
-                    });
-
-                    if (profileErr) {
-                        console.error('Erro ao criar/vincular profile:', profileErr);
-                        alert('⚠️ Usuário vinculado, mas houve erro ao atualizar dados do perfil: ' + profileErr.message);
-                    }
-                }
-
-                // 4. Pharmacy Approval is done by Edge Function now. 
-                // We just assume success if we got here (function didn't throw)
-
-                if (userWasCreated) {
-                    setSuccessModal({
-                        open: true,
-                        email: merchantEmail,
-                        password: tempPassword
-                    });
-                } else {
-                    // USER EXISTS - Show modal but without password (indicate existing user)
-                    setSuccessModal({
-                        open: true,
-                        email: merchantEmail,
-                        password: undefined
-                    });
-                }
 
                 fetchPharmacies();
             } catch (error: any) {
                 console.error('Erro na aprovação:', error);
-                const errText = error.message || JSON.stringify(error);
-                if (errText.includes('Auth session missing') ||
-                    errText.includes('Invalid requester token') ||
-                    errText.includes('JWT expired')) {
+                const errText = error.message || '';
+                if (errText.includes('Sessão expirada') || errText.includes('JWT expired')) {
                     alert('⚠️ Sua sessão expirou. Faça login novamente.');
                     await supabase.auth.signOut();
                     navigate('/login');
@@ -200,31 +62,27 @@ const PharmacyManagement = ({ profile }: { profile: any }) => {
         e.stopPropagation();
         if (window.confirm('Tem certeza que deseja excluir esta farmácia? Isso removerá o login de acesso também.')) {
             try {
-                // 1. Buscar o perfil merchant vinculado a esta farmácia
-                const { data: profile } = await supabase
-                    .from('profiles')
-                    .select('id')
-                    .eq('pharmacy_id', id)
-                    .single();
-
-                // 2. Se existir um perfil, chamar a Edge Function para remover o login (Auth)
-                if (profile) {
-                    const { data: { session } } = await supabase.auth.getSession();
-                    const { error: deleteFuncErr } = await supabase.functions.invoke('delete-user-admin', {
-                        body: { user_id: profile.id },
-                        headers: { Authorization: `Bearer ${session?.access_token}` }
-                    });
-                    if (deleteFuncErr) console.error("Erro ao deletar usuário do Auth:", deleteFuncErr);
-                }
-
-                // 3. Deletar a farmácia (Cascade deve deletar o profile, mas garantimos antes)
-                const { error } = await supabase.from('pharmacies').delete().eq('id', id);
-                if (error) throw error;
-
+                setLoading(true);
+                await pharmacyService.deletePharmacy(id);
                 fetchPharmacies();
             } catch (error: any) {
                 alert("Erro ao excluir: " + error.message);
+                setLoading(false);
             }
+        }
+    };
+
+    const handleToggleStore = async (pharm: Pharmacy, e: React.MouseEvent) => {
+        e.stopPropagation();
+        const newStatus = !pharm.is_open;
+        // Optimistic Update
+        setPharmacies(prev => prev.map(p => p.id === pharm.id ? { ...p, is_open: newStatus } : p));
+
+        try {
+            await pharmacyService.updatePharmacyStatus(pharm.id, newStatus);
+        } catch (error) {
+            alert('Erro ao atualizar status da loja');
+            fetchPharmacies(); // Revert on error
         }
     };
 
@@ -362,17 +220,7 @@ const PharmacyManagement = ({ profile }: { profile: any }) => {
 
                                             <td className="p-5" onClick={e => e.stopPropagation()}>
                                                 <button
-                                                    onClick={async () => {
-                                                        const newStatus = !pharm.is_open;
-                                                        // Optimistic Update
-                                                        setPharmacies(prev => prev.map(p => p.id === pharm.id ? { ...p, is_open: newStatus } : p));
-
-                                                        const { error } = await supabase.from('pharmacies').update({ is_open: newStatus }).eq('id', pharm.id);
-                                                        if (error) {
-                                                            alert('Erro ao atualizar status da loja');
-                                                            fetchPharmacies(); // Revert on error
-                                                        }
-                                                    }}
+                                                    onClick={(e) => handleToggleStore(pharm, e)}
                                                     className={`h-8 px-3 rounded-full flex items-center gap-2 transition-all ${pharm.is_open
                                                         ? 'bg-green-500 text-white shadow-lg shadow-green-500/30'
                                                         : 'bg-slate-200 dark:bg-white/10 text-slate-500 dark:text-slate-400'

@@ -1,102 +1,104 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { MaterialIcon } from '../../components/Shared';
+import { AdminPushNotification } from '../../components/admin/AdminPushNotification';
 
 export const SystemSettings = ({ profile }: { profile: any }) => {
     const [isSaving, setIsSaving] = useState(false);
     const [success, setSuccess] = useState(false);
     const [isTesting, setIsTesting] = useState(false);
     const [activeTab, setActiveTab] = useState<'general' | 'finance' | 'notifications' | 'ads'>('general');
+    const defaultKeys = [
+        'google_maps_api_key', 'whatsapp_api_url', 'whatsapp_api_key', 'whatsapp_instance_id',
+        'global_charge_per_order', 'global_fixed_fee', 'global_charge_percentage', 'global_percentage_fee',
+        'mp_public_key', 'mp_access_token', 'asaas_api_key', 'admob_enabled',
+        'admob_app_id_android', 'admob_banner_id_android', 'admob_interstitial_id_android',
+        'admob_app_open_id_android', 'admob_rewarded_id_android', 'admob_rewarded_interstitial_id_android',
+        'admob_native_id_android', 'primary_color', 'background_color'
+    ];
+
+    const [settings, setSettings] = useState<Record<string, string>>(
+        defaultKeys.reduce((acc, key) => ({ ...acc, [key]: '' }), {})
+    );
+    const [originalSettings, setOriginalSettings] = useState<Record<string, string>>({});
 
     useEffect(() => {
         const loadSettings = async () => {
             const { data } = await supabase.from('system_settings').select('*');
             if (data) {
-                const settingsMap: any = {};
-                data.forEach(s => settingsMap[s.key] = s.value);
-
-                const mappings: any = {
-                    'google_maps_api_key': 'google_maps_key',
-                    'whatsapp_api_url': 'wa_api_url',
-                    'whatsapp_api_key': 'wa_api_key',
-                    'whatsapp_instance_id': 'wa_instance_id',
-                    'global_charge_per_order': 'global_charge_order',
-                    'global_fixed_fee': 'global_fixed_fee',
-                    'global_charge_percentage': 'global_charge_percent',
-                    'global_percentage_fee': 'global_perc_fee',
-                    'mp_public_key': 'mp_pub_key',
-                    'mp_access_token': 'mp_acc_token',
-                    'asaas_api_key': 'asaas_key',
-                    'admob_enabled': 'admob_enabled',
-                    'admob_app_id_android': 'admob_app_id',
-                    'admob_app_open_id_android': 'admob_app_open_id',
-                    'admob_rewarded_id_android': 'admob_rewarded_id',
-                    'admob_rewarded_interstitial_id_android': 'admob_rewarded_interstitial_id',
-                    'admob_native_id_android': 'admob_native_id'
-                };
-
-                Object.entries(mappings).forEach(([key, id]) => {
-                    const input = document.getElementById(id as string) as HTMLInputElement;
-                    if (input) {
-                        if (input.type === 'checkbox') {
-                            input.checked = settingsMap[key] === 'true';
-                        } else {
-                            input.value = settingsMap[key] || '';
-                        }
-                    }
-                });
+                const settingsMap: Record<string, string> = {};
+                data.forEach(s => settingsMap[s.key] = s.value || '');
+                setSettings(prev => ({ ...prev, ...settingsMap }));
+                setOriginalSettings({ ...settingsMap });
             }
         };
         loadSettings();
-    }, [activeTab]);
+    }, []);
+
+    const handleChange = (key: string, value: string) => {
+        setSettings(prev => ({ ...prev, [key]: value }));
+    };
 
     const handleSave = async () => {
+        // Alerta de segurança para App ID - Verifica se mudou em relação ao banco
+        if (settings['admob_app_id_android'] !== originalSettings['admob_app_id_android']) {
+            const confirmBuild = window.confirm("🚨 ATENÇÃO: Você alterou o APP ID. Isso invalida o seu aplicativo atual. Você terá que gerar um NOVO APK/AAB e enviar para a Google Play para que os anúncios voltem a funcionar. Deseja salvar mesmo assim?");
+            if (!confirmBuild) return;
+        }
+
         setIsSaving(true);
         setSuccess(false);
 
-        const getVal = (id: string) => (document.getElementById(id) as HTMLInputElement)?.value;
-        const getCheck = (id: string) => (document.getElementById(id) as HTMLInputElement)?.checked ? 'true' : 'false';
-
-        const settings = [
-            { key: 'google_maps_api_key', value: getVal('google_maps_key') },
-            { key: 'whatsapp_api_url', value: getVal('wa_api_url') },
-            { key: 'whatsapp_api_key', value: getVal('wa_api_key') },
-            { key: 'whatsapp_instance_id', value: getVal('wa_instance_id') },
-            { key: 'global_charge_per_order', value: getCheck('global_charge_order') },
-            { key: 'global_fixed_fee', value: getVal('global_fixed_fee') },
-            { key: 'global_charge_percentage', value: getCheck('global_charge_percent') },
-            { key: 'global_percentage_fee', value: getVal('global_perc_fee') },
-            { key: 'mp_public_key', value: getVal('mp_pub_key') },
-            { key: 'mp_access_token', value: getVal('mp_acc_token') },
-            { key: 'asaas_api_key', value: getVal('asaas_key') },
-            { key: 'admob_enabled', value: getCheck('admob_enabled') },
-            { key: 'admob_app_id_android', value: getVal('admob_app_id') },
-            { key: 'admob_banner_id_android', value: getVal('admob_banner_id') },
-            { key: 'admob_interstitial_id_android', value: getVal('admob_interstitial_id') },
-            { key: 'admob_app_open_id_android', value: getVal('admob_app_open_id') },
-            { key: 'admob_rewarded_id_android', value: getVal('admob_rewarded_id') },
-            { key: 'admob_rewarded_interstitial_id_android', value: getVal('admob_rewarded_interstitial_id') },
-            { key: 'admob_native_id_android', value: getVal('admob_native_id') }
+        // Mapeamos as chaves que queremos garantir que existam no banco
+        const keysToSave = [
+            'google_maps_api_key',
+            'whatsapp_api_url',
+            'whatsapp_api_key',
+            'whatsapp_instance_id',
+            'global_charge_per_order',
+            'global_fixed_fee',
+            'global_charge_percentage',
+            'global_percentage_fee',
+            'mp_public_key',
+            'mp_access_token',
+            'asaas_api_key',
+            'admob_enabled',
+            'admob_app_id_android',
+            'admob_banner_id_android',
+            'admob_interstitial_id_android',
+            'admob_app_open_id_android',
+            'admob_rewarded_id_android',
+            'admob_rewarded_interstitial_id_android',
+            'admob_native_id_android',
+            'primary_color',
+            'background_color'
         ];
+
+        const settingsArray = keysToSave.map(key => ({
+            key,
+            value: settings[key] || '',
+            description: 'Configuração do Sistema'
+        }));
 
         const { error } = await supabase
             .from('system_settings')
-            .upsert(settings.map(s => ({ ...s, description: 'Configuração do Sistema' })), { onConflict: 'key' });
+            .upsert(settingsArray, { onConflict: 'key' });
 
         if (error) {
             console.error("Erro ao salvar configurações:", error);
             alert("Erro ao salvar: Verifique suas permissões.");
         } else {
             setSuccess(true);
+            setOriginalSettings({ ...settings });
             setTimeout(() => setSuccess(false), 3000);
         }
         setIsSaving(false);
     };
 
     const handleTestWhatsApp = async () => {
-        const waUrl = (document.getElementById('wa_api_url') as HTMLInputElement)?.value;
-        const waKey = (document.getElementById('wa_api_key') as HTMLInputElement)?.value;
-        const waInstance = (document.getElementById('wa_instance_id') as HTMLInputElement)?.value;
+        const waUrl = settings['whatsapp_api_url'];
+        const waKey = settings['whatsapp_api_key'];
+        const waInstance = settings['whatsapp_instance_id'];
 
         if (!waUrl || !waKey || !waInstance) {
             alert("Preencha todos os campos do WhatsApp antes de testar.");
@@ -126,6 +128,24 @@ export const SystemSettings = ({ profile }: { profile: any }) => {
             setIsTesting(false);
         }
     };
+
+    const AdBlockInfo = ({ title, description, tip }: { title: string, description: string, tip: string }) => (
+        <div className="group relative">
+            <div className="flex items-center gap-1.5 mb-1">
+                <span className="text-[10px] font-black uppercase tracking-widest text-primary">{title}</span>
+                <MaterialIcon name="info" className="text-[14px] text-slate-500 cursor-help" />
+            </div>
+            <p className="text-[9px] text-slate-400 italic mb-2 leading-tight pr-4">{description}</p>
+            {/* Tooltip on Hover */}
+            <div className="invisible group-hover:visible absolute z-50 bg-slate-900 text-white text-[10px] p-3 rounded-xl shadow-2xl -top-2 left-full ml-4 w-64 border border-white/10 backdrop-blur-xl animate-fade-in">
+                <div className="flex items-center gap-2 mb-1 text-primary">
+                    <MaterialIcon name="lightbulb" className="text-xs" />
+                    <span className="font-bold uppercase tracking-tighter">Dica Estratégica</span>
+                </div>
+                {tip}
+            </div>
+        </div>
+    );
 
     return (
         <div className="flex flex-col gap-6">
@@ -174,11 +194,19 @@ export const SystemSettings = ({ profile }: { profile: any }) => {
                             <div className="grid grid-cols-2 gap-4">
                                 <label className="flex flex-col gap-2">
                                     <span className="text-[10px] font-black uppercase tracking-widest text-[#92c9a9]">Cor Primária</span>
-                                    <input className="h-12 bg-black/20 border border-white/10 rounded-xl px-4 text-sm font-bold" defaultValue="#13EC6D" />
+                                    <input
+                                        className="h-12 bg-black/20 border border-white/10 rounded-xl px-4 text-sm font-bold"
+                                        value={settings['primary_color'] || '#13EC6D'}
+                                        onChange={(e) => handleChange('primary_color', e.target.value)}
+                                    />
                                 </label>
                                 <label className="flex flex-col gap-2">
                                     <span className="text-[10px] font-black uppercase tracking-widest text-[#92c9a9]">Cor de Fundo</span>
-                                    <input className="h-12 bg-black/20 border border-white/10 rounded-xl px-4 text-sm font-bold" defaultValue="#0d1b13" />
+                                    <input
+                                        className="h-12 bg-black/20 border border-white/10 rounded-xl px-4 text-sm font-bold"
+                                        value={settings['background_color'] || '#0d1b13'}
+                                        onChange={(e) => handleChange('background_color', e.target.value)}
+                                    />
                                 </label>
                             </div>
                         </div>
@@ -188,7 +216,13 @@ export const SystemSettings = ({ profile }: { profile: any }) => {
                             <div className="space-y-4">
                                 <label className="flex flex-col gap-2">
                                     <span className="text-[10px] font-black uppercase tracking-widest text-[#92c9a9]">Google Maps Key</span>
-                                    <input id="google_maps_key" type="password" placeholder="Chave da API" className="h-12 bg-black/20 border border-white/10 rounded-xl px-4 text-sm font-bold" />
+                                    <input
+                                        type="password"
+                                        placeholder="Chave da API"
+                                        className="h-12 bg-black/20 border border-white/10 rounded-xl px-4 text-sm font-bold"
+                                        value={settings['google_maps_api_key'] || ''}
+                                        onChange={(e) => handleChange('google_maps_api_key', e.target.value)}
+                                    />
                                 </label>
                                 <div className="h-px bg-white/5"></div>
                                 <label className="flex flex-col gap-2">
@@ -196,16 +230,29 @@ export const SystemSettings = ({ profile }: { profile: any }) => {
                                         <span className="text-[10px] font-black uppercase tracking-widest text-[#92c9a9]">WhatsApp API URL</span>
                                         <button onClick={handleTestWhatsApp} disabled={isTesting} className="text-[8px] font-black text-primary uppercase tracking-widest hover:underline">Testar Envio</button>
                                     </div>
-                                    <input id="wa_api_url" className="h-12 bg-black/20 border border-white/10 rounded-xl px-4 text-sm font-bold" />
+                                    <input
+                                        className="h-12 bg-black/20 border border-white/10 rounded-xl px-4 text-sm font-bold"
+                                        value={settings['whatsapp_api_url'] || ''}
+                                        onChange={(e) => handleChange('whatsapp_api_url', e.target.value)}
+                                    />
                                 </label>
                                 <div className="grid grid-cols-2 gap-4">
                                     <label className="flex flex-col gap-2">
                                         <span className="text-[10px] font-black uppercase tracking-widest text-[#92c9a9]">WA Token</span>
-                                        <input id="wa_api_key" type="password" className="h-12 bg-black/20 border border-white/10 rounded-xl px-4 text-sm font-bold" />
+                                        <input
+                                            type="password"
+                                            className="h-12 bg-black/20 border border-white/10 rounded-xl px-4 text-sm font-bold"
+                                            value={settings['whatsapp_api_key'] || ''}
+                                            onChange={(e) => handleChange('whatsapp_api_key', e.target.value)}
+                                        />
                                     </label>
                                     <label className="flex flex-col gap-2">
                                         <span className="text-[10px] font-black uppercase tracking-widest text-[#92c9a9]">WA Instance</span>
-                                        <input id="wa_instance_id" className="h-12 bg-black/20 border border-white/10 rounded-xl px-4 text-sm font-bold" />
+                                        <input
+                                            className="h-12 bg-black/20 border border-white/10 rounded-xl px-4 text-sm font-bold"
+                                            value={settings['whatsapp_instance_id'] || ''}
+                                            onChange={(e) => handleChange('whatsapp_instance_id', e.target.value)}
+                                        />
                                     </label>
                                 </div>
                             </div>
@@ -227,23 +274,47 @@ export const SystemSettings = ({ profile }: { profile: any }) => {
                             <div className="space-y-6">
                                 <div className="p-6 rounded-2xl bg-black/20 border border-white/5">
                                     <label className="flex items-center gap-3 mb-4 cursor-pointer">
-                                        <input id="global_charge_order" type="checkbox" className="accent-primary size-5" />
+                                        <input
+                                            type="checkbox"
+                                            className="accent-primary size-5"
+                                            checked={settings['global_charge_per_order'] === 'true'}
+                                            onChange={(e) => handleChange('global_charge_per_order', e.target.checked ? 'true' : 'false')}
+                                        />
                                         <span className="font-black uppercase tracking-widest text-xs">Ativar Taxa Fixa</span>
                                     </label>
                                     <div className="relative">
                                         <span className="absolute left-4 top-1/2 -translate-y-1/2 text-primary font-black">R$</span>
-                                        <input id="global_fixed_fee" type="number" step="0.01" className="h-12 w-full bg-black/20 border border-white/10 rounded-xl pl-10 pr-4 text-sm font-bold" placeholder="0.00" />
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            className="h-12 w-full bg-black/20 border border-white/10 rounded-xl pl-10 pr-4 text-sm font-bold"
+                                            placeholder="0.00"
+                                            value={settings['global_fixed_fee'] || ''}
+                                            onChange={(e) => handleChange('global_fixed_fee', e.target.value)}
+                                        />
                                     </div>
                                 </div>
 
                                 <div className="p-6 rounded-2xl bg-black/20 border border-white/5">
                                     <label className="flex items-center gap-3 mb-4 cursor-pointer">
-                                        <input id="global_charge_percent" type="checkbox" className="accent-primary size-5" />
+                                        <input
+                                            type="checkbox"
+                                            className="accent-primary size-5"
+                                            checked={settings['global_charge_percentage'] === 'true'}
+                                            onChange={(e) => handleChange('global_charge_percentage', e.target.checked ? 'true' : 'false')}
+                                        />
                                         <span className="font-black uppercase tracking-widest text-xs">Ativar Taxa Percentual</span>
                                     </label>
                                     <div className="relative">
                                         <span className="absolute right-4 top-1/2 -translate-y-1/2 text-primary font-black">%</span>
-                                        <input id="global_perc_fee" type="number" step="0.1" className="h-12 w-full bg-black/20 border border-white/10 rounded-xl px-4 text-sm font-bold" placeholder="0.0" />
+                                        <input
+                                            type="number"
+                                            step="0.1"
+                                            className="h-12 w-full bg-black/20 border border-white/10 rounded-xl px-4 text-sm font-bold"
+                                            placeholder="0.0"
+                                            value={settings['global_percentage_fee'] || ''}
+                                            onChange={(e) => handleChange('global_percentage_fee', e.target.value)}
+                                        />
                                     </div>
                                 </div>
                             </div>
@@ -258,11 +329,22 @@ export const SystemSettings = ({ profile }: { profile: any }) => {
                                 <div className="space-y-4">
                                     <label className="flex flex-col gap-2">
                                         <span className="text-[10px] font-black uppercase tracking-widest text-[#92c9a9]">Public Key</span>
-                                        <input id="mp_pub_key" className="h-12 bg-black/20 border border-white/10 rounded-xl px-4 text-xs font-mono" placeholder="APP_USR-..." />
+                                        <input
+                                            className="h-12 bg-black/20 border border-white/10 rounded-xl px-4 text-xs font-mono"
+                                            placeholder="APP_USR-..."
+                                            value={settings['mp_public_key'] || ''}
+                                            onChange={(e) => handleChange('mp_public_key', e.target.value)}
+                                        />
                                     </label>
                                     <label className="flex flex-col gap-2">
                                         <span className="text-[10px] font-black uppercase tracking-widest text-[#92c9a9]">Access Token</span>
-                                        <input id="mp_acc_token" type="password" className="h-12 bg-black/20 border border-white/10 rounded-xl px-4 text-xs font-mono" placeholder="APP_USR-..." />
+                                        <input
+                                            type="password"
+                                            className="h-12 bg-black/20 border border-white/10 rounded-xl px-4 text-xs font-mono"
+                                            placeholder="APP_USR-..."
+                                            value={settings['mp_access_token'] || ''}
+                                            onChange={(e) => handleChange('mp_access_token', e.target.value)}
+                                        />
                                     </label>
                                 </div>
                             </div>
@@ -275,8 +357,46 @@ export const SystemSettings = ({ profile }: { profile: any }) => {
                                 <div className="space-y-4">
                                     <label className="flex flex-col gap-2">
                                         <span className="text-[10px] font-black uppercase tracking-widest text-[#92c9a9]">API Key</span>
-                                        <input id="asaas_key" type="password" className="h-12 bg-black/20 border border-white/10 rounded-xl px-4 text-xs font-mono" placeholder="$a..." />
+                                        <input
+                                            type="password"
+                                            className="h-12 bg-black/20 border border-white/10 rounded-xl px-4 text-xs font-mono"
+                                            placeholder="$a..."
+                                            value={settings['asaas_api_key'] || ''}
+                                            onChange={(e) => handleChange('asaas_api_key', e.target.value)}
+                                        />
                                     </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {activeTab === 'notifications' && (
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-fade-in">
+                        <div className="space-y-6">
+                            <AdminPushNotification />
+                        </div>
+
+                        <div className="bg-white dark:bg-[#193324] rounded-[32px] border border-slate-200 dark:border-white/5 p-8 flex flex-col items-center justify-center text-center">
+                            <div className="size-20 bg-primary/10 rounded-full flex items-center justify-center text-primary mb-6">
+                                <MaterialIcon name="notifications_active" className="text-4xl" />
+                            </div>
+                            <h3 className="text-lg font-black italic mb-2">Central de Avisos</h3>
+                            <p className="text-xs text-slate-500 uppercase tracking-widest font-black opacity-50">
+                                Envio de Push em Massa
+                            </p>
+                            <p className="text-[10px] text-slate-400 mt-4 leading-relaxed max-w-xs">
+                                Use esta ferramenta para anunciar promoções, feriados ou atualizações críticas para sua base de usuários.
+                            </p>
+
+                            <div className="mt-8 grid grid-cols-2 gap-4 w-full">
+                                <div className="p-4 bg-white/5 border border-white/5 rounded-2xl">
+                                    <p className="text-xl font-black text-primary">0</p>
+                                    <p className="text-[8px] font-black uppercase text-slate-500">Enviados hoje</p>
+                                </div>
+                                <div className="p-4 bg-white/5 border border-white/5 rounded-2xl">
+                                    <p className="text-xl font-black text-primary">100%</p>
+                                    <p className="text-[8px] font-black uppercase text-slate-500">Taxa de Entrega</p>
                                 </div>
                             </div>
                         </div>
@@ -297,7 +417,12 @@ export const SystemSettings = ({ profile }: { profile: any }) => {
                             <div className="space-y-6">
                                 <div className="p-6 rounded-2xl bg-black/20 border border-white/5">
                                     <label className="flex items-center gap-3 mb-4 cursor-pointer">
-                                        <input id="admob_enabled" type="checkbox" className="accent-blue-500 size-5" />
+                                        <input
+                                            type="checkbox"
+                                            className="accent-blue-500 size-5"
+                                            checked={settings['admob_enabled'] === 'true'}
+                                            onChange={(e) => handleChange('admob_enabled', e.target.checked ? 'true' : 'false')}
+                                        />
                                         <span className="font-black uppercase tracking-widest text-xs">Exibir Anúncios</span>
                                     </label>
                                     <p className="text-[10px] text-slate-500">
@@ -305,10 +430,18 @@ export const SystemSettings = ({ profile }: { profile: any }) => {
                                     </p>
                                 </div>
 
-                                <label className="flex flex-col gap-2 opacity-50">
-                                    <span className="text-[10px] font-black uppercase tracking-widest text-[#92c9a9]">App ID (Android)</span>
-                                    <input id="admob_app_id" placeholder="ca-app-pub-..." className="h-12 bg-black/20 border border-white/10 rounded-xl px-4 text-sm font-bold" />
-                                    <span className="text-[9px] text-red-400 font-bold">* Requer rebuild do app se alterado (Atualize o AndroidManifest.xml)</span>
+                                <label className="flex flex-col gap-2">
+                                    <AdBlockInfo
+                                        title="App ID (Android)"
+                                        description="CPF do seu aplicativo. Vincula o código à sua conta AdMob."
+                                        tip="CUIDADO: Se mudar este ID, você deve gerar uma VERSÃO NOVA do aplicativo e subir na loja."
+                                    />
+                                    <input
+                                        placeholder="ca-app-pub-3940256099942544~3347511713"
+                                        className="h-12 bg-black/20 border border-white/10 rounded-xl px-4 text-sm font-bold focus:border-blue-500 outline-none transition-all"
+                                        value={settings['admob_app_id_android'] || ''}
+                                        onChange={(e) => handleChange('admob_app_id_android', e.target.value)}
+                                    />
                                 </label>
                             </div>
                         </div>
@@ -317,43 +450,100 @@ export const SystemSettings = ({ profile }: { profile: any }) => {
                             <h3 className="text-lg font-black italic border-b border-white/5 pb-4">Blocos de Anúncios</h3>
 
                             <label className="flex flex-col gap-2">
-                                <span className="text-[10px] font-black uppercase tracking-widest text-[#92c9a9]">Banner ID (Home)</span>
-                                <input id="admob_banner_id" placeholder="ca-app-pub-.../..." className="h-12 bg-black/20 border border-white/10 rounded-xl px-4 text-sm font-bold" />
-                                <span className="text-[10px] text-slate-500">ID do bloco de anúncio tipo Banner</span>
+                                <AdBlockInfo
+                                    title="Banner ID (Home)"
+                                    description="Anúncio pequeno e fixo. Ideal para a base da tela inicial."
+                                    tip="É o que tem mais visualizações. Ótimo para manter a conta sempre ativa."
+                                />
+                                <input
+                                    placeholder="ca-app-pub-.../..."
+                                    className="h-12 bg-black/20 border border-white/10 rounded-xl px-4 text-sm font-bold focus:border-blue-500 outline-none transition-all"
+                                    value={settings['admob_banner_id_android'] || ''}
+                                    onChange={(e) => handleChange('admob_banner_id_android', e.target.value)}
+                                />
                             </label>
 
                             <label className="flex flex-col gap-2">
-                                <span className="text-[10px] font-black uppercase tracking-widest text-[#92c9a9]">Interstitial ID (Opcional)</span>
-                                <input id="admob_interstitial_id" placeholder="ca-app-pub-.../..." className="h-12 bg-black/20 border border-white/10 rounded-xl px-4 text-sm font-bold" />
+                                <AdBlockInfo
+                                    title="Interstitial ID"
+                                    description="Anúncio de tela cheia que 'pula' na troca de telas."
+                                    tip="Use em transições importantes, como ao confirmar um pedido ou fechar o carrinho."
+                                />
+                                <input
+                                    placeholder="ca-app-pub-.../..."
+                                    className="h-12 bg-black/20 border border-white/10 rounded-xl px-4 text-sm font-bold focus:border-blue-500 outline-none transition-all"
+                                    value={settings['admob_interstitial_id_android'] || ''}
+                                    onChange={(e) => handleChange('admob_interstitial_id_android', e.target.value)}
+                                />
                             </label>
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <label className="flex flex-col gap-2">
-                                    <span className="text-[10px] font-black uppercase tracking-widest text-[#92c9a9]">App Open ID (Abertura)</span>
-                                    <input id="admob_app_open_id" placeholder="ca-app-pub-.../..." className="h-12 bg-black/20 border border-white/10 rounded-xl px-4 text-sm font-bold" />
+                                    <AdBlockInfo
+                                        title="App Open ID"
+                                        description="Anúncio de abertura. Aparece logo que o app inicia."
+                                        tip="Monetiza cada vez que o cliente abre o app para conferir o status de um pedido."
+                                    />
+                                    <input
+                                        placeholder="ca-app-pub-.../..."
+                                        className="h-12 bg-black/20 border border-white/10 rounded-xl px-4 text-sm font-bold focus:border-blue-500 outline-none transition-all"
+                                        value={settings['admob_app_open_id_android'] || ''}
+                                        onChange={(e) => handleChange('admob_app_open_id_android', e.target.value)}
+                                    />
                                 </label>
 
                                 <label className="flex flex-col gap-2">
-                                    <span className="text-[10px] font-black uppercase tracking-widest text-[#92c9a9]">Rewarded ID (Recompensa)</span>
-                                    <input id="admob_rewarded_id" placeholder="ca-app-pub-.../..." className="h-12 bg-black/20 border border-white/10 rounded-xl px-4 text-sm font-bold" />
+                                    <AdBlockInfo
+                                        title="Rewarded ID"
+                                        description="Vídeo premiado. O usuário assiste para ganhar algo."
+                                        tip="É o que gera MAIS dinheiro. Use para dar frete grátis ou cupons extras de desconto."
+                                    />
+                                    <input
+                                        placeholder="ca-app-pub-.../..."
+                                        className="h-12 bg-black/20 border border-white/10 rounded-xl px-4 text-sm font-bold focus:border-blue-500 outline-none transition-all"
+                                        value={settings['admob_rewarded_id_android'] || ''}
+                                        onChange={(e) => handleChange('admob_rewarded_id_android', e.target.value)}
+                                    />
                                 </label>
                             </div>
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <label className="flex flex-col gap-2">
-                                    <span className="text-[10px] font-black uppercase tracking-widest text-[#92c9a9]">Rew. Interstitial ID</span>
-                                    <input id="admob_rewarded_interstitial_id" placeholder="ca-app-pub-.../..." className="h-12 bg-black/20 border border-white/10 rounded-xl px-4 text-sm font-bold" />
+                                    <AdBlockInfo
+                                        title="Rew. Interstitial"
+                                        description="Intersticial com recompensa passiva."
+                                        tip="Menos cansativo que o vídeo longo e ainda gera uma receita premium."
+                                    />
+                                    <input
+                                        placeholder="ca-app-pub-.../..."
+                                        className="h-12 bg-black/20 border border-white/10 rounded-xl px-4 text-sm font-bold focus:border-blue-500 outline-none transition-all"
+                                        value={settings['admob_rewarded_interstitial_id_android'] || ''}
+                                        onChange={(e) => handleChange('admob_rewarded_interstitial_id_android', e.target.value)}
+                                    />
                                 </label>
 
                                 <label className="flex flex-col gap-2">
-                                    <span className="text-[10px] font-black uppercase tracking-widest text-[#92c9a9]">Native ID</span>
-                                    <input id="admob_native_id" placeholder="ca-app-pub-.../..." className="h-12 bg-black/20 border border-white/10 rounded-xl px-4 text-sm font-bold" />
+                                    <AdBlockInfo
+                                        title="Native ID"
+                                        description="Anúncio 'camuflado' que imita o design do app."
+                                        tip="Ideal para colocar no meio da lista de farmácias ou produtos sugeridos."
+                                    />
+                                    <input
+                                        placeholder="ca-app-pub-.../..."
+                                        className="h-12 bg-black/20 border border-white/10 rounded-xl px-4 text-sm font-bold focus:border-blue-500 outline-none transition-all"
+                                        value={settings['admob_native_id_android'] || ''}
+                                        onChange={(e) => handleChange('admob_native_id_android', e.target.value)}
+                                    />
                                 </label>
                             </div>
 
-                            <div className="bg-blue-500/10 p-4 rounded-xl border border-blue-500/20 mt-4">
-                                <p className="text-[10px] text-blue-400 font-bold">
-                                    💡 Dica: Use os IDs de teste do Google durante o desenvolvimento para evitar banimento da conta.
+                            <div className="bg-primary/10 p-4 rounded-2xl border border-primary/20 mt-4 backdrop-blur-md">
+                                <p className="text-[10px] text-primary font-black uppercase tracking-widest flex items-center gap-2">
+                                    <MaterialIcon name="warning" className="text-sm" />
+                                    Regra de Ouro
+                                </p>
+                                <p className="text-[9px] text-slate-400 mt-1 leading-relaxed">
+                                    Nunca clique nos próprios anúncios ou peça para conhecidos clicarem. O Google detecta padrões e pode banir sua conta permanentemente em 24h.
                                 </p>
                             </div>
                         </div>

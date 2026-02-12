@@ -7,6 +7,7 @@ export const useMotoboyQueue = (userId: string | undefined, notificationSound: '
     const [stats, setStats] = useState({ dailyEarnings: 0, deliveriesCount: 0 });
     const [unreadChatCount, setUnreadChatCount] = useState(0);
     const [newOrderAlert, setNewOrderAlert] = useState<string | null>(null);
+    const [loading, setLoading] = useState(true);
 
     const ordersQueueRef = useRef<any[]>([]);
     const isProcessingAction = useRef(false);
@@ -17,6 +18,7 @@ export const useMotoboyQueue = (userId: string | undefined, notificationSound: '
     const fetchOrdersQueue = useCallback(async () => {
         if (!userId) return;
 
+        setLoading(true);
         try {
             const { data, error } = await supabase
                 .from('orders')
@@ -48,6 +50,8 @@ export const useMotoboyQueue = (userId: string | undefined, notificationSound: '
             }
         } catch (err) {
             console.error("Exception fetching queue:", err);
+        } finally {
+            setLoading(false);
         }
     }, [userId, notificationSound, playAudio]);
 
@@ -160,6 +164,7 @@ export const useMotoboyQueue = (userId: string | undefined, notificationSound: '
         newOrderAlert,
         setNewOrderAlert,
         fetchOrdersQueue,
-        isProcessingAction
+        isProcessingAction,
+        loading
     };
 };

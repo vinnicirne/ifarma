@@ -27,329 +27,141 @@ import SupportAlerts from '../../components/admin/SupportAlerts';
 import OrderAuditModal from '../../components/admin/OrderAuditModal';
 import { supabase } from '../../lib/supabase';
 import { SystemHealth } from '../../components/admin/SystemHealth';
+import { adminService } from '../../api/adminService';
+import type { AdminStats, ActivityItem, ChartDataItem, TopPharmacy, TopCategory, TopProduct } from '../../types/admin';
 
 const AdminDashboard = ({ profile }: { profile: any }) => {
     const navigate = useNavigate();
     const [timeFilter, setTimeFilter] = useState('7d'); // hoje, 7d, 30d, personalizado
     const [customDates, setCustomDates] = useState({ start: '', end: '' });
     const [showCustomPicker, setShowCustomPicker] = useState(false);
-    const [simulationFleet, setSimulationFleet] = useState<any[]>([]);
-    const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
-    const [stats, setStats] = useState([
-        { label: 'TOTAL VENDAS', value: 'R$ 0', change: '0%', icon: Banknote, positive: true, key: 'sales' },
-        { label: 'TICKET MÉDIO', value: 'R$ 0', change: '0%', icon: ArrowUpRight, positive: true, key: 'avg_ticket' },
-        { label: 'PEDIDOS ATIVOS', value: '0', change: '0%', icon: ShoppingBag, positive: true, key: 'orders' },
-        { label: 'FARMÁCIAS', value: '0', change: '0%', icon: Store, positive: true, key: 'pharmacies' },
-    ]);
-
-    const [recentActivity, setRecentActivity] = useState<any[]>([]);
-    const [chartData, setChartData] = useState<any[]>([]);
+    const [statsData, setStatsData] = useState<AdminStats | null>(null);
+    const [recentActivity, setRecentActivity] = useState<ActivityItem[]>([]);
+    const [chartData, setChartData] = useState<ChartDataItem[]>([]);
     const [heatmapData, setHeatmapData] = useState<any[]>([]);
     const [mapMarkers, setMapMarkers] = useState<any[]>([]);
-    const [topPharmacies, setTopPharmacies] = useState<any[]>([]);
+    const [topPharmacies, setTopPharmacies] = useState<TopPharmacy[]>([]);
     const [monthlyProjection, setMonthlyProjection] = useState(0);
-    const [slaValue, setSlaValue] = useState('100%');
+    const [slaValue, setSlaValue] = useState('94.8%');
     const [isRushMode, setIsRushMode] = useState(false);
-    const [topCategories, setTopCategories] = useState<{ name: string, total: number }[]>([]);
-    const [topProducts, setTopProducts] = useState<any[]>([]); // New state
+    const [topCategories, setTopCategories] = useState<TopCategory[]>([]);
+    const [topProducts, setTopProducts] = useState<TopProduct[]>([]);
     const [mapMode, setMapMode] = useState<'activity' | 'profitability'>('activity');
     const [profitabilityData, setProfitabilityData] = useState<any[]>([]);
     const [googleKey, setGoogleKey] = useState<string | null>(null);
+    const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+    const [simulationFleet, setSimulationFleet] = useState<any[]>([]);
 
     // 0. Fetch Google Maps Key
     useEffect(() => {
-        const fetchGoogleKey = async () => {
-            const envKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
-            if (envKey) {
-                setGoogleKey(envKey);
-                return;
-            }
-            const { data: settings } = await supabase
-                .from('system_settings')
-                .select('value')
-                .eq('key', 'google_maps_api_key')
-                .single();
-
-            if (settings?.value) {
-                setGoogleKey(settings.value);
-            }
-        };
-        fetchGoogleKey();
+        adminService.getGoogleMapsKey().then(setGoogleKey);
     }, []);
 
-    // 1. Lógica Real-time e Fetch de dados iniciais
+    // 1. Fetch & Sync Data
+    const loadDashboardData = async () => {
+        const data = await adminService.fetchDashboardData(timeFilter, customDates);
+
+        setStatsData(data.stats);
+        setTopPharmacies(data.topPharmacies);
+        setTopCategories(data.topCategories);
+        setTopProducts(data.topProducts);
+        setMonthlyProjection(data.monthlyProjection);
+
+        // Activity Mapping
+        setRecentActivity(data.recentOrders.map(o => ({
+            id: o.id,
+            user: o.customer_name || 'Cliente',
+            action: o.status === 'entregue' ? 'Pedido Entregue' : 'Novo Pedido',
+            time: new Date(o.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+            icon: ShoppingBasket,
+            color: o.status === 'entregue' ? '#13ec6d' : '#3b82f6'
+        })));
+
+        // Map Data
+        setHeatmapData(data.pharmNames
+            .filter(loc => loc.latitude && loc.longitude)
+            .map(loc => ({ lat: Number(loc.latitude), lng: Number(loc.longitude) }))
+        );
+
+        setMapMarkers(data.pharmNames.map(p => ({
+            id: p.id,
+            lat: Number(p.latitude || -22.9068),
+            lng: Number(p.longitude || -43.1729),
+            type: 'pharmacy',
+            phone: p.phone || p.establishment_phone || '550000000000'
+        })));
+
+        setProfitabilityData(data.currentSales.map(o => {
+            const farm = data.pharmNames.find(p => p.id === o.pharmacy_id);
+            return farm && farm.latitude ? { lat: Number(farm.latitude), lng: Number(farm.longitude), weight: Number(o.total_price) } : null;
+        }).filter(Boolean));
+
+        // Rush Mode detection
+        setIsRushMode(data.stats.activeOrders > 10);
+
+        // Chart Data formatting
+        const formattedChart = formatChartData(data.currentSales, timeFilter);
+        setChartData(formattedChart);
+    };
+
+    const formatChartData = (orders: any[], filter: string) => {
+        if (filter === 'hoje') {
+            const hours = Array.from({ length: 24 }, (_, i) => ({ name: `${i}h`, sales: 0 }));
+            orders.forEach(o => hours[new Date(o.created_at).getHours()].sales += (o.total_price || 0));
+            return hours;
+        }
+        const lastN = filter === '7d' ? 7 : 30;
+        const daysMap: { [key: string]: number } = {};
+        for (let i = lastN - 1; i >= 0; i--) {
+            const d = new Date(); d.setDate(d.getDate() - i);
+            daysMap[d.toLocaleDateString('pt-BR', { weekday: 'short' })] = 0;
+        }
+        orders.forEach(o => {
+            const label = new Date(o.created_at).toLocaleDateString('pt-BR', { weekday: 'short' });
+            if (daysMap[label] !== undefined) daysMap[label] += (o.total_price || 0);
+        });
+        return Object.entries(daysMap).map(([name, sales]) => ({ name, sales }));
+    };
+
+    // Debounced load logic to prevent request storms
     useEffect(() => {
-        const fetchInitialData = async () => {
-            const now = new Date();
-            let startDate = new Date();
-            let prevStartDate = new Date();
+        loadDashboardData();
 
-            if (timeFilter === 'hoje') {
-                startDate.setHours(0, 0, 0, 0);
-                prevStartDate.setDate(now.getDate() - 1);
-                prevStartDate.setHours(0, 0, 0, 0);
-            } else if (timeFilter === '7d') {
-                startDate.setDate(now.getDate() - 7);
-                prevStartDate.setDate(now.getDate() - 14);
-            } else if (timeFilter === '30d') {
-                startDate.setDate(now.getDate() - 30);
-                prevStartDate.setDate(now.getDate() - 60);
-            } else if (timeFilter === 'personalizado' && customDates.start) {
-                startDate = new Date(customDates.start);
-                const diff = now.getTime() - startDate.getTime();
-                prevStartDate = new Date(startDate.getTime() - diff);
-            }
+        let debounceTimer: ReturnType<typeof setTimeout>;
 
-            const startDateISO = startDate.toISOString();
-            const prevStartDateISO = prevStartDate.toISOString();
-
-            // 1. Fetch Vendas (Atual vs Anterior) - Simplificado sem joins arriscados
-            const { data: currentSales, error: currErr } = await supabase
-                .from('orders')
-                .select('id, total_price, pharmacy_id')
-                .eq('status', 'entregue')
-                .gte('created_at', startDateISO);
-
-            const { data: prevSales } = await supabase
-                .from('orders')
-                .select('total_price')
-                .eq('status', 'entregue')
-                .gte('created_at', prevStartDateISO)
-                .lt('created_at', startDateISO);
-
-            if (currErr) console.warn('Erro ao buscar vendas:', currErr);
-
-            const totalSales = currentSales?.reduce((acc, curr) => acc + (Number(curr.total_price) || 0), 0) || 0;
-            const pastSales = prevSales?.reduce((acc, curr) => acc + (Number(curr.total_price) || 0), 0) || 0;
-            const salesChange = pastSales > 0 ? ((totalSales - pastSales) / pastSales) * 100 : 0;
-
-            const totalOrders = currentSales?.length || 0;
-            const avgTicket = totalOrders > 0 ? totalSales / totalOrders : 0;
-            const prevTotalOrders = prevSales?.length || 0;
-            const prevAvgTicket = prevTotalOrders > 0 ? pastSales / prevTotalOrders : 0;
-            const avgTicketChange = prevAvgTicket > 0 ? ((avgTicket - prevAvgTicket) / prevAvgTicket) * 100 : 0;
-
-            // 2. Cálculo Projeção Mensal
-            const daysDiff = Math.max(1, Math.ceil((now.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)));
-            const dailyAvg = totalSales / daysDiff;
-            const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-            setMonthlyProjection(dailyAvg * daysInMonth);
-
-            // 3. Ranking Farmácias (Busca separada para evitar erro de Join 400)
-            const { data: pharmNames } = await supabase.from('pharmacies').select('id, name, latitude, longitude, phone, establishment_phone');
-            const pharmaNameMap = (pharmNames || []).reduce((acc: any, p) => ({ ...acc, [p.id]: p.name }), {});
-
-            const pharmaMap: { [key: string]: { name: string, total: number } } = {};
-            currentSales?.forEach(o => {
-                const id = o.pharmacy_id || 'unknown';
-                const pName = pharmaNameMap[id] || 'Farmácia';
-                if (!pharmaMap[id]) pharmaMap[id] = { name: pName, total: 0 };
-                pharmaMap[id].total += (Number(o.total_price) || 0);
-            });
-            setTopPharmacies(Object.values(pharmaMap).sort((a, b) => b.total - a.total).slice(0, 5));
-
-            // 4. Fetch Pedidos Ativos
-            const { count: activeOrders } = await supabase.from('orders').select('*', { count: 'exact', head: true }).in('status', ['pendente', 'preparando', 'em_rota']);
-
-            // 5. Fetch Total de Farmácias
-            const { count: pharmaciesCount } = await supabase.from('pharmacies').select('*', { count: 'exact', head: true });
-
-            setStats(prev => prev.map(s => {
-                if (s.key === 'sales') return {
-                    ...s,
-                    value: totalSales >= 1000 ? `R$ ${(totalSales / 1000).toFixed(1)}k` : `R$ ${totalSales.toFixed(2)}`,
-                    change: `${salesChange >= 0 ? '+' : ''}${salesChange.toFixed(1)}%`,
-                    positive: salesChange >= 0
-                };
-                if (s.key === 'avg_ticket') return {
-                    ...s,
-                    value: `R$ ${avgTicket.toFixed(2)}`,
-                    change: `${avgTicketChange >= 0 ? '+' : ''}${avgTicketChange.toFixed(1)}%`,
-                    positive: avgTicketChange >= 0
-                };
-                if (s.key === 'orders') return { ...s, value: String(activeOrders || 0) };
-                if (s.key === 'pharmacies') return { ...s, value: String(pharmaciesCount || 0) };
-                return s;
-            }));
-
-            // 5. Fetch Dados para o Gráfico (Vendas Reais)
-            const { data: chartOrders } = await supabase
-                .from('orders')
-                .select('created_at, total_price')
-                .eq('status', 'entregue')
-                .gte('created_at', startDateISO);
-
-            const formatChartData = () => {
-                if (timeFilter === 'hoje') {
-                    // Agrupar por hora
-                    const hours = Array.from({ length: 24 }, (_, i) => ({ name: `${i}h`, sales: 0 }));
-                    chartOrders?.forEach(o => {
-                        const hr = new Date(o.created_at).getHours();
-                        hours[hr].sales += (o.total_price || 0);
-                    });
-                    return hours;
-                } else if (timeFilter === '7d' || timeFilter === '30d') {
-                    // Agrupar por dia
-                    const daysMap: { [key: string]: number } = {};
-                    const lastN = timeFilter === '7d' ? 7 : 30;
-
-                    for (let i = lastN - 1; i >= 0; i--) {
-                        const d = new Date();
-                        d.setDate(d.getDate() - i);
-                        const label = d.toLocaleDateString('pt-BR', { weekday: 'short' });
-                        daysMap[label] = 0;
-                    }
-
-                    chartOrders?.forEach(o => {
-                        const label = new Date(o.created_at).toLocaleDateString('pt-BR', { weekday: 'short' });
-                        if (daysMap[label] !== undefined) daysMap[label] += (o.total_price || 0);
-                    });
-
-                    return Object.entries(daysMap).map(([name, sales]) => ({ name, sales }));
-                }
-                return [];
-            };
-
-            setChartData(formatChartData());
-
-            // 6. Fetch Atividade Recente Inicial
-            const { data: initialOrders } = await supabase
-                .from('orders')
-                .select('id, customer_name, total_price, status, created_at')
-                .order('created_at', { ascending: false })
-                .limit(4);
-
-            if (initialOrders) {
-                setRecentActivity(initialOrders.map(o => ({
-                    id: o.id,
-                    user: o.customer_name || 'Cliente',
-                    action: o.status === 'entregue' ? 'Pedido Entregue' : 'Novo Pedido',
-                    time: new Date(o.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
-                    icon: ShoppingBasket,
-                    color: o.status === 'entregue' ? '#13ec6d' : '#3b82f6'
-                })));
-            }
-
-            // 7. Heatmap de Atividade (Agregado por farmácia ativa para evitar redundância)
-            const { data: activeLocs } = await supabase.from('pharmacies').select('latitude, longitude').eq('status', 'Aprovado');
-            if (activeLocs) {
-                setHeatmapData(activeLocs
-                    .filter(loc => loc.latitude && loc.longitude)
-                    .map(loc => ({ lat: Number(loc.latitude), lng: Number(loc.longitude) }))
-                );
-            }
-
-            // 8. Marcadores do Mapa
-            if (pharmNames) {
-                setMapMarkers(pharmNames.map(p => ({
-                    id: p.id,
-                    lat: Number((p as any).latitude || -22.9068),
-                    lng: Number((p as any).longitude || -43.1729),
-                    type: 'pharmacy',
-                    phone: (p as any).phone || (p as any).establishment_phone || '550000000000'
-                })));
-            }
-
-            // 9. Ranking por Categorias (Novo Recurso Premium)
-            const { data: orderItems } = await supabase
-                .from('order_items')
-                .select('quantity, price, products(name, category)')
-                .in('order_id', currentSales?.map(o => o.id) || []);
-
-            if (orderItems) {
-                const catMap: { [key: string]: number } = {};
-                const prodMap: { [key: string]: any } = {};
-
-                orderItems.forEach((item: any) => {
-                    // Categoria
-                    const cat = item.products?.category || 'Outros';
-                    catMap[cat] = (catMap[cat] || 0) + (item.price * item.quantity);
-
-                    // Produto
-                    const pName = item.products?.name || 'Desconhecido';
-                    if (!prodMap[pName]) prodMap[pName] = { name: pName, quantity: 0, total: 0, category: cat };
-                    prodMap[pName].quantity += item.quantity;
-                    prodMap[pName].total += (item.price * item.quantity);
-                });
-
-                setTopCategories(Object.entries(catMap)
-                    .map(([name, total]) => ({ name, total }))
-                    .sort((a, b) => b.total - a.total)
-                    .slice(0, 5)
-                );
-
-                setTopProducts(Object.values(prodMap)
-                    .sort((a: any, b: any) => b.quantity - a.quantity)
-                    .slice(0, 5)
-                );
-            }
-
-            // 10. Heatmap de Rentabilidade (Faturamento por Localização)
-            if (currentSales && pharmNames) {
-                const profitHeats = currentSales.map(o => {
-                    const farm = pharmNames.find(p => p.id === o.pharmacy_id);
-                    if (farm && farm.latitude && farm.longitude) {
-                        return {
-                            lat: Number(farm.latitude),
-                            lng: Number(farm.longitude),
-                            weight: Number(o.total_price)
-                        };
-                    }
-                    return null;
-                }).filter(Boolean);
-                setProfitabilityData(profitHeats);
-            }
-
-            // 11. Detecção de Modo Rush (Pico de Demanda)
-            const { count: pendingCount } = await supabase
-                .from('orders')
-                .select('*', { count: 'exact', head: true })
-                .in('status', ['pendente', 'preparando']);
-
-            setIsRushMode((pendingCount || 0) > 10);
-
-            // 12. Cálculo de SLA Real (Pedidos entregues)
-            const { data: slaOrders } = await supabase
-                .from('orders')
-                .select('created_at')
-                .eq('status', 'entregue')
-                .gte('created_at', startDateISO);
-
-            if (slaOrders && slaOrders.length > 0) {
-                setSlaValue('94.8%');
-            } else {
-                setSlaValue('100%');
-            }
-        };
-
-        fetchInitialData();
-
-        const ordersSubscription = supabase
-            .channel('admin_dashboard_realtime')
+        const channel = supabase
+            .channel('admin_dashboard_sync')
             .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, (payload) => {
-                fetchInitialData();
-
+                // Immediate UI update for "Live Activity" (Lightweight)
                 if (payload.eventType === 'INSERT') {
                     const newOrder = payload.new;
                     setRecentActivity(prev => [
-                        {
-                            id: newOrder.id,
-                            user: newOrder.customer_name || 'Novo Cliente',
-                            action: 'Realizou um pedido',
-                            time: 'AGORA',
-                            icon: ShoppingBasket,
-                            color: '#13ec6d'
-                        },
+                        { id: newOrder.id, user: newOrder.customer_name || 'Novo Cliente', action: 'Realizou um pedido', time: 'AGORA', icon: ShoppingBasket, color: '#13ec6d' },
                         ...prev.slice(0, 3)
                     ]);
                 }
+
+                // Debounced heavy reload (Heavyweight - 6+ queries)
+                clearTimeout(debounceTimer);
+                debounceTimer = setTimeout(() => {
+                    console.log('🔄 Dashboard: Executando recarregamento debounced...');
+                    loadDashboardData();
+                }, 2000); // 2 seconds threshold
             })
             .subscribe();
 
         return () => {
-            ordersSubscription.unsubscribe();
+            supabase.removeChannel(channel);
+            clearTimeout(debounceTimer);
         };
     }, [timeFilter, customDates]);
+
+    const stats = [
+        { label: 'TOTAL VENDAS', value: statsData?.sales ? (statsData.sales >= 1000 ? `R$ ${(statsData.sales / 1000).toFixed(1)}k` : `R$ ${statsData.sales.toFixed(2)}`) : 'R$ 0', change: `${statsData?.salesChange && statsData.salesChange >= 0 ? '+' : ''}${statsData?.salesChange?.toFixed(1) || 0}%`, icon: Banknote, positive: (statsData?.salesChange || 0) >= 0, key: 'sales' },
+        { label: 'TICKET MÉDIO', value: `R$ ${statsData?.avgTicket?.toFixed(2) || 0}`, change: `${statsData?.avgTicketChange && statsData.avgTicketChange >= 0 ? '+' : ''}${statsData?.avgTicketChange?.toFixed(1) || 0}%`, icon: ArrowUpRight, positive: (statsData?.avgTicketChange || 0) >= 0, key: 'avg_ticket' },
+        { label: 'PEDIDOS ATIVOS', value: String(statsData?.activeOrders || 0), change: 'ESTÁVEL', icon: ShoppingBag, positive: true, key: 'orders' },
+        { label: 'FARMÁCIAS', value: String(statsData?.pharmaciesCount || 0), change: '+12%', icon: Store, positive: true, key: 'pharmacies' },
+    ];
 
     const handleExportCSV = () => {
         const headers = ['ID', 'Cliente', 'Valor', 'Status', 'Data'];

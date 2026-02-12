@@ -240,26 +240,33 @@ const SmoothedMarker = ({ mob, onClick }: { mob: any, onClick: () => void }) => 
     }, [mob.lat, mob.lng]);
 
     const animate = useCallback(() => {
+        let reached = false;
+
         setPos(current => {
             const lerp = (start: number, end: number, amt: number) => (1 - amt) * start + amt * end;
             const newLat = lerp(current.lat, targetPos.current.lat, 0.1);
             const newLng = lerp(current.lng, targetPos.current.lng, 0.1);
 
             if (Math.abs(newLat - targetPos.current.lat) < 0.00001 && Math.abs(newLng - targetPos.current.lng) < 0.00001) {
+                reached = true;
                 return targetPos.current;
             }
 
             return { lat: newLat, lng: newLng };
         });
-        requestRef.current = requestAnimationFrame(animate);
+
+        if (!reached) {
+            requestRef.current = requestAnimationFrame(animate);
+        }
     }, []);
 
     useEffect(() => {
+        // Start or restart animation when target moves
         requestRef.current = requestAnimationFrame(animate);
         return () => {
             if (requestRef.current) cancelAnimationFrame(requestRef.current);
         };
-    }, [animate]);
+    }, [mob.lat, mob.lng, animate]);
 
     return (
         <Marker

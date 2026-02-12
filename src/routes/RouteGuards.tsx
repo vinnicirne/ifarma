@@ -73,3 +73,29 @@ export const GestorRoute = ({ children, session, profile }: { children: React.Re
     }
     return <>{children}</>;
 };
+
+export const MotoboyRoute = ({ children, session, profile }: { children: React.ReactNode, session: any, profile: any }) => {
+    if (!session) return <Auth view="login" />;
+
+    // Motoboys and Admins can access (Admins for support/tracking)
+    if (profile?.role !== 'motoboy' && profile?.role !== 'admin') {
+        return (
+            <div className="min-h-screen bg-background-dark flex flex-col items-center justify-center p-6 text-center">
+                <div className="size-20 rounded-2xl bg-orange-500/10 flex items-center justify-center mb-6">
+                    <MaterialIcon name="moped" className="text-orange-500 text-5xl" />
+                </div>
+                <h2 className="text-2xl font-black italic text-white tracking-tighter">Área do Entregador</h2>
+                <p className="text-slate-400 text-sm mt-2 max-w-xs font-medium">
+                    Acesso restrito para entregadores parceiros.
+                </p>
+                <div className="mt-10 flex flex-col sm:flex-row gap-4">
+                    <Link to="/" className="px-8 py-4 bg-primary text-background-dark rounded-2xl font-black uppercase tracking-widest text-xs hover:scale-105 transition-all flex items-center gap-2">
+                        <MaterialIcon name="home" className="text-sm" />
+                        Voltar para Home
+                    </Link>
+                </div>
+            </div>
+        );
+    }
+    return <>{children}</>;
+};

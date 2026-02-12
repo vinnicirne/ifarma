@@ -2,6 +2,7 @@
 -- Permite que Staff (admin) crie novos perfis
 
 -- Adicionar política de INSERT para Staff
+DROP POLICY IF EXISTS "Staff create profiles" ON profiles;
 CREATE POLICY "Staff create profiles" 
 ON profiles 
 FOR INSERT 

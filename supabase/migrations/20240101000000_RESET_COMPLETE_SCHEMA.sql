@@ -48,7 +48,7 @@ create table if not exists public.profiles (
 
 -- 1.2 Farmácias
 create table if not exists public.pharmacies (
-  id uuid primary key default uuid_generate_v4(),
+  id uuid primary key default extensions.uuid_generate_v4(),
   name text not null,
   cnpj text unique,
   address text,
@@ -108,7 +108,7 @@ create table if not exists public.pharmacies (
 
 -- 1.3 Membros da Farmácia (Staff e Motoboys Próprios)
 create table if not exists public.pharmacy_members (
-  id uuid primary key default uuid_generate_v4(),
+  id uuid primary key default extensions.uuid_generate_v4(),
   pharmacy_id uuid not null references public.pharmacies(id) on delete cascade,
   user_id uuid not null references public.profiles(id) on delete cascade,
   
@@ -121,7 +121,7 @@ create table if not exists public.pharmacy_members (
 
 -- 1.4 Categorias de Produtos
 create table if not exists public.categories (
-  id uuid primary key default uuid_generate_v4(),
+  id uuid primary key default extensions.uuid_generate_v4(),
   name text not null unique,
   slug text unique,
   image_url text,
@@ -132,7 +132,7 @@ create table if not exists public.categories (
 
 -- 1.5 Produtos
 create table if not exists public.products (
-  id uuid primary key default uuid_generate_v4(),
+  id uuid primary key default extensions.uuid_generate_v4(),
   pharmacy_id uuid not null references public.pharmacies(id) on delete cascade,
   
   name text not null,
@@ -157,7 +157,7 @@ create table if not exists public.products (
 
 -- 1.6 Promoções e Campanhas
 create table if not exists public.promotions (
-  id uuid primary key default uuid_generate_v4(),
+  id uuid primary key default extensions.uuid_generate_v4(),
   title text not null,
   description text,
   image_url text,
@@ -176,7 +176,7 @@ create table if not exists public.promotions (
 
 -- 1.7 Feed do App (Admin Control)
 create table if not exists public.app_feed_sections (
-  id uuid primary key default uuid_generate_v4(),
+  id uuid primary key default extensions.uuid_generate_v4(),
   title text not null, -- "Ofertas do Dia", "Farmácias Perto"
   type text not null, -- 'banner.top', 'pharmacy_list.featured', 'category_grid'
   position integer default 0,
@@ -187,7 +187,7 @@ create table if not exists public.app_feed_sections (
 
 -- 1.8 Banners do App
 create table if not exists public.app_banners (
-  id uuid primary key default uuid_generate_v4(),
+  id uuid primary key default extensions.uuid_generate_v4(),
   title text,
   image_url text not null,
   action_url text,
@@ -203,7 +203,7 @@ create table if not exists public.app_banners (
 
 -- 2.1 Pedidos
 create table if not exists public.orders (
-  id uuid primary key default uuid_generate_v4(),
+  id uuid primary key default extensions.uuid_generate_v4(),
   customer_id uuid references public.profiles(id),
   pharmacy_id uuid references public.pharmacies(id),
   
@@ -233,7 +233,7 @@ create table if not exists public.orders (
 
 -- 2.2 Itens do Pedido
 create table if not exists public.order_items (
-  id uuid primary key default uuid_generate_v4(),
+  id uuid primary key default extensions.uuid_generate_v4(),
   order_id uuid references public.orders(id) on delete cascade,
   product_id uuid references public.products(id),
   
@@ -246,7 +246,7 @@ create table if not exists public.order_items (
 
 -- 2.3 Atribuição de Pedidos (Log de Entregas) - ROBUSTO
 create table if not exists public.order_assignments (
-  id uuid primary key default uuid_generate_v4(),
+  id uuid primary key default extensions.uuid_generate_v4(),
   order_id uuid not null references public.orders(id) on delete cascade,
   pharmacy_id uuid not null references public.pharmacies(id),
   motoboy_id uuid not null references public.profiles(id),
@@ -282,7 +282,7 @@ create table if not exists public.motoboy_live_locations (
 
 -- 2.5 Histórico de Rotas (Auditoria GPS)
 create table if not exists public.delivery_tracks (
-  id uuid primary key default uuid_generate_v4(),
+  id uuid primary key default extensions.uuid_generate_v4(),
   order_id uuid references public.orders(id),
   motoboy_id uuid references public.profiles(id),
   
@@ -293,7 +293,7 @@ create table if not exists public.delivery_tracks (
 
 -- 2.6 Notificações
 create table if not exists public.notifications (
-  id uuid primary key default uuid_generate_v4(),
+  id uuid primary key default extensions.uuid_generate_v4(),
   user_id uuid references public.profiles(id) on delete cascade,
   title text not null,
   message text not null,
@@ -314,7 +314,7 @@ create table if not exists public.device_tokens (
 
 -- 2.8 Alertas de Sistema (Suporte)
 create table if not exists public.system_alerts (
-  id uuid primary key default uuid_generate_v4(),
+  id uuid primary key default extensions.uuid_generate_v4(),
   message text not null,
   severity text check (severity in ('info', 'warning', 'critical')),
   type text, -- 'pharmacy_offline', 'low_stock'
@@ -327,12 +327,12 @@ create table if not exists public.system_alerts (
 -- =========================
 -- 3) ÍNDICES DE PERFORMANCE
 -- =========================
-create index idx_orders_pharmacy on public.orders(pharmacy_id);
-create index idx_orders_customer on public.orders(customer_id);
-create index idx_orders_status on public.orders(status);
-create index idx_products_pharmacy on public.products(pharmacy_id);
-create index idx_products_category on public.products(category);
-create index idx_tracking_ping on public.motoboy_live_locations(last_ping);
+create index if not exists idx_orders_pharmacy on public.orders(pharmacy_id);
+create index if not exists idx_orders_customer on public.orders(customer_id);
+create index if not exists idx_orders_status on public.orders(status);
+create index if not exists idx_products_pharmacy on public.products(pharmacy_id);
+create index if not exists idx_products_category on public.products(category);
+create index if not exists idx_tracking_ping on public.motoboy_live_locations(last_ping);
 
 -- =========================
 -- 4) VIEW PARA ADMIN (RPC Helpers)
@@ -396,10 +396,15 @@ alter table public.system_alerts enable row level security;
 
 -- PROFILES
 -- Admin/Operator vê tudo. Usuário vê a si mesmo.
+drop policy if exists "Staff view all profiles" on profiles;
 create policy "Staff view all profiles" on profiles for select using (public.is_staff());
+drop policy if exists "User view own profile" on profiles;
 create policy "User view own profile" on profiles for select using (auth.uid() = id);
+drop policy if exists "User update own profile" on profiles;
 create policy "User update own profile" on profiles for update using (auth.uid() = id);
+drop policy if exists "Staff view any profile" on profiles;
 create policy "Staff view any profile" on profiles for select using (public.is_staff());
+drop policy if exists "Staff update any profile" on profiles;
 create policy "Staff update any profile" on profiles for update using (public.is_staff());
 
 -- FUNÇÃO DE SUPORTE: Verifica se é Staff (Admin/Support/Operator)
@@ -416,18 +421,28 @@ $$ language plpgsql security definer;
 
 -- PHARMACIES
 -- Publico vê aprovadas. Staff vê todas. Dono vê a sua.
+drop policy if exists "Public view approved pharmacies" on pharmacies;
 create policy "Public view approved pharmacies" on pharmacies for select using (status = 'approved');
+drop policy if exists "Staff view all pharmacies" on pharmacies;
 create policy "Staff view all pharmacies" on pharmacies for select using (public.is_staff());
+drop policy if exists "Staff create pharmacies" on pharmacies;
 create policy "Staff create pharmacies" on pharmacies for insert with check (public.is_staff());
+drop policy if exists "Staff update any pharmacy" on pharmacies;
 create policy "Staff update any pharmacy" on pharmacies for update using (public.is_staff());
+drop policy if exists "Staff delete pharmacies" on pharmacies;
 create policy "Staff delete pharmacies" on pharmacies for delete using (public.is_staff());
+drop policy if exists "Owner view own pharmacy" on pharmacies;
 create policy "Owner view own pharmacy" on pharmacies for select using (owner_id = auth.uid());
+drop policy if exists "Owner update own pharmacy" on pharmacies;
 create policy "Owner update own pharmacy" on pharmacies for update using (owner_id = auth.uid());
 
 -- PRODUCTS
 -- Publico vê ativos. Staff vê tudo. Dono vê sua loja.
+drop policy if exists "Public view active products" on products;
 create policy "Public view active products" on products for select using (is_active = true);
+drop policy if exists "Staff view all products" on products;
 create policy "Staff view all products" on products for select using (public.is_staff());
+drop policy if exists "Pharmacy manage own products" on products;
 create policy "Pharmacy manage own products" on products for all using (
   pharmacy_id in (select pharmacy_id from pharmacy_members where user_id = auth.uid())
   or 
@@ -436,16 +451,23 @@ create policy "Pharmacy manage own products" on products for all using (
 
 -- ORDERS
 -- Cliente vê seus. Farmácia vê seus. Motoboy vê atribuídos. Admin vê tudo.
+drop policy if exists "Staff view all orders" on orders;
 create policy "Staff view all orders" on orders for select using (public.is_staff());
+drop policy if exists "Staff manage orders" on orders;
 create policy "Staff manage orders" on orders for all using (public.is_staff());
+drop policy if exists "Customer view own orders" on orders;
 create policy "Customer view own orders" on orders for select using (customer_id = auth.uid());
+drop policy if exists "Customer create orders" on orders;
 create policy "Customer create orders" on orders for insert with check (customer_id = auth.uid());
+drop policy if exists "Pharmacy view own orders" on orders;
 create policy "Pharmacy view own orders" on orders for select using (
   pharmacy_id in (select pharmacy_id from pharmacy_members where user_id = auth.uid())
 );
+drop policy if exists "Pharmacy manage own orders" on orders;
 create policy "Pharmacy manage own orders" on orders for update using (
   pharmacy_id in (select pharmacy_id from pharmacy_members where user_id = auth.uid())
 );
+drop policy if exists "Motoboy view assigned orders" on orders;
 create policy "Motoboy view assigned orders" on orders for select using (
   motoboy_id = auth.uid() 
   or id in (select order_id from order_assignments where motoboy_id = auth.uid())
@@ -453,36 +475,54 @@ create policy "Motoboy view assigned orders" on orders for select using (
 
 -- ORDER ASSIGNMENTS
 -- Staff e Farmácia gerenciam. Motoboy vê seus.
+drop policy if exists "Staff manage assignments" on order_assignments;
 create policy "Staff manage assignments" on order_assignments for all using (public.is_staff());
+drop policy if exists "Pharmacy manage assignments" on order_assignments;
 create policy "Pharmacy manage assignments" on order_assignments for all using (
   pharmacy_id in (select pharmacy_id from pharmacy_members where user_id = auth.uid())
 );
+drop policy if exists "Motoboy view own assignments" on order_assignments;
 create policy "Motoboy view own assignments" on order_assignments for select using (motoboy_id = auth.uid());
+drop policy if exists "Motoboy update own assignments" on order_assignments;
 create policy "Motoboy update own assignments" on order_assignments for update using (motoboy_id = auth.uid());
 
 -- LIVE LOCATIONS
 -- Motoboy insert/update seu. Admin/Farmácia visualiza.
+drop policy if exists "Motoboy update location" on motoboy_live_locations;
 create policy "Motoboy update location" on motoboy_live_locations for all using (motoboy_id = auth.uid());
+drop policy if exists "Staff view locations" on motoboy_live_locations;
 create policy "Staff view locations" on motoboy_live_locations for select using (public.is_staff());
+drop policy if exists "Pharmacy view fleet locations" on motoboy_live_locations;
 create policy "Pharmacy view fleet locations" on motoboy_live_locations for select using (
   pharmacy_id in (select pharmacy_id from pharmacy_members where user_id = auth.uid())
 );
 
 -- FEED & MARKETING (Categories, Promotions, Banners, Feed Sections)
 -- Public read-only. Staff manage.
+drop policy if exists "Public read categories" on categories;
 create policy "Public read categories" on categories for select using (true);
+drop policy if exists "Public read promotions" on promotions;
 create policy "Public read promotions" on promotions for select using (is_active = true);
+drop policy if exists "Public read banners" on app_banners;
 create policy "Public read banners" on app_banners for select using (is_active = true);
+drop policy if exists "Public read feed" on app_feed_sections;
 create policy "Public read feed" on app_feed_sections for select using (is_active = true);
 
+drop policy if exists "Staff manage categories" on categories;
 create policy "Staff manage categories" on categories for all using (public.is_staff());
+drop policy if exists "Staff manage promotions" on promotions;
 create policy "Staff manage promotions" on promotions for all using (public.is_staff());
+drop policy if exists "Staff manage banners" on app_banners;
 create policy "Staff manage banners" on app_banners for all using (public.is_staff());
+drop policy if exists "Staff manage feed" on app_feed_sections;
 create policy "Staff manage feed" on app_feed_sections for all using (public.is_staff());
 
 -- NOTIFICATIONS & ALERTS
+drop policy if exists "User view own notifications" on notifications;
 create policy "User view own notifications" on notifications for select using (user_id = auth.uid());
+drop policy if exists "Staff view system alerts" on system_alerts;
 create policy "Staff view system alerts" on system_alerts for select using (public.is_staff());
+drop policy if exists "Staff manage system alerts" on system_alerts;
 create policy "Staff manage system alerts" on system_alerts for update using (public.is_staff());
 
 -- =========================
@@ -498,9 +538,13 @@ begin
 end;
 $$ language plpgsql;
 
+drop trigger if exists on_update_profiles on public.profiles;
 create trigger on_update_profiles before update on public.profiles for each row execute procedure public.handle_updated_at();
+drop trigger if exists on_update_pharmacies on public.pharmacies;
 create trigger on_update_pharmacies before update on public.pharmacies for each row execute procedure public.handle_updated_at();
+drop trigger if exists on_update_products on public.products;
 create trigger on_update_products before update on public.products for each row execute procedure public.handle_updated_at();
+drop trigger if exists on_update_orders on public.orders;
 create trigger on_update_orders before update on public.orders for each row execute procedure public.handle_updated_at();
 
 -- Trigger: New User -> Create Profile

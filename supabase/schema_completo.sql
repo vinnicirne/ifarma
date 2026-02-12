@@ -438,3 +438,26 @@ CREATE POLICY "Admins podem gerenciar alertas" ON system_alerts
             WHERE id = auth.uid() AND role = 'admin'
         )
     );
+
+-- ============================================
+-- POLÍTICAS RLS - DEVICE_TOKENS
+-- ============================================
+
+DROP POLICY IF EXISTS "Usuários podem registrar tokens" ON device_tokens;
+CREATE POLICY "Usuários podem registrar tokens" ON device_tokens
+    FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Usuários podem atualizar tokens" ON device_tokens;
+CREATE POLICY "Usuários podem atualizar tokens" ON device_tokens
+    FOR UPDATE USING (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Usuários podem deletar tokens" ON device_tokens;
+CREATE POLICY "Usuários podem deletar tokens" ON device_tokens
+    FOR DELETE USING (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Leitura de tokens" ON device_tokens;
+CREATE POLICY "Leitura de tokens" ON device_tokens
+    FOR SELECT USING (
+        auth.uid() = user_id OR
+        auth.jwt() ->> 'role' = 'service_role'
+    );

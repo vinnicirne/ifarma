@@ -211,16 +211,37 @@ const PharmacyDetails = () => {
     };
 
     // --- FILE UPLOAD HANDLER ---
+    const [uploading, setUploading] = useState<{ logo: boolean, banner: boolean }>({ logo: false, banner: false });
+
     const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>, type: 'logo' | 'banner') => {
         const file = event.target.files?.[0];
         if (!file) return;
 
-        const reader = new FileReader();
-        reader.onloadend = () => {
-            const base64String = reader.result as string;
-            setFormData(prev => ({ ...prev, [type === 'logo' ? 'logo_url' : 'banner_url']: base64String }));
-        };
-        reader.readAsDataURL(file);
+        setUploading(prev => ({ ...prev, [type]: true }));
+
+        try {
+            const fileExt = file.name.split('.').pop();
+            const fileName = `${id === 'new' ? 'temp' : id}_${type}_${Date.now()}.${fileExt}`;
+            const filePath = `pharmacies/${fileName}`;
+
+            // Upload to Supabase Storage (Bucket 'app-assets' used as general assets bucket)
+            const { error: uploadError } = await supabase.storage
+                .from('app-assets')
+                .upload(filePath, file);
+
+            if (uploadError) throw uploadError;
+
+            const { data: { publicUrl } } = supabase.storage
+                .from('app-assets')
+                .getPublicUrl(filePath);
+
+            setFormData(prev => ({ ...prev, [type === 'logo' ? 'logo_url' : 'banner_url']: publicUrl }));
+        } catch (err: any) {
+            console.error('Erro no upload:', err);
+            alert('Erro ao enviar imagem: ' + err.message);
+        } finally {
+            setUploading(prev => ({ ...prev, [type]: false }));
+        }
     };
 
     // --- REALTIME SUBSCRIPTION ---
@@ -695,7 +716,11 @@ const PharmacyDetails = () => {
                                 <section className="bg-white dark:bg-[#1a2e23] border border-slate-200 dark:border-white/5 rounded-[40px] shadow-xl overflow-hidden">
                                     {/* BANNER AREA */}
                                     <div className="h-48 bg-slate-200 relative group cursor-pointer" onClick={() => bannerInputRef.current?.click()}>
-                                        {formData.banner_url ? (
+                                        {uploading.banner ? (
+                                            <div className="w-full h-full flex items-center justify-center bg-slate-100 animate-pulse">
+                                                <MaterialIcon name="sync" className="animate-spin text-primary text-4xl" />
+                                            </div>
+                                        ) : formData.banner_url ? (
                                             <img src={formData.banner_url} alt="Capa" className="w-full h-full object-cover" />
                                         ) : (
                                             <div className="w-full h-full flex items-center justify-center text-slate-400">
@@ -705,14 +730,16 @@ const PharmacyDetails = () => {
                                         <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                                             <span className="text-white font-bold flex items-center gap-2"><MaterialIcon name="upload" /> Alterar Capa</span>
                                         </div>
-                                        <input type="file" ref={bannerInputRef} className="hidden" accept="image/*" onChange={(e) => handleFileChange(e, 'banner')} />
+                                        <input type="file" ref={bannerInputRef} className="hidden" accept="image/*" onChange={(e) => handleFileChange(e, 'banner')} disabled={uploading.banner} />
                                     </div>
 
                                     <div className="px-8 pb-8 relative">
                                         <div className="-mt-12 mb-6 flex items-end">
                                             <div className="size-32 rounded-[32px] bg-white dark:bg-zinc-800 p-2 shadow-xl relative group cursor-pointer" onClick={() => logoInputRef.current?.click()}>
                                                 <div className="w-full h-full rounded-[24px] bg-slate-100 dark:bg-black overflow-hidden flex items-center justify-center border border-slate-200 dark:border-white/10">
-                                                    {formData.logo_url ? (
+                                                    {uploading.logo ? (
+                                                        <MaterialIcon name="sync" className="animate-spin text-primary text-3xl" />
+                                                    ) : formData.logo_url ? (
                                                         <img src={formData.logo_url} alt="Logo" className="w-full h-full object-cover" />
                                                     ) : (
                                                         <MaterialIcon name="store" className="text-4xl text-slate-300" />
@@ -721,7 +748,7 @@ const PharmacyDetails = () => {
                                                 <div className="absolute inset-2 bg-black/50 rounded-[24px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                                                     <MaterialIcon name="edit" className="text-white" />
                                                 </div>
-                                                <input type="file" ref={logoInputRef} className="hidden" accept="image/*" onChange={(e) => handleFileChange(e, 'logo')} />
+                                                <input type="file" ref={logoInputRef} className="hidden" accept="image/*" onChange={(e) => handleFileChange(e, 'logo')} disabled={uploading.logo} />
                                             </div>
                                         </div>
                                         <p className="text-xs text-slate-500 italic">Clique nas imagens para alterar.</p>

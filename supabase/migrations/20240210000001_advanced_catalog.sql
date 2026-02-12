@@ -8,7 +8,7 @@ add column if not exists description text;
 
 -- 2. Create COLLECTIONS (Intenção de Compra)
 create table if not exists public.collections (
-  id uuid primary key default uuid_generate_v4(),
+  id uuid primary key default extensions.uuid_generate_v4(),
   name text not null,
   slug text unique,
   type text check (type in ('symptom', 'audience', 'campaign', 'seasonality', 'other')),
@@ -20,7 +20,9 @@ create table if not exists public.collections (
 
 -- Enable RLS for collections
 alter table public.collections enable row level security;
+drop policy if exists "Public read collections" on collections;
 create policy "Public read collections" on collections for select using (is_active = true);
+drop policy if exists "Staff manage collections" on collections;
 create policy "Staff manage collections" on collections for all using (public.is_staff());
 
 -- 3. Link Products to Collections (Many-to-Many)
@@ -32,8 +34,11 @@ create table if not exists public.product_collections (
 
 -- Enable RLS for product_collections
 alter table public.product_collections enable row level security;
+drop policy if exists "Public read product_collections" on product_collections;
 create policy "Public read product_collections" on product_collections for select using (true);
+drop policy if exists "Staff manage product_collections" on product_collections;
 create policy "Staff manage product_collections" on product_collections for all using (public.is_staff());
+drop policy if exists "Pharmacy manage product_collections" on product_collections;
 create policy "Pharmacy manage product_collections" on product_collections for all using (
   product_id in (select id from public.products where pharmacy_id in (select pharmacy_id from public.pharmacy_members where user_id = auth.uid()))
 );
@@ -55,7 +60,7 @@ add column if not exists synonyms text[];
 
 -- 5. Create BADGES (Selos)
 create table if not exists public.badges (
-  id uuid primary key default uuid_generate_v4(),
+  id uuid primary key default extensions.uuid_generate_v4(),
   name text not null,
   slug text unique,
   icon_url text,
@@ -64,7 +69,9 @@ create table if not exists public.badges (
 );
 
 alter table public.badges enable row level security;
+drop policy if exists "Public read badges" on badges;
 create policy "Public read badges" on badges for select using (true);
+drop policy if exists "Staff manage badges" on badges;
 create policy "Staff manage badges" on badges for all using (public.is_staff());
 
 -- 6. Link Products to Badges
@@ -75,7 +82,9 @@ create table if not exists public.product_badges (
 );
 
 alter table public.product_badges enable row level security;
+drop policy if exists "Public read product_badges" on product_badges;
 create policy "Public read product_badges" on product_badges for select using (true);
+drop policy if exists "Staff manage product_badges" on product_badges;
 create policy "Staff manage product_badges" on product_badges for all using (public.is_staff());
 
 -- 7. Add Indexes for Performance

@@ -23,27 +23,58 @@ import {
 const Sidebar = ({ profile }: { profile?: any }) => {
     const navigate = useNavigate();
 
-    const allMenuItems = [
-        { icon: LayoutDashboard, label: 'DASHBOARD', path: '/dashboard', roles: ['admin', 'operator'] },
-        { icon: Layers, label: 'FEED APP', path: '/dashboard/feed', roles: ['admin', 'operator'] },
-        { icon: Megaphone, label: 'BANNERS & ADS', path: '/dashboard/ads', roles: ['admin', 'operator'] },
-        { icon: Tag, label: 'PROMOÇÕES', path: '/dashboard/promotions', roles: ['admin', 'operator'] },
-        { icon: Package, label: 'PRODUTOS', path: '/dashboard/products', roles: ['admin', 'operator'] },
-        { icon: Store, label: 'FARMÁCIAS', path: '/dashboard/pharmacies', roles: ['admin', 'operator'] },
-        { icon: LayoutGrid, label: 'CATEGORIAS', path: '/dashboard/categories', roles: ['admin', 'operator'] },
-        { icon: BookmarkCheck, label: 'COLEÇÕES', path: '/dashboard/collections', roles: ['admin', 'operator'] },
-        { icon: Navigation, label: 'PEDIDOS', path: '/dashboard/tracking', roles: ['admin', 'operator'] },
-        { icon: Bike, label: 'ENTREGAS', path: '/dashboard/motoboys', roles: ['admin', 'operator'] },
-        { icon: Bell, label: 'NOTIFICAÇÕES', path: '/dashboard/notifications', roles: ['admin', 'operator'] },
-        { icon: FileText, label: 'RELATÓRIOS', path: '/dashboard/reports', roles: ['admin', 'operator'] },
-        { icon: Users, label: 'USUÁRIOS', path: '/dashboard/users', roles: ['admin', 'operator'] },
-        { icon: DollarSign, label: 'MONETIZAÇÃO', path: '/dashboard/monetization', roles: ['admin'] },
-        { icon: Settings, label: 'CONFIGURAÇÕES', path: '/dashboard/settings', roles: ['admin'] },
+    // Nova Estrutura Organizada por Seções (UX Refined)
+    const menuSections = [
+        {
+            title: 'PRINCIPAL',
+            items: [
+                { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard', roles: ['admin', 'operator'] },
+            ]
+        },
+        {
+            title: 'OPERAÇÃO',
+            items: [
+                { icon: Navigation, label: 'Pedidos & Mapa', path: '/dashboard/tracking', roles: ['admin', 'operator'] },
+                { icon: Bike, label: 'Entregadores', path: '/dashboard/motoboys', roles: ['admin', 'operator'] },
+            ]
+        },
+        {
+            title: 'CRESCIMENTO',
+            items: [
+                { icon: Layers, label: 'Feed do App', path: '/dashboard/feed', roles: ['admin', 'operator'] },
+                { icon: Megaphone, label: 'Banners & Ads', path: '/dashboard/ads', roles: ['admin', 'operator'] },
+                { icon: Tag, label: 'Promoções', path: '/dashboard/promotions', roles: ['admin', 'operator'] },
+            ]
+        },
+        {
+            title: 'CATÁLOGO',
+            items: [
+                { icon: Package, label: 'Produtos', path: '/dashboard/products', roles: ['admin', 'operator'] },
+                { icon: LayoutGrid, label: 'Categorias', path: '/dashboard/categories', roles: ['admin', 'operator'] },
+                { icon: BookmarkCheck, label: 'Coleções', path: '/dashboard/collections', roles: ['admin', 'operator'] },
+            ]
+        },
+        {
+            title: 'PARCEIROS',
+            items: [
+                { icon: Store, label: 'Lojas & Farmácias', path: '/dashboard/pharmacies', roles: ['admin', 'operator'] },
+            ]
+        },
+        {
+            title: 'FINANCEIRO',
+            items: [
+                { icon: DollarSign, label: 'Monetização', path: '/dashboard/monetization', roles: ['admin'] },
+                { icon: FileText, label: 'Relatórios', path: '/dashboard/reports', roles: ['admin', 'operator'] },
+            ]
+        },
+        {
+            title: 'SISTEMA',
+            items: [
+                { icon: Users, label: 'Usuários', path: '/dashboard/users', roles: ['admin', 'operator'] },
+                { icon: Settings, label: 'Ajustes Técnicos', path: '/dashboard/settings', roles: ['admin'] },
+            ]
+        }
     ];
-
-    const menuItems = allMenuItems.filter(item =>
-        !item.roles || item.roles.includes(profile?.role || 'admin')
-    );
 
     const handleLogout = async () => {
         await supabase.auth.signOut();
@@ -52,63 +83,87 @@ const Sidebar = ({ profile }: { profile?: any }) => {
 
     return (
         <aside className="fixed left-0 top-0 bottom-0 w-72 bg-[#0a0f0d] flex flex-col z-50 border-r border-white/5 shadow-2xl">
-            {/* ... brand ... */}
-            <div className="p-8">
-                <div className="flex items-center gap-3">
-                    <div className="size-12 bg-primary flex items-center justify-center rounded-2xl shadow-[0_0_20px_rgba(19,236,109,0.3)]">
-                        <ShieldCheck size={28} className="text-[#0a0f0d]" />
+            {/* Brand Logo & Profile Section */}
+            <div className="p-6 border-b border-white/5 space-y-4">
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                        <div className="size-8 bg-primary flex items-center justify-center rounded-xl shadow-[0_0_15px_rgba(19,236,109,0.3)] shrink-0">
+                            <ShieldCheck size={18} className="text-[#0a0f0d]" />
+                        </div>
+                        <div className="flex flex-col">
+                            <span className="text-white font-[900] italic text-lg leading-none tracking-tighter">Admin</span>
+                            <span className="text-primary font-black text-[8px] tracking-[0.1em] leading-none mt-1">IFARMA</span>
+                        </div>
                     </div>
-                    <div className="flex flex-col">
-                        <span className="text-white font-[900] italic text-2xl leading-none tracking-tighter">Admin</span>
-                        <span className="text-primary font-black text-[10px] tracking-[0.2em] mt-1">PHARMALINK</span>
-                    </div>
-                </div>
-            </div>
 
-            {/* Navigation */}
-            <nav className="flex-1 px-4 space-y-1 overflow-y-auto hide-scrollbar">
-                {menuItems.map((item) => (
-                    <NavLink
-                        key={item.path}
-                        to={item.path}
-                        end={item.path === '/dashboard'}
-                        className={({ isActive }) => `
-              flex items-center gap-4 px-6 py-4 rounded-2xl transition-all duration-300 group
-              ${isActive
-                                ? 'bg-primary text-[#0a0f0d] shadow-[0_0_25px_rgba(19,236,109,0.2)]'
-                                : 'text-slate-400 hover:text-white hover:bg-white/5'}
-            `}
+                    <button
+                        onClick={handleLogout}
+                        title="Finalizar Sessão"
+                        className="size-8 flex items-center justify-center bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white rounded-lg transition-all"
                     >
-                        {({ isActive }) => (
-                            <>
-                                <item.icon size={22} className={`${isActive ? 'stroke-[2.5px]' : 'stroke-[2px]'}`} />
-                                <span className="text-sm font-[900] italic tracking-tight">{item.label}</span>
-                            </>
-                        )}
-                    </NavLink>
-                ))}
-            </nav>
-
-            {/* User Profile and Logout */}
-            <div className="p-4 mt-auto space-y-2">
-                <div className="bg-white/5 rounded-[24px] p-4 border border-white/5 flex items-center gap-4 group cursor-pointer hover:bg-white/10 transition-all">
-                    <div className="size-12 rounded-xl bg-[#1a2b23] border border-white/10 flex items-center justify-center overflow-hidden">
-                        <Users size={24} className="text-primary opacity-50" />
-                    </div>
-                    <div className="flex flex-col flex-1">
-                        <p className="text-white font-[900] italic text-sm leading-tight">Painel Admin</p>
-                        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-0.5">SISTEMA</p>
-                    </div>
+                        <LogOut size={14} />
+                    </button>
                 </div>
 
-                <button
-                    onClick={handleLogout}
-                    className="w-full flex items-center justify-center gap-3 bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all active:scale-95"
-                >
-                    <LogOut size={16} />
-                    Sair do Sistema
-                </button>
+                {/* Compact Profile Card */}
+                <div className="flex items-center gap-3 p-2 bg-white/5 rounded-xl border border-white/5">
+                    <div className="size-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                        <Users size={14} className="text-primary" />
+                    </div>
+                    <div className="flex flex-col min-w-0">
+                        <p className="text-white font-black italic text-[10px] truncate leading-none mb-1">
+                            {profile?.full_name?.split(' ')[0] || 'Gestor'}
+                        </p>
+                        <p className="text-[7px] font-black text-slate-500 uppercase tracking-widest truncate leading-none">
+                            {profile?.role === 'admin' ? 'Acesso Total' : 'Operador'}
+                        </p>
+                    </div>
+                </div>
             </div>
+
+            {/* Navigation Sections */}
+            <nav className="flex-1 px-4 py-4 space-y-6 overflow-y-auto scrollbar-hide">
+                {menuSections.map((section, sIdx) => {
+                    const filteredItems = section.items.filter(item =>
+                        !item.roles || item.roles.includes(profile?.role || 'admin')
+                    );
+
+                    if (filteredItems.length === 0) return null;
+
+                    return (
+                        <div key={sIdx} className="space-y-1">
+                            <h3 className="px-6 text-[8px] font-black text-slate-600 uppercase tracking-[0.3em] mb-2 px-6">
+                                {section.title}
+                            </h3>
+                            <div className="space-y-0.5">
+                                {filteredItems.map((item) => (
+                                    <NavLink
+                                        key={item.path}
+                                        to={item.path}
+                                        end={item.path === '/dashboard'}
+                                        className={({ isActive }) => `
+                                            flex items-center gap-4 px-6 py-3 rounded-2xl transition-all duration-300 group
+                                            ${isActive
+                                                ? 'bg-primary/10 text-primary border border-primary/20 shadow-[0_0_15px_rgba(19,236,109,0.1)]'
+                                                : 'text-slate-400 hover:text-white hover:bg-white/5 border border-transparent'}
+                                        `}
+                                    >
+                                        {({ isActive }) => (
+                                            <>
+                                                <item.icon size={18} className={`${isActive ? 'stroke-[2.5px]' : 'stroke-[2px] opacity-70 group-hover:opacity-100'}`} />
+                                                <span className="text-[11px] font-bold tracking-tight italic">{item.label}</span>
+                                                {isActive && (
+                                                    <div className="size-1.5 bg-primary rounded-full ml-auto shadow-[0_0_8px_#13ec6d]"></div>
+                                                )}
+                                            </>
+                                        )}
+                                    </NavLink>
+                                ))}
+                            </div>
+                        </div>
+                    );
+                })}
+            </nav>
         </aside>
     );
 };

@@ -77,10 +77,27 @@ export const sendBroadcastNotification = async (
 
         const userIds = profiles.map(p => p.id);
 
-        // 2. Buscar tokens desses usuários
+        // 2. Registrar no banco de dados (Histórico interno do App)
+        // Isso garante que o usuário veja a notificação na "caixa de entrada" do app
+        console.log(`Registrando notificação no banco para ${userIds.length} usuários...`);
+
+        // Registrar para todos (em lotes se necessário, mas aqui vamos limitar aos 100 primeiros para performance imediata)
+        const targetUserIds = userIds.slice(0, 100);
+        const notificationsToInsert = targetUserIds.map(id => ({
+            user_id: id,
+            title,
+            message: body,
+            type: 'promotion',
+            created_at: new Date().toISOString()
+        }));
+
+        const { error: notifError } = await supabase.from('notifications').insert(notificationsToInsert);
+        if (notifError) console.warn('Erro ao salvar histórico de notificações:', notifError);
+
+        // 3. Buscar tokens para o Push Notification
         const { data: tokensData, error: tokensError } = await supabase
             .from('device_tokens')
-            .select('user_id, token')
+            .select('token')
             .in('user_id', userIds);
 
         if (tokensError) throw tokensError;
@@ -88,13 +105,12 @@ export const sendBroadcastNotification = async (
         const tokens = tokensData?.map(t => t.token).filter(Boolean);
 
         if (!tokens || tokens.length === 0) {
-            console.warn(`Nenhum token de dispositivo encontrado para o papel: ${role}`);
-            return false; // Retorna false explicitamente para indicar falha de tokens
+            console.warn(`Nenhum token de push encontrado para o papel: ${role}. Notificação salva apenas no banco.`);
+            return { success: true, warning: 'no_tokens' };
         }
 
-        console.log(`Enviando notificação para ${tokens.length} dispositivos (${role})...`);
-
-        // 3. Chamar Edge Function
+        // 4. Chamar Edge Function para o Push Real
+        console.log(`Enviando push para ${tokens.length} dispositivos...`);
         const { data: res, error: funcError } = await supabase.functions.invoke('send-push-notification', {
             body: {
                 tokens,
@@ -106,25 +122,10 @@ export const sendBroadcastNotification = async (
 
         if (funcError) throw funcError;
 
-        // 4. Registrar histórico (Opcional - pode ser lento para muitos usuários, melhor fazer na Edge Function futuramente)
-        // Por enquanto, vamos registrar apenas para os primeiros 50 para não travar o cliente
-        const sampleProfiles = userIds.slice(0, 50);
-        const notificationsToInsert = sampleProfiles.map(id => ({
-            user_id: id,
-            title,
-            message: body,
-            type: 'promotion',
-            read: false,
-            created_at: new Date().toISOString()
-        }));
-
-        const { error: notifError } = await supabase.from('notifications').insert(notificationsToInsert);
-        if (notifError) console.warn('Erro ao salvar histórico de notificações (não crítico):', notifError);
-
-        return res || { success: true };
+        return { success: true, pushCount: tokens.length };
     } catch (error) {
         console.error('Erro ao enviar transmissão:', error);
-        return null; // Retorna null para erro genérico
+        return { success: false, error };
     }
 };
 

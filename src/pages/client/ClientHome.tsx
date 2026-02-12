@@ -284,13 +284,10 @@ export const ClientHome = ({ userLocation, sortedPharmacies, session }: { userLo
                             </div>
                         ) : feedSections.length > 0 ? (
                             <>
-                                {/* Prioritize Banner and Featured according to user's layout */}
-                                {feedSections.filter(s => s.type === 'banner.top').map(section => renderFeedSection(section))}
-                                {feedSections.filter(s => s.type === 'pharmacy_list.featured').map(section => renderFeedSection(section))}
+                                {/* Render all sections in order */}
+                                {feedSections.map(section => renderFeedSection(section))}
 
-                                {/* Render remaining sections excluding ones already rendered */}
-                                {feedSections.filter(s => s.type !== 'banner.top' && s.type !== 'pharmacy_list.featured').map(section => renderFeedSection(section))}
-
+                                {/* Fallback: Add NearbyPharmacies if not in feed */}
                                 {feedSections.every(s => s.type !== 'pharmacy_list.nearby') && (
                                     <NearbyPharmacies pharmacies={sortedPharmacies} />
                                 )}

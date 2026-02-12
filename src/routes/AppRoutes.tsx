@@ -54,7 +54,6 @@ const FeedManagement = lazy(() => import('../pages/admin/FeedManagement').then(m
 const SystemSettings = lazy(() => import('../pages/admin/SystemSettings').then(m => ({ default: m.SystemSettings })));
 const MonetizationManagement = lazy(() => import('../pages/admin/MonetizationManagement').then(m => ({ default: m.MonetizationManagement })));
 const FeaturePlaceholder = lazy(() => import('../pages/admin/FeaturePlaceholder').then(m => ({ default: m.FeaturePlaceholder })));
-const AdminNotifications = lazy(() => import('../pages/admin/Notifications').then(m => ({ default: m.Notifications })));
 
 // Pages - Merchant (lazy load - large files)
 import MerchantLogin from '../pages/merchant/MerchantLogin';
@@ -84,7 +83,7 @@ const MotoboyChat = lazy(() => import('../pages/MotoboyChat'));
 const MotoboyNotifications = lazy(() => import('../pages/MotoboyNotifications'));
 
 // Route Guards
-import { ProtectedRoute, AdminRoute, GestorRoute } from './RouteGuards';
+import { ProtectedRoute, AdminRoute, GestorRoute, MotoboyRoute } from './RouteGuards';
 
 interface AppRoutesProps {
     session: any;
@@ -141,10 +140,10 @@ export const AppRoutes = ({ session, profile, userLocation, sortedPharmacies, re
                 <Route path="collections" element={<Suspense fallback={<LoadingScreen />}><CollectionManagement profile={profile} /></Suspense>} />
                 <Route path="feed" element={<Suspense fallback={<LoadingScreen />}><FeedManagement profile={profile} /></Suspense>} />
                 <Route path="products" element={<Suspense fallback={<LoadingScreen />}><FeaturePlaceholder title="Gestão de Produtos" /></Suspense>} />
-                <Route path="notifications" element={<Suspense fallback={<LoadingScreen />}><AdminNotifications /></Suspense>} />
                 <Route path="reports" element={<Suspense fallback={<LoadingScreen />}><FeaturePlaceholder title="Relatórios e Analytics" /></Suspense>} />
                 <Route path="monetization" element={<Suspense fallback={<LoadingScreen />}><MonetizationManagement profile={profile} /></Suspense>} />
                 <Route path="settings" element={<Suspense fallback={<LoadingScreen />}><SystemSettings profile={profile} /></Suspense>} />
+                <Route path="logs" element={<Suspense fallback={<LoadingScreen />}><FeaturePlaceholder title="Logs do Sistema" /></Suspense>} />
             </Route>
 
             {/* Protected Gestor Routes (with Suspense) */}
@@ -160,16 +159,16 @@ export const AppRoutes = ({ session, profile, userLocation, sortedPharmacies, re
 
             {/* Motoboy Routes (with Suspense) */}
             <Route path="/motoboy-login" element={<MotoboyLogin />} />
-            <Route path="/motoboy-dashboard" element={<Suspense fallback={<LoadingScreen />}><MotoboyDashboard session={session} profile={profile} /></Suspense>} />
-            <Route path="/motoboy-orders" element={<Suspense fallback={<LoadingScreen />}><MotoboyOrders /></Suspense>} />
-            <Route path="/motoboy-delivery/:id" element={<Suspense fallback={<LoadingScreen />}><MotoboyDeliveryDetailWithETA /></Suspense>} />
-            <Route path="/motoboy-route-status/:orderId" element={<Suspense fallback={<LoadingScreen />}><MotoboyRouteStatus /></Suspense>} />
-            <Route path="/motoboy-history" element={<Suspense fallback={<LoadingScreen />}><MotoboyHistory /></Suspense>} />
-            <Route path="/motoboy-earnings" element={<Suspense fallback={<LoadingScreen />}><MotoboyEarnings /></Suspense>} />
+            <Route path="/motoboy-dashboard" element={<MotoboyRoute session={session} profile={profile}><Suspense fallback={<LoadingScreen />}><MotoboyDashboard session={session} profile={profile} /></Suspense></MotoboyRoute>} />
+            <Route path="/motoboy-orders" element={<MotoboyRoute session={session} profile={profile}><Suspense fallback={<LoadingScreen />}><MotoboyOrders /></Suspense></MotoboyRoute>} />
+            <Route path="/motoboy-delivery/:id" element={<MotoboyRoute session={session} profile={profile}><Suspense fallback={<LoadingScreen />}><MotoboyDeliveryDetailWithETA /></Suspense></MotoboyRoute>} />
+            <Route path="/motoboy-route-status/:orderId" element={<MotoboyRoute session={session} profile={profile}><Suspense fallback={<LoadingScreen />}><MotoboyRouteStatus /></Suspense></MotoboyRoute>} />
+            <Route path="/motoboy-history" element={<MotoboyRoute session={session} profile={profile}><Suspense fallback={<LoadingScreen />}><MotoboyHistory /></Suspense></MotoboyRoute>} />
+            <Route path="/motoboy-earnings" element={<MotoboyRoute session={session} profile={profile}><Suspense fallback={<LoadingScreen />}><MotoboyEarnings /></Suspense></MotoboyRoute>} />
 
-            <Route path="/motoboy-confirm/:orderId" element={<Suspense fallback={<LoadingScreen />}><MotoboyDeliveryConfirm /></Suspense>} />
-            <Route path="/motoboy-chat/:orderId" element={<Suspense fallback={<LoadingScreen />}><MotoboyChat /></Suspense>} />
-            <Route path="/motoboy-notifications" element={<Suspense fallback={<LoadingScreen />}><MotoboyNotifications /></Suspense>} />
+            <Route path="/motoboy-confirm/:orderId" element={<MotoboyRoute session={session} profile={profile}><Suspense fallback={<LoadingScreen />}><MotoboyDeliveryConfirm /></Suspense></MotoboyRoute>} />
+            <Route path="/motoboy-chat/:orderId" element={<MotoboyRoute session={session} profile={profile}><Suspense fallback={<LoadingScreen />}><MotoboyChat /></Suspense></MotoboyRoute>} />
+            <Route path="/motoboy-notifications" element={<MotoboyRoute session={session} profile={profile}><Suspense fallback={<LoadingScreen />}><MotoboyNotifications /></Suspense></MotoboyRoute>} />
 
             {/* Fallback Route */}
             <Route path="*" element={<Navigate to="/" replace />} />
