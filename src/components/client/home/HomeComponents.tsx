@@ -17,11 +17,23 @@ const getValidImageUrl = (url: string) => {
 };
 
 // --- PROMO CAROUSEL (TOP HEADLINES) ---
+// --- PROMO CAROUSEL (TOP HEADLINES) ---
 export const PromoCarousel = ({ config }: { config?: any }) => {
     const [promotions, setPromotions] = useState<any[]>([]);
 
     useEffect(() => {
         const loadBanners = async () => {
+            // Prioritize new 'banners' structure with links
+            if (config?.banners && config.banners.length > 0) {
+                setPromotions(config.banners.map((b: any, idx: number) => ({
+                    id: `cfg-b-${idx}`,
+                    image_url: b.image,
+                    link: b.link
+                })));
+                return;
+            }
+
+            // Fallback to legacy 'images' structure
             if (config?.images && config.images.length > 0) {
                 setPromotions(config.images.map((url: string, idx: number) => ({
                     id: `cfg-${idx}`,
@@ -58,32 +70,58 @@ export const PromoCarousel = ({ config }: { config?: any }) => {
     return (
         <div className="w-full overflow-x-auto hide-scrollbar scroll-smooth">
             <div className="flex px-8 py-3 gap-3" style={{ minWidth: 'max-content' }}>
-                {promotions.map((promo: any) => (
-                    <div key={promo.id}
-                        className="relative w-[320px] h-[140px] rounded-[32px] overflow-hidden shadow-2xl border border-white/5 shrink-0">
-                        <div className="absolute inset-0 z-0"
-                            style={{
-                                background: promo.image_url ? `url(${promo.image_url}) center/cover no-repeat` : `linear-gradient(135deg, ${promo.color1 || '#132218'} 0%, ${promo.color2 || '#13ec6d'} 100%)`
-                            }}
-                        />
+                {promotions.map((promo: any) => {
+                    const isExternal = promo.link && (promo.link.startsWith('http') || promo.link.startsWith('www'));
+                    const containerClasses = "relative w-[300px] h-[135px] rounded-[32px] overflow-hidden shadow-xl border border-white/5 shrink-0 transition-transform active:scale-[0.98]";
 
-                        {!promo.image_url && (
-                            <div className="absolute inset-0 z-10 flex flex-col justify-center p-6 bg-black/40">
-                                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-white/80 mb-1">
-                                    {promo.name || promo.title || 'Oferta Ifarma'}
-                                </p>
-                                <h2 className="text-2xl font-black leading-tight italic text-white">
-                                    {promo.subtitle || 'Confira as novidades'}
-                                </h2>
-                                <div className="mt-4">
-                                    <span className="px-4 py-1.5 bg-primary/20 hover:bg-primary/30 rounded-full text-[9px] font-black uppercase tracking-widest text-primary border border-primary/30 backdrop-blur-md transition-colors">
-                                        Ver Agora
-                                    </span>
+                    const CardContent = () => (
+                        <>
+                            <div className="absolute inset-0 z-0"
+                                style={{
+                                    background: promo.image_url ? `url(${promo.image_url}) center/cover no-repeat` : `linear-gradient(135deg, ${promo.color1 || '#132218'} 0%, ${promo.color2 || '#13ec6d'} 100%)`
+                                }}
+                            />
+
+                            {!promo.image_url && (
+                                <div className="absolute inset-0 z-10 flex flex-col justify-center p-6 bg-black/40">
+                                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-white/80 mb-1">
+                                        {promo.name || promo.title || 'Oferta Ifarma'}
+                                    </p>
+                                    <h2 className="text-2xl font-black leading-tight italic text-white">
+                                        {promo.subtitle || 'Confira as novidades'}
+                                    </h2>
+                                    <div className="mt-4">
+                                        <span className="px-4 py-1.5 bg-primary/20 hover:bg-primary/30 rounded-full text-[9px] font-black uppercase tracking-widest text-primary border border-primary/30 backdrop-blur-md transition-colors">
+                                            Ver Agora
+                                        </span>
+                                    </div>
                                 </div>
-                            </div>
-                        )}
-                    </div>
-                ))}
+                            )}
+                        </>
+                    );
+
+                    if (promo.link) {
+                        if (isExternal) {
+                            return (
+                                <a key={promo.id} href={promo.link} target="_blank" rel="noreferrer" className={containerClasses}>
+                                    <CardContent />
+                                </a>
+                            );
+                        } else {
+                            return (
+                                <Link key={promo.id} to={promo.link} className={containerClasses}>
+                                    <CardContent />
+                                </Link>
+                            );
+                        }
+                    }
+
+                    return (
+                        <div key={promo.id} className={containerClasses}>
+                            <CardContent />
+                        </div>
+                    );
+                })}
             </div>
         </div>
     );
@@ -147,7 +185,7 @@ export const InternalAdCarousel = ({ region = 'global' }: { region?: string }) =
                         <div
                             key={ad.id}
                             onClick={() => handleAdClick(ad)}
-                            className="relative w-[280px] h-[140px] rounded-[28px] overflow-hidden shadow-xl border border-white/5 shrink-0 cursor-pointer active:scale-95 transition-all"
+                            className="relative w-[260px] h-[130px] rounded-[28px] overflow-hidden shadow-xl border border-white/5 shrink-0 cursor-pointer active:scale-95 transition-all"
                         >
                             <img src={ad.image_url} alt={ad.title} className="w-full h-full object-cover" />
                             <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent flex flex-col justify-end p-5">
@@ -202,7 +240,7 @@ export const CategoryGrid = ({ config, title }: { config?: any, title?: string }
                         <Link
                             to={cat.banner_link || `/category/${cat.id}`}
                             key={cat.id}
-                            className="relative min-w-[135px] h-[185px] rounded-[32px] overflow-hidden shadow-2xl shrink-0 snap-start active:scale-95 transition-transform bg-[#1a2e23] border border-white/5"
+                            className="relative min-w-[125px] h-[170px] rounded-[32px] overflow-hidden shadow-2xl shrink-0 snap-start active:scale-95 transition-transform bg-[#1a2e23] border border-white/5"
                         >
                             <div className="absolute inset-0 w-full h-full">
                                 {cat.image_url ? (
@@ -280,34 +318,34 @@ export const FeaturedPharmacies = ({ pharmacies, config, title }: { pharmacies: 
                         const isOpen = isPharmacyOpen(pharma);
                         return (
                             <Link to={`/pharmacy/${pharma.id}`} key={pharma.id}
-                                className={`flex flex-col gap-3 p-3 w-36 rounded-[32px] bg-[#1a2e23] shrink-0 transition-transform active:scale-95 border-b-4 border-yellow-400 shadow-[0_12px_20px_-8px_rgba(250,204,21,0.6)] ${!isOpen ? 'grayscale opacity-60' : ''}`}>
+                                className={`flex flex-col gap-2 p-2.5 w-28 rounded-[24px] bg-[#1a2e23] shrink-0 transition-transform active:scale-95 border-b-4 border-yellow-400 shadow-[0_10px_16px_-6px_rgba(250,204,21,0.5)] ${!isOpen ? 'grayscale opacity-60' : ''}`}>
 
-                                <div className="aspect-square rounded-2xl bg-black/20 flex items-center justify-center p-2 relative overflow-hidden">
+                                <div className="aspect-square rounded-xl bg-black/20 flex items-center justify-center p-2 relative overflow-hidden">
                                     {pharma.logo_url ? (
                                         <img src={pharma.logo_url} alt={pharma.name} className="w-full h-full object-contain rounded-lg" />
                                     ) : (
-                                        <div className="w-full h-full bg-primary/10 text-primary flex items-center justify-center font-black text-2xl italic">
+                                        <div className="w-full h-full bg-primary/10 text-primary flex items-center justify-center font-black text-xl italic">
                                             {pharma.name.charAt(pharma.name.startsWith('Farmácia') ? 9 : 0)}
                                         </div>
                                     )}
 
                                     {!isOpen && (
                                         <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
-                                            <span className="text-[8px] font-black text-white px-2 py-0.5 bg-red-500 rounded-full">FECHADA</span>
+                                            <span className="text-[6px] font-black text-white px-1.5 py-0.5 bg-red-500 rounded-full">FECHADA</span>
                                         </div>
                                     )}
                                 </div>
 
-                                <div className="flex flex-col gap-1 min-w-0">
-                                    <p className="text-white text-[11px] font-black italic truncate uppercase leading-tight tracking-tight">
+                                <div className="flex flex-col gap-0.5 min-w-0">
+                                    <p className="text-white text-[10px] font-black italic truncate uppercase leading-tight tracking-tight">
                                         {pharma.name}
                                     </p>
                                     <div className="flex items-center justify-between">
                                         <div className="flex items-center gap-1">
-                                            <MaterialIcon name="star" className="text-[9px] text-yellow-500" fill />
-                                            <span className="text-[10px] font-black text-yellow-500">{pharma.rating || '5.0'}</span>
+                                            <MaterialIcon name="star" className="text-[8px] text-yellow-500" fill />
+                                            <span className="text-[9px] font-black text-yellow-500">{pharma.rating || '5.0'}</span>
                                         </div>
-                                        <span className="text-[8px] text-slate-500 ml-1">
+                                        <span className="text-[7px] text-slate-500 ml-1">
                                             {pharma.distance === Infinity ? 'N/A' : `${pharma.distance.toFixed(1)}km`}
                                         </span>
                                     </div>
@@ -397,7 +435,7 @@ export const SpecialHighlights = ({ config, title, pharmacies }: { pharmacies: a
                         <Link
                             to={`/product/${item.id}`}
                             key={item.id}
-                            className={`w-36 bg-white dark:bg-[#1a2e23] p-3 rounded-[32px] flex flex-col gap-2 transition-all active:scale-95 border-b-4 border-yellow-400 shadow-[0_10px_15px_-6px_rgba(250,204,21,0.4)] shrink-0 snap-start`}
+                            className={`w-32 bg-white dark:bg-[#1a2e23] p-3 rounded-[32px] flex flex-col gap-2 transition-all active:scale-95 border-b-4 border-yellow-400 shadow-[0_10px_15px_-6px_rgba(250,204,21,0.4)] shrink-0 snap-start`}
                         >
                             <div className="aspect-square rounded-2xl bg-white dark:bg-black/20 flex items-center justify-center p-2 overflow-hidden relative border border-slate-100 dark:border-white/5">
                                 {item.image_url ? (

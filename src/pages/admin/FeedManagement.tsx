@@ -9,6 +9,11 @@ import {
 const ConfigModal = ({ section, onClose, onSave, onUpload }: { section: any, onClose: () => void, onSave: (cfg: any, title: string, isActive: boolean) => void, onUpload: (f: File) => Promise<string | null> }) => {
     const [title, setTitle] = useState(section.title);
     const [config, setConfig] = useState(section.config || {});
+    // Initialize banners from new structure or legacy images array
+    const [banners, setBanners] = useState<{ image: string, link: string }[]>(
+        section.config.banners ||
+        (section.config.images ? section.config.images.map((img: string) => ({ image: img, link: '' })) : [])
+    );
     const [isActive, setIsActive] = useState(section.is_active);
     const [uploading, setUploading] = useState(false);
 
@@ -17,17 +22,32 @@ const ConfigModal = ({ section, onClose, onSave, onUpload }: { section: any, onC
         setUploading(true);
         const url = await onUpload(e.target.files[0]);
         if (url) {
-            // Add to images array
-            const currentImages = config.images || [];
-            setConfig({ ...config, images: [...currentImages, url] });
+            setBanners([...banners, { image: url, link: '' }]);
         }
         setUploading(false);
     };
 
-    const removeImage = (index: number) => {
-        const newImages = [...(config.images || [])];
-        newImages.splice(index, 1);
-        setConfig({ ...config, images: newImages });
+    const removeBanner = (index: number) => {
+        const newBanners = [...banners];
+        newBanners.splice(index, 1);
+        setBanners(newBanners);
+    };
+
+    const updateBannerLink = (index: number, link: string) => {
+        const newBanners = [...banners];
+        newBanners[index].link = link;
+        setBanners(newBanners);
+    };
+
+    const handleSave = () => {
+        // Save both new banners structure and legacy images for backward compatibility if needed
+        // But primarily use banners. We update local config first.
+        const updatedConfig = {
+            ...config,
+            banners: banners,
+            images: banners.map(b => b.image) // Keep images sync for legacy readers
+        };
+        onSave(updatedConfig, title, isActive);
     };
 
     return (
@@ -84,24 +104,36 @@ const ConfigModal = ({ section, onClose, onSave, onUpload }: { section: any, onC
                         <div className="space-y-4">
                             <label className="block text-xs font-bold uppercase text-slate-500">Banners (Carrossel)</label>
 
-                            <div className="grid grid-cols-2 gap-4">
-                                {config.images?.map((img: string, idx: number) => (
-                                    <div key={idx} className="relative group aspect-video rounded-xl overflow-hidden border border-white/10">
-                                        <img src={img} className="w-full h-full object-cover" />
-                                        <button
-                                            onClick={() => removeImage(idx)}
-                                            className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-all"
-                                        >
-                                            <MaterialIcon name="close" className="text-sm" />
-                                        </button>
+                            <div className="grid grid-cols-1 gap-4">
+                                {banners.map((banner, idx) => (
+                                    <div key={idx} className="flex gap-3 bg-slate-50 dark:bg-black/20 p-3 rounded-xl border border-slate-100 dark:border-white/5">
+                                        <div className="w-24 aspect-video rounded-lg overflow-hidden shrink-0 border border-white/10 relative group">
+                                            <img src={banner.image} className="w-full h-full object-cover" />
+                                            <button
+                                                onClick={() => removeBanner(idx)}
+                                                className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all text-white"
+                                            >
+                                                <MaterialIcon name="delete" className="text-xl" />
+                                            </button>
+                                        </div>
+                                        <div className="flex-1">
+                                            <label className="text-[10px] uppercase font-bold text-slate-400 mb-1 block">Link de Redirecionamento</label>
+                                            <input
+                                                type="text"
+                                                placeholder="ex: /category/medicamentos ou https://google.com"
+                                                value={banner.link || ''}
+                                                onChange={(e) => updateBannerLink(idx, e.target.value)}
+                                                className="w-full p-2 text-xs bg-white dark:bg-[#1e293b] border border-slate-200 dark:border-white/10 rounded-lg"
+                                            />
+                                        </div>
                                     </div>
                                 ))}
 
-                                <label className="aspect-video rounded-xl border-2 border-dashed border-slate-300 dark:border-white/20 flex flex-col items-center justify-center cursor-pointer hover:border-primary hover:text-primary transition-all text-slate-400">
+                                <label className="w-full py-4 rounded-xl border-2 border-dashed border-slate-300 dark:border-white/20 flex flex-col items-center justify-center cursor-pointer hover:border-primary hover:text-primary transition-all text-slate-400">
                                     {uploading ? <LoadingSpinner /> : (
                                         <>
                                             <MaterialIcon name="add_photo_alternate" className="text-2xl mb-1" />
-                                            <span className="text-xs font-bold uppercase">Adicionar</span>
+                                            <span className="text-xs font-bold uppercase">Adicionar Novo Banner</span>
                                         </>
                                     )}
                                     <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} disabled={uploading} />
@@ -114,7 +146,7 @@ const ConfigModal = ({ section, onClose, onSave, onUpload }: { section: any, onC
 
                 <div className="flex gap-4 mt-8 pt-4 border-t border-slate-100 dark:border-white/5">
                     <button onClick={onClose} className="flex-1 py-3 rounded-xl font-bold bg-slate-100 dark:bg-white/5 hover:bg-slate-200 text-slate-600">Cancelar</button>
-                    <button onClick={() => onSave(config, title, isActive)} className="flex-1 py-3 rounded-xl font-bold bg-primary text-black hover:brightness-110">Salvar Alterações</button>
+                    <button onClick={handleSave} className="flex-1 py-3 rounded-xl font-bold bg-primary text-black hover:brightness-110">Salvar Alterações</button>
                 </div>
             </div>
         </div>
