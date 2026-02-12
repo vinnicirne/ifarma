@@ -168,7 +168,7 @@ export const PharmacyPage = ({ session }: { session: any }) => {
     };
 
     return (
-        <div className="max-w-lg mx-auto bg-slate-50 dark:bg-zinc-950 min-h-screen pb-36">
+        <div className="max-w-lg mx-auto bg-slate-50 dark:bg-zinc-950 min-h-screen pb-10">
             {/* Top Navigation Bar */}
             <div className="fixed top-0 left-0 right-0 z-50 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-md border-b border-slate-100 dark:border-white/5">
                 <div className="flex items-center p-4 justify-between max-w-lg mx-auto">

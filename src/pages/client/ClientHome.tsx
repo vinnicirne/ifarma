@@ -208,7 +208,7 @@ export const ClientHome = ({ userLocation, sortedPharmacies, session }: { userLo
                 session={session}
             />
 
-            <main className="flex-1 pb-32">
+            <main className="flex-1 pb-10">
                 {searchQuery.length > 0 ? (
                     <div className="p-4">
                         <div className="flex justify-between items-center mb-4">
@@ -276,40 +276,49 @@ export const ClientHome = ({ userLocation, sortedPharmacies, session }: { userLo
                 ) : (
                     <>
                         {loadingFeed ? (
-                            <div className="p-8 flex justify-center"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div></div>
+                            <div className="p-8 flex justify-center">
+                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                            </div>
                         ) : feedSections.length > 0 ? (
                             <>
-                                {feedSections.map(section => renderFeedSection(section))}
-                                {/* Garantia de lista geral no final */}
+                                {/* Prioritize Banner and Featured according to user's layout */}
+                                {feedSections.filter(s => s.type === 'banner.top').map(section => renderFeedSection(section))}
+                                {feedSections.filter(s => s.type === 'pharmacy_list.featured').map(section => renderFeedSection(section))}
+
+                                {/* Render remaining sections excluding ones already rendered */}
+                                {feedSections.filter(s => s.type !== 'banner.top' && s.type !== 'pharmacy_list.featured').map(section => renderFeedSection(section))}
+
                                 {feedSections.every(s => s.type !== 'pharmacy_list.nearby') && (
                                     <NearbyPharmacies pharmacies={sortedPharmacies} />
                                 )}
                             </>
                         ) : (
-                            // Fallback se não configurado
                             <div className="flex flex-col gap-8 pb-10">
                                 <PromoCarousel />
-                                <CategoryGrid />
                                 {sortedPharmacies.length > 0 ? (
                                     <>
                                         <FeaturedPharmacies pharmacies={sortedPharmacies} />
                                         <SpecialHighlights pharmacies={sortedPharmacies} />
+                                        <CategoryGrid />
                                         <NearbyPharmacies pharmacies={sortedPharmacies} />
                                     </>
                                 ) : (
-                                    <div className="p-10 flex flex-col items-center justify-center text-center">
-                                        <MaterialIcon name="wifi_off" className="text-5xl text-slate-200 mb-4" />
-                                        <h3 className="text-slate-500 font-bold">Nenhuma farmácia encontrada</h3>
-                                        <p className="text-xs text-slate-400 mt-2 max-w-[200px]">
-                                            Verifique sua conexão ou tente novamente.
-                                        </p>
-                                        <button
-                                            onClick={() => window.location.reload()}
-                                            className="mt-6 px-6 py-2 bg-primary/10 text-primary rounded-full text-xs font-black uppercase tracking-widest"
-                                        >
-                                            Tentar Novamente
-                                        </button>
-                                    </div>
+                                    <>
+                                        <CategoryGrid />
+                                        <div className="p-10 flex flex-col items-center justify-center text-center">
+                                            <MaterialIcon name="wifi_off" className="text-5xl text-slate-200 mb-4" />
+                                            <h3 className="text-slate-500 font-bold">Nenhuma farmácia encontrada</h3>
+                                            <p className="text-xs text-slate-400 mt-2 max-w-[200px]">
+                                                Verifique sua conexão ou tente novamente.
+                                            </p>
+                                            <button
+                                                onClick={() => window.location.reload()}
+                                                className="mt-6 px-6 py-2 bg-primary/10 text-primary rounded-full text-xs font-black uppercase tracking-widest"
+                                            >
+                                                Tentar Novamente
+                                            </button>
+                                        </div>
+                                    </>
                                 )}
                             </div>
                         )}

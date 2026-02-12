@@ -110,26 +110,26 @@ export const CategoryManagement = ({ profile }: { profile: any }) => {
                     <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
                         {categories.map((cat) => (
                             <div key={cat.id} className="bg-white dark:bg-[#193324] border border-slate-200 dark:border-white/5 rounded-[24px] p-5 flex flex-col gap-4 shadow-sm hover:shadow-md transition-all group">
-                                <div className="flex justify-between items-start">
-                                    <div className="size-16 bg-slate-100 dark:bg-black/20 rounded-2xl flex items-center justify-center">
-                                        {cat.icon_url ? (
-                                            <img src={cat.icon_url} alt={cat.name} className="size-10 object-contain" />
-                                        ) : (
-                                            <MaterialIcon name="category" className="text-3xl text-primary opacity-50" />
-                                        )}
+                                <div className="w-full h-32 bg-slate-100 dark:bg-black/20 rounded-2xl flex items-center justify-center overflow-hidden relative">
+                                    {cat.image_url ? (
+                                        <img src={cat.image_url} alt={cat.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                                    ) : (
+                                        <MaterialIcon name="category" className="text-3xl text-primary opacity-50" />
+                                    )}
+                                </div>
+                                <div className="flex justify-between items-center">
+                                    <div>
+                                        <h3 className="text-slate-900 dark:text-white font-black italic text-lg">{cat.name}</h3>
+                                        <p className="text-slate-500 dark:text-[#92c9a9] text-xs font-bold uppercase tracking-widest opacity-60">/{cat.slug}</p>
                                     </div>
-                                    <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                        <button onClick={() => handleEdit(cat)} className="p-2 hover:bg-slate-100 dark:hover:bg-white/10 rounded-full text-slate-500 hover:text-primary">
+                                    <div className="flex gap-2">
+                                        <button onClick={() => handleEdit(cat)} className="p-2 hover:bg-slate-100 dark:hover:bg-white/10 rounded-full text-slate-500 hover:text-primary transition-colors">
                                             <MaterialIcon name="edit" className="text-sm" />
                                         </button>
-                                        <button onClick={() => handleDelete(cat.id)} className="p-2 hover:bg-red-500/10 rounded-full text-slate-500 hover:text-red-500">
+                                        <button onClick={() => handleDelete(cat.id)} className="p-2 hover:bg-red-500/10 rounded-full text-slate-500 hover:text-red-500 transition-colors">
                                             <MaterialIcon name="delete" className="text-sm" />
                                         </button>
                                     </div>
-                                </div>
-                                <div>
-                                    <h3 className="text-slate-900 dark:text-white font-black italic text-lg">{cat.name}</h3>
-                                    <p className="text-slate-500 dark:text-[#92c9a9] text-xs font-bold uppercase tracking-widest opacity-60">/{cat.slug}</p>
                                 </div>
                             </div>
                         ))}

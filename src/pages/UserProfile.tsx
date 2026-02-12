@@ -176,7 +176,7 @@ const UserProfile = ({ session, profile, onRefresh }: { session: any, profile: a
 
             <NavigationDrawer isOpen={isDrawerOpen} onClose={() => setIsDrawerOpen(false)} session={session} />
 
-            <main className="flex-1 max-w-md mx-auto w-full pb-24">
+            <main className="flex-1 max-w-md mx-auto w-full pb-10">
                 {/* Profile Header Section */}
                 <section className="flex flex-col items-center py-8 px-4">
                     <div className="relative">

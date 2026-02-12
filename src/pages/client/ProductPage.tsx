@@ -66,7 +66,7 @@ export const ProductPage = ({ session }: { session: any }) => {
     if (!product) return null;
 
     return (
-        <div className="max-w-[480px] mx-auto min-h-screen bg-white dark:bg-background-dark pb-32">
+        <div className="max-w-[480px] mx-auto min-h-screen bg-white dark:bg-background-dark pb-10">
 
             <NavigationDrawer isOpen={isDrawerOpen} onClose={() => setIsDrawerOpen(false)} session={session} />
 

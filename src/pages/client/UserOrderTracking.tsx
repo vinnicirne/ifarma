@@ -373,6 +373,7 @@ export const UserOrderTracking = () => {
                     ))}
                 </div>
             </div>
+            <div className="h-32"></div>
 
             <div className="px-6 py-4 fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[480px]">
                 <div className="relative">

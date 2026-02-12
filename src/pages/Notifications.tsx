@@ -84,7 +84,7 @@ const Notifications = () => {
             </div>
 
             {/* Notification List */}
-            <main className="flex-1 px-4 pb-24">
+            <main className="flex-1 px-4 pb-10">
                 <div className="flex flex-col gap-3 md:grid md:grid-cols-2 lg:grid-cols-3 md:gap-4">
                     {loading && (
                         <div className="flex flex-col items-center justify-center py-20 opacity-50 italic">
@@ -126,36 +126,6 @@ const Notifications = () => {
                     })}
                 </div>
             </main>
-
-            {/* Navigation Bar - Mobile ONLY */}
-            <div className="md:hidden">
-                <nav className="fixed bottom-0 left-0 w-full bg-background-light/90 dark:bg-background-dark/90 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 px-6 py-3 flex justify-between items-center z-50">
-                    <Link to="/" className="flex flex-col items-center gap-1 text-slate-400 dark:text-slate-500 hover:text-primary transition-colors">
-                        <MaterialIcon name="home" />
-                        <span className="text-[10px] fon-medium">Início</span>
-                    </Link>
-                    <Link to="/pharmacies" className="flex flex-col items-center gap-1 text-slate-400 dark:text-slate-500 hover:text-primary transition-colors">
-                        <MaterialIcon name="search" />
-                        <span className="text-[10px] font-medium">Buscar</span>
-                    </Link>
-                    <button className="flex flex-col items-center gap-1 text-primary">
-                        <div className="relative">
-                            <MaterialIcon name="notifications" style={{ fontVariationSettings: "'FILL' 1" }} />
-                        </div>
-                        <span className="text-[10px] font-bold">Alertas</span>
-                    </button>
-                    <Link to="/cart" className="flex flex-col items-center gap-1 text-slate-400 dark:text-slate-500 hover:text-primary transition-colors">
-                        <MaterialIcon name="shopping_cart" />
-                        <span className="text-[10px] font-medium">Carrinho</span>
-                    </Link>
-                    <Link to="/profile" className="flex flex-col items-center gap-1 text-slate-400 dark:text-slate-500 hover:text-primary transition-colors">
-                        <MaterialIcon name="person" />
-                        <span className="text-[10px] font-medium">Perfil</span>
-                    </Link>
-                </nav>
-                {/* Home Indicator (iOS) */}
-                <div className="fixed bottom-1.5 left-1/2 -translate-x-1/2 w-32 h-1 bg-slate-300 dark:bg-slate-700 rounded-full pointer-events-none z-[60]"></div>
-            </div>
         </div>
     );
 };

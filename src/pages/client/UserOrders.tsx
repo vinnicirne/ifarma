@@ -129,7 +129,7 @@ const UserOrders = ({ session }: { session: any }) => {
 
             <NavigationDrawer isOpen={isDrawerOpen} onClose={() => setIsDrawerOpen(false)} session={session} />
 
-            <main className="flex-1 p-4 pb-24 max-w-md mx-auto w-full">
+            <main className="flex-1 p-4 pb-10 max-w-md mx-auto w-full">
                 {loading ? (
                     <div className="flex flex-col items-center justify-center h-40 gap-4">
                         <div className="size-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>

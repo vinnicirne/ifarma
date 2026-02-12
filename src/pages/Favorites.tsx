@@ -69,7 +69,7 @@ const Favorites = ({ session }: { session: any }) => {
     };
 
     return (
-        <div className="relative flex h-auto min-h-screen w-full flex-col bg-background-light dark:bg-background-dark group/design-root overflow-x-hidden max-w-[480px] mx-auto font-display transition-colors duration-200 pb-24">
+        <div className="relative flex h-auto min-h-screen w-full flex-col bg-background-light dark:bg-background-dark group/design-root overflow-x-hidden max-w-[480px] mx-auto font-display transition-colors duration-200 pb-10">
             {/* TopAppBar */}
             <div className="flex items-center bg-background-light dark:bg-background-dark p-4 pb-2 justify-between sticky top-0 z-10 border-b border-gray-100 dark:border-white/5">
                 <button
