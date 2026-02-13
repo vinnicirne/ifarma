@@ -3,27 +3,34 @@ import { Link } from 'react-router-dom';
 import { MaterialIcon } from '../../MaterialIcon';
 
 export const isPharmacyOpen = (pharmacy: any) => {
-    // If explicit override is set
-    if (pharmacy.is_open) return true;
+    try {
+        // If explicit override is set
+        if (pharmacy.is_open) return true;
 
-    // Check automatic schedule if enabled
-    if (pharmacy.auto_open_status && Array.isArray(pharmacy.opening_hours)) {
-        const now = new Date();
-        const currentDay = now.getDay();
-        const currentTime = now.getHours() * 60 + now.getMinutes();
+        // Check automatic schedule if enabled
+        if (pharmacy.auto_open_status && Array.isArray(pharmacy.opening_hours)) {
+            const now = new Date();
+            const currentDay = now.getDay();
+            const currentTime = now.getHours() * 60 + now.getMinutes();
 
-        const todayRule = pharmacy.opening_hours.find((h: any) => h.day === currentDay);
+            const todayRule = pharmacy.opening_hours.find((h: any) => h.day === currentDay);
 
-        if (todayRule && !todayRule.closed && todayRule.open && todayRule.close) {
-            const [hOpen, mOpen] = todayRule.open.split(':').map(Number);
-            const [hClose, mClose] = todayRule.close.split(':').map(Number);
-            const openTimeVal = hOpen * 60 + mOpen;
-            const closeTimeVal = hClose * 60 + mClose;
+            if (todayRule && !todayRule.closed && typeof todayRule.open === 'string' && typeof todayRule.close === 'string') {
+                const [hOpen, mOpen] = todayRule.open.split(':').map(Number);
+                const [hClose, mClose] = todayRule.close.split(':').map(Number);
 
-            if (currentTime >= openTimeVal && currentTime < closeTimeVal) {
-                return true;
+                if (isNaN(hOpen) || isNaN(hClose)) return false;
+
+                const openTimeVal = hOpen * 60 + mOpen;
+                const closeTimeVal = hClose * 60 + mClose;
+
+                if (currentTime >= openTimeVal && currentTime < closeTimeVal) {
+                    return true;
+                }
             }
         }
+    } catch (err) {
+        console.error('Error calculating open status string:', err);
     }
     return false;
 };
@@ -48,25 +55,27 @@ export const PharmacyCard = ({ pharmacy, className = "" }: PharmacyCardProps) =>
         >
             <div className="relative">
                 {/* Card Body */}
-                <div className={`flex flex-col gap-2 p-2.5 w-full rounded-[24px] bg-[#1a2e23] transition-transform active:scale-95 border-b-4 border-yellow-400 shadow-[0_10px_16px_-6px_rgba(250,204,21,0.5)] ${!isOpen ? 'grayscale opacity-60' : ''}`}>
+                <div className={`flex flex-col gap-2 p-2.5 w-full h-[180px] rounded-[24px] bg-[#1a2e23] transition-transform active:scale-95 border-b-4 border-yellow-400 shadow-[0_10px_16px_-6px_rgba(250,204,21,0.5)] ${!isOpen ? 'grayscale opacity-60' : ''}`}>
 
-                    {/* Image Container */}
-                    <div className="aspect-square rounded-xl bg-black/20 flex items-center justify-center p-2 relative overflow-hidden">
+                    {/* Image Container with Fixed Aspect Ratio & Skeleton */}
+                    <div className="h-28 w-full rounded-xl bg-black/20 flex items-center justify-center p-2 relative overflow-hidden">
                         {pharmacy.logo_url ? (
                             <img
                                 src={pharmacy.logo_url}
                                 alt={name}
+                                loading="lazy"
+                                decoding="async"
                                 className="w-full h-full object-contain rounded-lg"
                             />
                         ) : (
-                            <div className="w-full h-full bg-primary/10 text-primary flex items-center justify-center font-black text-xl italic uppercase">
+                            <div className="w-full h-full bg-primary/10 text-primary flex items-center justify-center font-black text-xl italic uppercase rounded-lg">
                                 {name.charAt(0)}
                             </div>
                         )}
 
                         {!isOpen && (
-                            <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
-                                <span className="text-[6px] font-black text-white px-1.5 py-0.5 bg-red-500 rounded-full">FECHADA</span>
+                            <div className="absolute inset-0 bg-black/60 flex items-center justify-center z-10">
+                                <span className="text-[10px] font-black text-white px-2 py-1 bg-red-500 rounded-full shadow-lg border border-red-400">FECHADA</span>
                             </div>
                         )}
                     </div>

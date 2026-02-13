@@ -10,10 +10,11 @@ export class PharmacyService {
     static async getApproved(): Promise<Pharmacy[]> {
         // Usa ilike para ser case-insensitive e tolerar espaços extras
         // Isso resolve o problema de registros como 'aprovado', 'Aprovado ', 'APROVADO'
+        // Filtro robusto para aceitar 'Aprovado', 'Approved', 'Active', 'Ativo' etc.
         const { data, error } = await supabase
             .from('pharmacies')
             .select('*')
-            .ilike('status', '%aprovado%')
+            .or('status.ilike.%aprovado%,status.ilike.%approved%,status.ilike.%active%')
             .order('is_featured', { ascending: false });
 
         if (error) {

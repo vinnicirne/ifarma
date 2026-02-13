@@ -68,11 +68,11 @@ export const PromoCarousel = ({ config }: { config?: any }) => {
     if (promotions.length === 0) return null;
 
     return (
-        <div className="w-full overflow-x-auto hide-scrollbar scroll-smooth">
-            <div className="flex px-8 py-3 gap-3" style={{ minWidth: 'max-content' }}>
+        <div className="w-full overflow-x-auto hide-scrollbar scroll-smooth snap-x snap-mandatory scroll-pl-8">
+            <div className="flex px-8 pr-8 py-3 gap-3 min-w-max">
                 {promotions.map((promo: any) => {
                     const isExternal = promo.link && (promo.link.startsWith('http') || promo.link.startsWith('www'));
-                    const containerClasses = "relative w-[300px] h-[135px] rounded-[32px] overflow-hidden shadow-xl border border-white/5 shrink-0 transition-transform active:scale-[0.98]";
+                    const containerClasses = "relative w-[300px] h-[135px] rounded-[32px] overflow-hidden shadow-xl border border-white/5 shrink-0 snap-start transition-transform active:scale-[0.98]";
 
                     const CardContent = () => (
                         <>
@@ -226,7 +226,7 @@ export const CategoryGrid = ({ config, title }: { config?: any, title?: string }
                 <Link to="/categories" className="text-primary text-xs font-black uppercase tracking-widest">Ver todas</Link>
             </div>
             <div className="w-full overflow-x-auto hide-scrollbar scroll-smooth snap-x snap-mandatory pb-2 scroll-pl-8">
-                <div className="flex gap-3 px-8">
+                <div className="flex gap-3 px-8 pr-8 min-w-max">
                     {categories.map((cat) => (
                         <Link
                             to={cat.banner_link || `/category/${cat.id}`}
@@ -313,14 +313,16 @@ export const FeaturedPharmacies = ({ pharmacies, config, title }: { pharmacies: 
                 )}
             </div>
 
-            <div className="flex gap-3 px-8 pb-5 overflow-x-auto hide-scrollbar snap-x">
-                {displayList.map((pharmacy: any, index: number) => (
-                    <PharmacyCard
-                        key={pharmacy.id || index}
-                        pharmacy={pharmacy}
-                        className="w-28 shrink-0 snap-start"
-                    />
-                ))}
+            <div className="w-full overflow-x-auto hide-scrollbar scroll-smooth snap-x snap-mandatory scroll-pl-8">
+                <div className="flex gap-2 px-8 pr-8 pb-5 min-w-max">
+                    {displayList.map((pharmacy: any, index: number) => (
+                        <PharmacyCard
+                            key={pharmacy.id || index}
+                            pharmacy={pharmacy}
+                            className="w-28 shrink-0 snap-start"
+                        />
+                    ))}
+                </div>
             </div>
         </div>
     );
@@ -397,7 +399,7 @@ export const SpecialHighlights = ({ config, title, pharmacies }: { pharmacies: a
             </div>
 
             <div className="w-full overflow-x-auto hide-scrollbar scroll-smooth snap-x snap-mandatory pb-5 scroll-pl-8">
-                <div className="flex gap-3 px-8">
+                <div className="flex gap-3 px-8 pr-8 min-w-max">
                     {products.map(item => (
                         <Link
                             to={`/product/${item.id}`}
@@ -435,65 +437,97 @@ export const SpecialHighlights = ({ config, title, pharmacies }: { pharmacies: a
 };
 
 // --- NEARBY PHARMACIES ---
-export const NearbyPharmacies = ({ pharmacies, config, title }: { pharmacies: any[], config?: any, title?: string }) => (
-    <div className="w-full">
-        <div className="px-8 pt-6 pb-2 flex justify-between items-center">
-            <h3 className="text-[#0d161b] dark:text-white text-lg font-bold leading-tight tracking-[-0.015em]">{title || 'Farmácias Próximas'}</h3>
-            <Link to="/pharmacies" className="text-primary text-xs font-black uppercase tracking-widest">
-                Mapa
-            </Link>
+export const NearbyPharmacies = ({ pharmacies, config, title }: { pharmacies?: any[], config?: any, title?: string }) => {
+    // Hardening against data issues
+    const list = Array.isArray(pharmacies) ? pharmacies : [];
+    if (list.length === 0) return null; // Hide if empty
+
+    return (
+        <div className="w-full">
+            <div className="px-8 pt-6 pb-2 flex justify-between items-center">
+                <h3 className="text-[#0d161b] dark:text-white text-lg font-bold leading-tight tracking-[-0.015em]">{title || 'Farmácias Próximas'}</h3>
+                <Link to="/pharmacies" className="text-primary text-xs font-black uppercase tracking-widest">
+                    Mapa
+                </Link>
+            </div>
+
+            <div className="grid grid-cols-1 gap-2 px-8 pb-10">
+                {list.slice(0, config?.limit || 10).map((pharma) => {
+                    const isOpen = isPharmacyOpen(pharma);
+                    return (
+                        <Link
+                            to={`/pharmacy/${pharma.id}`}
+                            key={pharma.id}
+                            className={`flex items-center gap-4 p-4 rounded-[28px] bg-white dark:bg-[#1a2e23] border border-slate-100 dark:border-white/5 active:scale-[0.98] transition-all shadow-sm ${!isOpen ? 'grayscale' : ''}`}
+                        >
+                            <div className="size-16 rounded-2xl bg-slate-50 dark:bg-black/20 flex items-center justify-center p-2 relative overflow-hidden border border-slate-100 dark:border-white/5">
+                                {pharma.logo_url ? (
+                                    <img src={pharma.logo_url} alt={pharma.name} className="w-full h-full object-contain rounded-lg" />
+                                ) : (
+                                    <div className="w-full h-full bg-primary/10 text-primary flex items-center justify-center font-black text-xl italic">
+                                        {pharma.name?.charAt(pharma.name.startsWith('Farmácia') ? 9 : 0) || 'F'}
+                                    </div>
+                                )}
+
+                                {!isOpen && (
+                                    <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                                        <span className="text-[7px] font-black text-white px-1.5 py-0.5 bg-red-500 rounded-full">FECHADA</span>
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="flex-1 min-w-0">
+                                <h4 className="text-slate-800 dark:text-white font-black italic uppercase text-sm leading-tight truncate tracking-tight">{pharma.name}</h4>
+                                <div className="flex items-center gap-3 mt-1.5">
+                                    <div className="flex items-center gap-1">
+                                        <MaterialIcon name="star" className="text-[10px] text-yellow-500" />
+                                        <span className="text-xs font-black text-yellow-500">{pharma.rating || '5.0'}</span>
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                        <MaterialIcon name="place" className="text-[10px] text-primary" />
+                                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                                            {pharma.distance === Infinity || pharma.distance === undefined ? 'Distância N/A' : typeof pharma.distance === 'number' ? `${pharma.distance.toFixed(1)} km` : ''}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        </Link>
+                    );
+                })}
+            </div>
+        </div>
+    );
+};
+
+// --- HOME SKELETON (LOADING STATE) ---
+export const HomeSkeleton = () => (
+    <div className="w-full h-full bg-[#0d161b] animate-pulse">
+        {/* Promo Carousel Skeleton */}
+        <div className="w-full overflow-x-auto hide-scrollbar pt-4 pb-2">
+            <div className="flex px-8 gap-2">
+                {[1, 2].map(i => (
+                    <div key={i} className="w-[300px] h-[135px] rounded-[32px] bg-[#1a2e23] border border-white/5 shrink-0" />
+                ))}
+            </div>
         </div>
 
-        <div className="grid grid-cols-1 gap-3 px-8 pb-10">
-            {pharmacies.slice(0, config?.limit || 10).map((pharma) => {
-                const isOpen = isPharmacyOpen(pharma);
-                return (
-                    <Link
-                        to={`/pharmacy/${pharma.id}`}
-                        key={pharma.id}
-                        className={`flex items-center gap-4 p-4 rounded-[28px] bg-white dark:bg-[#1a2e23] border border-slate-100 dark:border-white/5 active:scale-[0.98] transition-all shadow-sm ${!isOpen ? 'grayscale' : ''}`}
-                    >
-                        <div className="size-16 rounded-2xl bg-slate-50 dark:bg-black/20 flex items-center justify-center p-2 relative overflow-hidden border border-slate-100 dark:border-white/5">
-                            {pharma.logo_url ? (
-                                <img src={pharma.logo_url} alt={pharma.name} className="w-full h-full object-contain rounded-lg" />
-                            ) : (
-                                <div className="w-full h-full bg-primary/10 text-primary flex items-center justify-center font-black text-xl italic">
-                                    {pharma.name.charAt(pharma.name.startsWith('Farmácia') ? 9 : 0)}
-                                </div>
-                            )}
+        {/* Categories Skeleton */}
+        <div className="w-full overflow-x-auto hide-scrollbar py-4">
+            <div className="flex px-8 gap-3">
+                {[1, 2, 3, 4].map(i => (
+                    <div key={i} className="w-[125px] h-[170px] rounded-[32px] bg-[#1a2e23] border border-white/5 shrink-0" />
+                ))}
+            </div>
+        </div>
 
-                            {!isOpen && (
-                                <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
-                                    <span className="text-[7px] font-black text-white px-1.5 py-0.5 bg-red-500 rounded-full">FECHADA</span>
-                                </div>
-                            )}
-                        </div>
-
-                        <div className="flex-1 min-w-0">
-                            <h4 className="text-slate-800 dark:text-white font-black italic uppercase text-sm leading-tight truncate tracking-tight">{pharma.name}</h4>
-                            <div className="flex items-center gap-3 mt-1.5">
-                                <div className="flex items-center gap-1">
-                                    <MaterialIcon name="star" className="text-[10px] text-yellow-500" />
-                                    <span className="text-xs font-black text-yellow-500">{pharma.rating || '5.0'}</span>
-                                </div>
-                                <div className="flex items-center gap-1">
-                                    <MaterialIcon name="place" className="text-[10px] text-primary" />
-                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                                        {pharma.distance === Infinity ? 'Distância N/A' : `${pharma.distance.toFixed(1)} km`}
-                                    </span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="flex flex-col items-end gap-1 shrink-0">
-                            <div className="px-2.5 py-1 bg-primary/10 border border-primary/20 rounded-full">
-                                <span className="text-[8px] font-black text-primary uppercase tracking-widest">Aberto</span>
-                            </div>
-                            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">35-45 min</span>
-                        </div>
-                    </Link>
-                );
-            })}
+        {/* Pharmacy List Skeleton */}
+        <div className="px-8 pt-6 pb-2 flex justify-between items-center">
+            <div className="h-6 w-40 bg-[#1a2e23] rounded-lg" />
+        </div>
+        <div className="grid grid-cols-1 gap-2 px-8 pb-10">
+            {[1, 2, 3].map(i => (
+                <div key={i} className="w-full h-24 rounded-[28px] bg-[#1a2e23] border border-white/5" />
+            ))}
         </div>
     </div>
 );

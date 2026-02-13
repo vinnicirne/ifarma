@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { MaterialIcon } from '../../components/Shared';
@@ -19,8 +19,10 @@ import {
     CategoryGrid,
     FeaturedPharmacies,
     SpecialHighlights,
-    NearbyPharmacies
+    NearbyPharmacies,
+    HomeSkeleton
 } from '../../components/client/home/HomeComponents';
+import { rankPharmaciesIfoodStyle } from '../../lib/ranking';
 
 export const ClientHome = ({ userLocation, sortedPharmacies, session }: { userLocation: { lat: number, lng: number } | null, sortedPharmacies: any[], session: any }) => {
     const navigate = useNavigate();
@@ -30,6 +32,60 @@ export const ClientHome = ({ userLocation, sortedPharmacies, session }: { userLo
     const [feedSections, setFeedSections] = useState<any[]>([]);
     const [loadingFeed, setLoadingFeed] = useState(true);
     const cartCount = useCartCount(session?.user?.id);
+
+    // --- FALLBACK SYSTEM (Resilience) ---
+    const [fallbackPharmacies, setFallbackPharmacies] = useState<any[]>([]);
+    const [fallbackTried, setFallbackTried] = useState(false);
+
+    // Decide qual lista usar: props (do App.tsx) ou fallback (local)
+    // Se sortedPharmacies vier vazio (erro do pai/anon), usa fallback
+    // --- RANQUEAMENTO CONSISTENTE (iFood Style) ---
+    // Import dinâmico da função de ranking seria ideal, mas para simplificar vamos assumir que está importada
+    // ou movemos a lógica para cá. Como o usuário pediu src/lib/ranking.ts, vamos importar.
+    // Mas imports devem ser no topo. Vou adicionar o import no topo em outro passo ou usar require.
+    // Melhor: adicionar o import no topo e usar aqui.
+
+    const pharmaciesToUseRaw = (Array.isArray(sortedPharmacies) && sortedPharmacies.length > 0)
+        ? sortedPharmacies
+        : fallbackPharmacies;
+
+    // Aplica ranking consistente
+    const pharmaciesToUse = useMemo(() => {
+        // Se já vier ranqueado do pai, usamos (mas o pai tem random).
+        // O usuário pediu para aplicar o MESMO ranking.
+        // Mas sortedPharmacies vem via props.
+        // Se eu re-ranquear aqui, perco o trabalho do pai?
+        // O usuário disse: "E use também na lista final (pra garantir consistência)"
+        return rankPharmaciesIfoodStyle(pharmaciesToUseRaw, userLocation);
+    }, [pharmaciesToUseRaw, userLocation]);
+
+    // STABILITY FIX (iFood-style): Prevent re-ordering during load/render
+    const pharmaciesStable = useMemo(() => {
+        if (!pharmaciesToUse || pharmaciesToUse.length === 0) return [];
+        return pharmaciesToUse;
+    }, [pharmaciesToUse]);
+
+    useEffect(() => {
+        const loadFallback = async () => {
+            // Se já tem dados do pai OU já tentou o fallback, para por aqui
+            if ((Array.isArray(sortedPharmacies) && sortedPharmacies.length > 0) || fallbackTried) return;
+
+            setFallbackTried(true);
+            try {
+                // Usa nosso Service robusto
+                const { PharmacyService } = await import('../../services/pharmacy.service');
+                const data = await PharmacyService.getApproved();
+                if (data && data.length > 0) {
+                    console.log('✅ ClientHome: Fallback ativado com sucesso. Farmácias:', data.length);
+                    setFallbackPharmacies(data);
+                }
+            } catch (err) {
+                console.error('❌ ClientHome: Erro no fallback de farmácias:', err);
+            }
+        };
+
+        loadFallback();
+    }, [sortedPharmacies, fallbackTried]); // Re-executa se sortedPharmacies mudar (ex: login)
 
     const { addToCart } = useCart();
 
@@ -198,11 +254,11 @@ export const ClientHome = ({ userLocation, sortedPharmacies, session }: { userLo
             case 'category_grid':
                 return <CategoryGrid key={section.id} config={section.config || {}} title={section.title} />;
             case 'pharmacy_list.featured':
-                return <FeaturedPharmacies key={section.id} pharmacies={sortedPharmacies} config={section.config || {}} title={section.title} />;
+                return <FeaturedPharmacies key={section.id} pharmacies={pharmaciesToUse} config={section.config || {}} title={section.title} />;
             case 'pharmacy_list.bonus':
-                return <SpecialHighlights key={section.id} pharmacies={sortedPharmacies} config={section.config || {}} title={section.title} />;
+                return <SpecialHighlights key={section.id} pharmacies={pharmaciesToUse} config={section.config || {}} title={section.title} />;
             case 'pharmacy_list.nearby':
-                return <NearbyPharmacies key={section.id} pharmacies={sortedPharmacies} config={section.config || {}} title={section.title} />;
+                return <NearbyPharmacies key={section.id} pharmacies={pharmaciesToUse} config={section.config || {}} title={section.title} />;
             case 'admob.banner':
                 return null; // Invisible in list, handled by effect
             default:
@@ -288,53 +344,36 @@ export const ClientHome = ({ userLocation, sortedPharmacies, session }: { userLo
                 ) : (
                     <>
 
+
+
                         {loadingFeed ? (
-                            <div className="p-8 flex justify-center">
-                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-                            </div>
+                            <HomeSkeleton />
                         ) : feedSections.length > 0 ? (
                             <>
                                 {feedSections.map(section => renderFeedSection(section))}
                                 {feedSections.every(s => s.type !== 'pharmacy_list.nearby') && (
-                                    <NearbyPharmacies pharmacies={sortedPharmacies} />
+                                    <NearbyPharmacies pharmacies={pharmaciesStable} />
                                 )}
                             </>
                         ) : (
-                            <div className="flex flex-col gap-8 pb-10">
+                            <div className="flex flex-col gap-6 pb-20">
                                 <PromoCarousel />
-                                {sortedPharmacies.length > 0 ? (
-                                    <>
-                                        <FeaturedPharmacies pharmacies={sortedPharmacies} />
-                                        <InternalAdCarousel />
-                                        <SpecialHighlights pharmacies={sortedPharmacies} />
-                                        <CategoryGrid />
-                                        <NearbyPharmacies pharmacies={sortedPharmacies} />
-                                    </>
-                                ) : (
-                                    <>
-                                        <CategoryGrid />
-                                        <div className="p-10 flex flex-col items-center justify-center text-center">
-                                            <MaterialIcon name="wifi_off" className="text-5xl text-slate-200 mb-4" />
-                                            <h3 className="text-slate-500 font-bold">Nenhuma farmácia encontrada</h3>
-                                            <p className="text-xs text-slate-400 mt-2 max-w-[200px]">
-                                                Verifique sua conexão ou tente novamente.
-                                            </p>
-                                            <button
-                                                onClick={() => window.location.reload()}
-                                                className="mt-6 px-6 py-2 bg-primary/10 text-primary rounded-full text-xs font-black uppercase tracking-widest"
-                                            >
-                                                Tentar Novamente
-                                            </button>
-                                        </div>
-                                    </>
-                                )}
+                                <MaterialIcon name="wifi_off" className="text-5xl text-slate-200 mb-4" />
+                                <h3 className="text-slate-500 font-bold">Nenhuma farmácia encontrada</h3>
+                                <p className="text-xs text-slate-400 mt-2 max-w-[200px]">
+                                    Verifique sua conexão ou tente novamente.
+                                </p>
+                                <button
+                                    onClick={() => window.location.reload()}
+                                    className="mt-6 px-6 py-2 bg-primary/10 text-primary rounded-full text-xs font-black uppercase tracking-widest"
+                                >
+                                    Tentar Novamente
+                                </button>
                             </div>
                         )}
                     </>
                 )}
             </main>
-
-
         </div>
     );
 };

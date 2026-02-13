@@ -383,9 +383,11 @@ function App() {
         // 1. Boost massivo para garantir que fiquem no topo (Tier 1)
         finalScore += 10000;
 
-        // 2. Jitter Aleatório: Adiciona entre 0 e 2000 pontos extras
-        // Isso garante que a ordem entre os anunciantes mude a cada refresh
-        finalScore += Math.random() * 2000;
+        // 2. Jitter Determinístico (Melhor que random)
+        // Adiciona um offset fixo baseado no ID para desempatar mas manter ordem estável
+        // Isso evita que a lista "pule" a cada refresh ou navegação
+        const idSum = p.id.split('').reduce((acc: number, char: string) => acc + char.charCodeAt(0), 0);
+        finalScore += (idSum % 2000); // 0..1999 pontos estáveis
       }
 
       if (p.is_sponsored) finalScore += 5000; // Ads específicos (Banner de busca, etc)
