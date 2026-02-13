@@ -164,10 +164,14 @@ function App() {
       const { data, error } = await supabase
         .from('pharmacies')
         .select('*')
-        .eq('status', 'Aprovado');
+        .eq('status', 'Aprovado')
+        .order('is_featured', { ascending: false });
 
-      if (error) console.error("Error fetching pharmacies:", error);
-      else setAllPharmacies(data || []);
+      if (error) {
+        console.error("❌ App: Erro ao buscar farmácias:", error);
+      } else {
+        setAllPharmacies(data || []);
+      }
     }, 500); // Defer 500ms to prioritize auth/profile
 
     return () => clearTimeout(timer);
@@ -341,8 +345,6 @@ function App() {
       const plan = p.plan?.toLowerCase();
       const is_featured = p.is_featured === true || ['premium', 'pro', 'destaque'].includes(plan);
 
-      // console.log(`App.tsx: ${p.name} - is_featured=${is_featured} (DB=${p.is_featured}, Plan=${plan})`);
-
       // 🧠 ALGORITMO DE RANQUEAMENTO INTELIGENTE (iFood Style)
       // ======================================================
 
@@ -396,11 +398,7 @@ function App() {
     }).sort((a, b) => b.score - a.score);
   }, [allPharmacies, userLocation]);
 
-  useEffect(() => {
-    if (allPharmacies.length > 0) {
-      console.log(`✅ Lojas carregadas: ${allPharmacies.length} | Ordenadas: ${sortedPharmacies.length}`);
-    }
-  }, [allPharmacies, sortedPharmacies]);
+
 
   if (loading || !contextLoaded) {
     return (

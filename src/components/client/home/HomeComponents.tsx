@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { supabase } from '../../../lib/supabase';
-import { MaterialIcon } from '../../Shared';
-import { isPharmacyOpen } from '../../../lib/pharmacyUtils';
+import { MaterialIcon } from '../../MaterialIcon';
+import { PharmacyCard, isPharmacyOpen } from './PharmacyCard'; // Importando o novo componente e helper
 
 const getValidImageUrl = (url: string) => {
     if (!url) return null;
@@ -277,75 +277,49 @@ export const CategoryGrid = ({ config, title }: { config?: any, title?: string }
 
 // --- FEATURED PHARMACIES ---
 export const FeaturedPharmacies = ({ pharmacies, config, title }: { pharmacies: any[], config?: any, title?: string }) => {
-    let displayList = (pharmacies || []).filter(p => p.is_featured === true).slice(0, config?.limit || 10);
+    // Garante array
+    const sourceList = pharmacies || [];
 
-    // Fallback: Se não houver featured explícito, mostra as top ranked como destaque
-    // Isso garante que a seção Patrocinado sempre tenha conteúdo se houver farmácias
-    if (displayList.length === 0 && pharmacies && pharmacies.length > 0) {
-        // console.log("Using fallback for featured pharmacies");
-        displayList = pharmacies.slice(0, 5);
+    // Filtra featured
+    let displayList = sourceList.filter(p => p.is_featured === true);
+
+    // Fallback agressivo
+    if ((!displayList || displayList.length === 0) && sourceList.length > 0) {
+        displayList = sourceList.slice(0, 5);
     }
+
+    // Limite
+    displayList = displayList.slice(0, config?.limit || 10);
 
     if (displayList.length === 0) return null;
 
     return (
-        <div className="w-full py-4">
+        <div className="w-full py-4 min-h-[240px]">
             <div className="px-8 mb-4 flex items-center justify-between">
                 <div className="flex items-center gap-3">
                     <div className="size-10 rounded-full bg-yellow-500/10 flex items-center justify-center border border-yellow-500/20">
-                        <MaterialIcon name="verified" className="text-yellow-500 text-xl" fill />
+                        <MaterialIcon name="verified" className="text-yellow-500 text-xl" />
                     </div>
                     <div className="flex flex-col gap-0.5">
                         <p className="text-[10px] font-black text-white uppercase tracking-[0.15em] italic leading-tight">PATROCINADO</p>
                         <p className="text-[9px] font-black text-primary uppercase tracking-widest">Lojas em destaque por publicidade</p>
                     </div>
                 </div>
-                <Link to="/pharmacies" className="text-primary text-xs font-black uppercase tracking-widest">
-                    Ver todos
-                </Link>
+                {displayList.length > 3 && (
+                    <Link to="/pharmacies" className="text-[10px] font-bold text-primary hover:text-white transition-colors uppercase tracking-wider flex items-center gap-1">
+                        Ver todos <MaterialIcon name="arrow_forward" className="text-sm" />
+                    </Link>
+                )}
             </div>
-            <div className="w-full overflow-x-auto hide-scrollbar scroll-smooth">
-                <div className="flex px-8 gap-3 pb-5">
-                    {displayList.map(pharma => {
-                        const isOpen = isPharmacyOpen(pharma);
-                        return (
-                            <Link to={`/pharmacy/${pharma.id}`} key={pharma.id}
-                                className={`flex flex-col gap-2 p-2.5 w-28 rounded-[24px] bg-[#1a2e23] shrink-0 transition-transform active:scale-95 border-b-4 border-yellow-400 shadow-[0_10px_16px_-6px_rgba(250,204,21,0.5)] ${!isOpen ? 'grayscale opacity-60' : ''}`}>
 
-                                <div className="aspect-square rounded-xl bg-black/20 flex items-center justify-center p-2 relative overflow-hidden">
-                                    {pharma.logo_url ? (
-                                        <img src={pharma.logo_url} alt={pharma.name} className="w-full h-full object-contain rounded-lg" />
-                                    ) : (
-                                        <div className="w-full h-full bg-primary/10 text-primary flex items-center justify-center font-black text-xl italic">
-                                            {pharma.name.charAt(pharma.name.startsWith('Farmácia') ? 9 : 0)}
-                                        </div>
-                                    )}
-
-                                    {!isOpen && (
-                                        <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
-                                            <span className="text-[6px] font-black text-white px-1.5 py-0.5 bg-red-500 rounded-full">FECHADA</span>
-                                        </div>
-                                    )}
-                                </div>
-
-                                <div className="flex flex-col gap-0.5 min-w-0">
-                                    <p className="text-white text-[10px] font-black italic truncate uppercase leading-tight tracking-tight">
-                                        {pharma.name}
-                                    </p>
-                                    <div className="flex items-center justify-between">
-                                        <div className="flex items-center gap-1">
-                                            <MaterialIcon name="star" className="text-[8px] text-yellow-500" fill />
-                                            <span className="text-[9px] font-black text-yellow-500">{pharma.rating || '5.0'}</span>
-                                        </div>
-                                        <span className="text-[7px] text-slate-500 ml-1">
-                                            {pharma.distance === Infinity ? 'N/A' : `${pharma.distance.toFixed(1)}km`}
-                                        </span>
-                                    </div>
-                                </div>
-                            </Link>
-                        );
-                    })}
-                </div>
+            <div className="flex gap-3 px-8 pb-5 overflow-x-auto hide-scrollbar snap-x">
+                {displayList.map((pharmacy: any, index: number) => (
+                    <PharmacyCard
+                        key={pharmacy.id || index}
+                        pharmacy={pharmacy}
+                        className="w-28 shrink-0 snap-start"
+                    />
+                ))}
             </div>
         </div>
     );
@@ -409,7 +383,7 @@ export const SpecialHighlights = ({ config, title, pharmacies }: { pharmacies: a
         <div className="w-full">
             <div className="px-8 pt-8 pb-3 flex items-center gap-3">
                 <div className="size-10 rounded-full bg-yellow-500/10 flex items-center justify-center border border-yellow-500/20">
-                    <MaterialIcon name="verified" className="text-yellow-500 text-xl" fill />
+                    <MaterialIcon name="verified" className="text-yellow-500 text-xl" />
                 </div>
                 <div className="flex flex-col gap-0.5">
                     <p className="text-[10px] font-black text-white italic uppercase tracking-[0.15em] leading-tight">
@@ -498,7 +472,7 @@ export const NearbyPharmacies = ({ pharmacies, config, title }: { pharmacies: an
                             <h4 className="text-slate-800 dark:text-white font-black italic uppercase text-sm leading-tight truncate tracking-tight">{pharma.name}</h4>
                             <div className="flex items-center gap-3 mt-1.5">
                                 <div className="flex items-center gap-1">
-                                    <MaterialIcon name="star" className="text-[10px] text-yellow-500" fill />
+                                    <MaterialIcon name="star" className="text-[10px] text-yellow-500" />
                                     <span className="text-xs font-black text-yellow-500">{pharma.rating || '5.0'}</span>
                                 </div>
                                 <div className="flex items-center gap-1">
