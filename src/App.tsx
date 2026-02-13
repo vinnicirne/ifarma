@@ -169,7 +169,7 @@ function App() {
       if (error) {
         console.error("❌ App: Erro ao buscar farmácias:", error);
       } else {
-        // Filtragem Client-Side para robustez de status
+        // [FIXED] Filtragem Client-Side com chaves obrigatórias
         const approved = (data || []).filter(p => {
           const s = p.status?.toLowerCase() || '';
           return s.includes('aprovado') || s.includes('approved');
