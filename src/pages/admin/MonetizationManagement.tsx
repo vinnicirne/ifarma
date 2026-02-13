@@ -53,29 +53,38 @@ export const MonetizationManagement = ({ profile }: { profile: any }) => {
     };
 
     return (
-        <div className="flex flex-col gap-6">
-            <header className="sticky top-0 z-30 bg-background-light/80 dark:bg-background-dark/80 backdrop-blur-md border-b border-slate-200 dark:border-white/10 -mx-8 px-8 flex items-center justify-between p-5">
+        <div className="flex flex-col gap-10 animate-slide-up pb-20">
+            <header className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 mb-4">
                 <div>
-                    <h1 className="text-xl font-black tracking-tighter italic text-slate-900 dark:text-white">Gestão de Receita e Planos</h1>
-                    <div className="flex gap-4 mt-2">
-                        <button onClick={() => setActiveTab('plans')} className={`text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-colors ${activeTab === 'plans' ? 'text-primary' : 'text-slate-500 hover:text-white'}`}>
-                            <MaterialIcon name="card_membership" className="text-sm" />
-                            Assinaturas das Lojas
-                        </button>
-                        <button onClick={() => setActiveTab('ads')} className={`text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-colors ${activeTab === 'ads' ? 'text-primary' : 'text-slate-500 hover:text-white'}`}>
-                            <MaterialIcon name="campaign" className="text-sm" />
-                            Venda de Publicidade
-                        </button>
-                    </div>
+                    <h2 className="text-3xl font-[900] italic text-white tracking-tight leading-none uppercase">Matriz de Receita</h2>
+                    <p className="text-primary font-bold text-xs uppercase tracking-widest mt-2 opacity-80">Gestão de assinaturas lojistas e comercialização de mídia.</p>
                 </div>
+
+                <div className="flex bg-[#111a16] p-1.5 rounded-[24px] border border-white/5">
+                    <button
+                        onClick={() => setActiveTab('plans')}
+                        className={`px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${activeTab === 'plans' ? 'bg-primary text-[#0a0f0d] shadow-lg shadow-primary/20' : 'text-slate-500 hover:text-white'}`}
+                    >
+                        <MaterialIcon name="card_membership" className="text-sm" />
+                        Planos
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('ads')}
+                        className={`px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${activeTab === 'ads' ? 'bg-primary text-[#0a0f0d] shadow-lg shadow-primary/20' : 'text-slate-500 hover:text-white'}`}
+                    >
+                        <MaterialIcon name="campaign" className="text-sm" />
+                        Publicidade
+                    </button>
+                </div>
+
                 {activeTab === 'ads' && (
                     <button
                         onClick={handleSave}
                         disabled={isSaving}
-                        className="bg-primary hover:bg-primary/90 text-background-dark flex h-10 px-6 items-center justify-center rounded-2xl shadow-lg shadow-primary/20 transition-all active:scale-90 gap-2 text-xs font-black uppercase tracking-widest"
+                        className="bg-white/5 hover:bg-primary text-white hover:text-[#0a0f0d] h-12 px-8 rounded-2xl font-black italic text-xs tracking-widest transition-all flex items-center gap-3 border border-white/10 hover:border-primary"
                     >
                         <MaterialIcon name={success ? "check_circle" : (isSaving ? "sync" : "save")} className={isSaving ? "animate-spin" : ""} />
-                        <span>{success ? "Salvo!" : "Definir Preços"}</span>
+                        <span>{success ? "SALVO!" : "DEFINIR PREÇOS"}</span>
                     </button>
                 )}
             </header>

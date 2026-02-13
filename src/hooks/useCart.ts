@@ -25,9 +25,17 @@ export const useCart = () => {
     };
 
     const addToCart = async (productId: string, pharmacyId: string, quantity: number = 1) => {
-        const { data: { session } } = await supabase.auth.getSession();
+        let sessionData = await supabase.auth.getSession();
+        let session = sessionData.data.session;
+
+        // Tentar buscar novamente se não houver sessão imediata (comum no Capacitor)
         if (!session) {
-            throw new Error('Usuário não autenticado');
+            const { data } = await supabase.auth.getSession();
+            session = data.session;
+        }
+
+        if (!session) {
+            throw new Error('Usuário não autenticado. Por favor, faça login novamente.');
         }
 
         const { error } = await supabase
@@ -39,7 +47,12 @@ export const useCart = () => {
                 quantity
             });
 
-        if (error) throw error;
+        if (error) {
+            if (error.message.includes('schema cache')) {
+                throw new Error('Erro de sincronização no servidor. Por favor, tente novamente em instantes.');
+            }
+            throw error;
+        }
         await fetchCartItems();
     };
 

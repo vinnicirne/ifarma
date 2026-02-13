@@ -6,13 +6,12 @@ import { useNavigate } from 'react-router-dom';
 export const SystemHealth = () => {
     const navigate = useNavigate();
     const [offlinePharmacies, setOfflinePharmacies] = useState(0);
-    const [lowStockProducts, setLowStockProducts] = useState(0);
+    const [pendingPharmacies, setPendingPharmacies] = useState(0);
     const [expiringPromotions, setExpiringPromotions] = useState(0);
 
     useEffect(() => {
         const fetchHealth = async () => {
-            // 1. Farmácias Offline (ou fechadas fora do horário)
-            // Consideramos 'offline' se is_open for false durante horário comercial (simulação simplificada)
+            // 1. Farmácias Offline
             const { count: closedCount } = await supabase
                 .from('pharmacies')
                 .select('*', { count: 'exact', head: true })
@@ -21,29 +20,25 @@ export const SystemHealth = () => {
 
             setOfflinePharmacies(closedCount || 0);
 
-            // 2. Produtos sem estoque ou baixo
-            const { count: stockCount } = await supabase
-                .from('products')
+            // 2. Farmácias Pendentes de Aprovação
+            const { count: pendingCount } = await supabase
+                .from('pharmacies')
                 .select('*', { count: 'exact', head: true })
-                .lt('stock', 5)
-                .eq('is_active', true);
+                .eq('status', 'Pendente');
 
-            setLowStockProducts(stockCount || 0);
+            setPendingPharmacies(pendingCount || 0);
 
-            // 3. Campanhas encerrando (não temos data de fim na tabela promotions ainda, mas vamos assumir que 'active' é o filtro)
-            // Vou simular buscar promoções ativas por enquanto
+            // 3. Promoções Ativas
             const { count: promoCount } = await supabase
                 .from('promotions')
                 .select('*', { count: 'exact', head: true })
                 .eq('is_active', true);
 
-            // Como não temos 'expires_at' na migration 055, vamos apenas mostrar o total de ativas como 'Monitoramento'
             setExpiringPromotions(promoCount || 0);
         };
 
         fetchHealth();
 
-        // Refresh a cada 1 minuto
         const interval = setInterval(fetchHealth, 60000);
         return () => clearInterval(interval);
     }, []);
@@ -58,12 +53,12 @@ export const SystemHealth = () => {
             action: () => navigate('/dashboard/pharmacies')
         },
         {
-            label: 'Estoque Crítico',
-            count: lowStockProducts,
-            icon: Package,
-            color: lowStockProducts > 20 ? 'text-red-500' : 'text-yellow-500',
-            bg: lowStockProducts > 20 ? 'bg-red-500/10' : 'bg-yellow-500/10',
-            action: () => navigate('/dashboard/products')
+            label: 'Aprovações Pendentes',
+            count: pendingPharmacies,
+            icon: ShieldCheck,
+            color: pendingPharmacies > 0 ? 'text-primary' : 'text-slate-500',
+            bg: pendingPharmacies > 0 ? 'bg-primary/10' : 'bg-white/5',
+            action: () => navigate('/dashboard/pharmacies')
         },
         {
             label: 'Promoções Ativas',

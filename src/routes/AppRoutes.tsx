@@ -55,6 +55,9 @@ const AdminNotifications = lazy(() => import('../pages/admin/AdminNotifications'
 const SystemSettings = lazy(() => import('../pages/admin/SystemSettings').then(m => ({ default: m.SystemSettings })));
 const MonetizationManagement = lazy(() => import('../pages/admin/MonetizationManagement').then(m => ({ default: m.MonetizationManagement })));
 const FeaturePlaceholder = lazy(() => import('../pages/admin/FeaturePlaceholder').then(m => ({ default: m.FeaturePlaceholder })));
+const BillingPlans = lazy(() => import('../pages/admin/BillingPlans'));
+const BillingPolicies = lazy(() => import('../pages/admin/BillingPolicies'));
+const BillingInvoices = lazy(() => import('../pages/admin/BillingInvoices'));
 
 // Pages - Merchant (lazy load - large files)
 import MerchantLogin from '../pages/merchant/MerchantLogin';
@@ -67,6 +70,7 @@ const StoreCustomization = lazy(() => import('../pages/merchant/StoreCustomizati
 const TeamManagement = lazy(() => import('../pages/merchant/TeamManagement'));
 const MerchantNotifications = lazy(() => import('../pages/merchant/MerchantNotifications'));
 const MerchantPromotions = lazy(() => import('../pages/merchant/MerchantPromotions').then(m => ({ default: m.MerchantPromotions })));
+const MerchantBilling = lazy(() => import('../pages/merchant/MerchantBilling'));
 
 // Layout
 const MerchantLayout = lazy(() => import('../pages/merchant/MerchantLayout'));
@@ -146,6 +150,9 @@ export const AppRoutes = ({ session, profile, userLocation, sortedPharmacies, re
                 <Route path="monetization" element={<Suspense fallback={<LoadingScreen />}><MonetizationManagement profile={profile} /></Suspense>} />
                 <Route path="settings" element={<Suspense fallback={<LoadingScreen />}><SystemSettings profile={profile} /></Suspense>} />
                 <Route path="logs" element={<Suspense fallback={<LoadingScreen />}><FeaturePlaceholder title="Logs do Sistema" /></Suspense>} />
+                <Route path="billing-plans" element={<Suspense fallback={<LoadingScreen />}><BillingPlans /></Suspense>} />
+                <Route path="billing-policies" element={<Suspense fallback={<LoadingScreen />}><BillingPolicies /></Suspense>} />
+                <Route path="billing-invoices" element={<Suspense fallback={<LoadingScreen />}><BillingInvoices /></Suspense>} />
             </Route>
 
             {/* Protected Gestor Routes (with Suspense) */}
@@ -158,6 +165,7 @@ export const AppRoutes = ({ session, profile, userLocation, sortedPharmacies, re
             <Route path="/gestor/equipe" element={<GestorRoute session={session} profile={profile}><Suspense fallback={<LoadingScreen />}><TeamManagement /></Suspense></GestorRoute>} />
             <Route path="/gestor/notifications" element={<GestorRoute session={session} profile={profile}><Suspense fallback={<LoadingScreen />}><MerchantNotifications /></Suspense></GestorRoute>} />
             <Route path="/gestor/promotions" element={<GestorRoute session={session} profile={profile}><Suspense fallback={<LoadingScreen />}><MerchantPromotions /></Suspense></GestorRoute>} />
+            <Route path="/gestor/billing" element={<GestorRoute session={session} profile={profile}><Suspense fallback={<LoadingScreen />}><MerchantBilling /></Suspense></GestorRoute>} />
 
             {/* Motoboy Routes (with Suspense) */}
             <Route path="/motoboy-login" element={<MotoboyLogin />} />

@@ -128,13 +128,24 @@ const RealtimeMetrics = ({ orders = [], className = '', userRole = 'merchant' }:
             }
 
             const orderIds = filteredOrders.map(o => o.id);
-            // Fetch items for these orders
-            const { data: items } = await supabase
-                .from('order_items')
-                .select('quantity, unit_price, product_id, products(name, image_url)')
-                .in('order_id', orderIds);
 
-            if (items) {
+            const fetchItemsInChunks = async (ids: string[]) => {
+                const chunkSize = 100;
+                let allItems: any[] = [];
+                for (let i = 0; i < ids.length; i += chunkSize) {
+                    const chunk = ids.slice(i, i + chunkSize);
+                    const { data } = await supabase
+                        .from('order_items')
+                        .select('quantity, unit_price, product_id, products(name, image_url)')
+                        .in('order_id', chunk);
+                    if (data) allItems = [...allItems, ...data];
+                }
+                return allItems;
+            };
+
+            const items = await fetchItemsInChunks(orderIds);
+
+            if (items && items.length > 0) {
                 // Group by Product
                 const grouped = items.reduce((acc: any, item: any) => {
                     const pid = item.product_id;

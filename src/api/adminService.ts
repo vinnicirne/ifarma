@@ -91,11 +91,12 @@ export const adminService = {
             .order('created_at', { ascending: false })
             .limit(4);
 
-        // 5. Category Ranking
+        // 5. Category Ranking - Optimized with inner join to avoid large .in() lists
         const { data: orderItems } = await supabase
             .from('order_items')
-            .select('quantity, price, products(name, category)')
-            .in('order_id', currentSales?.map(o => o.id) || []);
+            .select('quantity, price, products(name, category), orders!inner(status, created_at)')
+            .eq('orders.status', 'entregue')
+            .gte('orders.created_at', startDateISO);
 
         let topCategories: TopCategory[] = [];
         let topProducts: TopProduct[] = [];

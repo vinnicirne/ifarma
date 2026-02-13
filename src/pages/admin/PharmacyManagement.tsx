@@ -4,11 +4,28 @@ import { supabase } from '../../lib/supabase';
 import { MaterialIcon } from '../../components/Shared';
 import { pharmacyService } from '../../api/pharmacyService';
 import type { Pharmacy } from '../../types/pharmacy';
+import {
+    Search,
+    Filter,
+    Store,
+    Plus,
+    Eye,
+    Trash2,
+    ShieldCheck,
+    Clock,
+    AlertTriangle,
+    ChevronRight,
+    ArrowUpRight,
+    CheckCircle2,
+    XCircle
+} from 'lucide-react';
 
-const PharmacyManagement = ({ profile }: { profile: any }) => {
+const PharmacyManagement = () => {
     const navigate = useNavigate();
     const [pharmacies, setPharmacies] = useState<Pharmacy[]>([]);
     const [loading, setLoading] = useState(true);
+    const [searchTerm, setSearchTerm] = useState('');
+    const [filterStatus, setFilterStatus] = useState<'all' | 'Pendente' | 'Aprovado' | 'SemPlano'>('all');
 
     const fetchPharmacies = async () => {
         setLoading(true);
@@ -34,23 +51,13 @@ const PharmacyManagement = ({ profile }: { profile: any }) => {
             try {
                 setLoading(true);
                 const result = await pharmacyService.approvePharmacy(id);
-
                 setSuccessModal({
                     open: true,
                     email: result.email,
                     password: result.password
                 });
-
                 fetchPharmacies();
             } catch (error: any) {
-                console.error('Erro na aprovação:', error);
-                const errText = error.message || '';
-                if (errText.includes('Sessão expirada') || errText.includes('JWT expired')) {
-                    alert('⚠️ Sua sessão expirou. Faça login novamente.');
-                    await supabase.auth.signOut();
-                    navigate('/login');
-                    return;
-                }
                 alert(`Erro ao aprovar: ${error.message}`);
             } finally {
                 setLoading(false);
@@ -75,231 +82,242 @@ const PharmacyManagement = ({ profile }: { profile: any }) => {
     const handleToggleStore = async (pharm: Pharmacy, e: React.MouseEvent) => {
         e.stopPropagation();
         const newStatus = !pharm.is_open;
-        // Optimistic Update
         setPharmacies(prev => prev.map(p => p.id === pharm.id ? { ...p, is_open: newStatus } : p));
-
         try {
             await pharmacyService.updatePharmacyStatus(pharm.id, newStatus);
         } catch (error) {
             alert('Erro ao atualizar status da loja');
-            fetchPharmacies(); // Revert on error
+            fetchPharmacies();
         }
     };
 
-    const copyToClipboard = () => {
-        let text = `Acesso ao Appifarma:\nLink: https://appifarma.com\nEmail: ${successModal.email}`;
+    const filteredPharmacies = pharmacies.filter(p => {
+        const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            (p.owner_email && p.owner_email.toLowerCase().includes(searchTerm.toLowerCase()));
 
-        if (successModal.password) {
-            text += `\nSenha: ${successModal.password}`;
-        } else {
-            text += `\n(Use sua senha atual)`;
-        }
+        let matchesFilter = true;
+        if (filterStatus === 'Pendente') matchesFilter = p.status === 'Pendente';
+        if (filterStatus === 'Aprovado') matchesFilter = p.status === 'Aprovado';
+        if (filterStatus === 'SemPlano') matchesFilter = !p.plan || p.plan === 'Gratuito';
 
-        navigator.clipboard.writeText(text);
-        alert("Copiado para a área de transferência!");
-    };
+        return matchesSearch && matchesFilter;
+    });
 
     return (
-        <div className="flex flex-col gap-6 relative">
-            {/* SUCCESS MODAL OVERLAY */}
+        <div className="space-y-10 animate-slide-up pb-20">
+            {/* Success Modal */}
             {successModal.open && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
-                    <div className="bg-white dark:bg-[#1a2e23] border border-slate-200 dark:border-white/10 p-8 rounded-[32px] shadow-2xl max-w-md w-full relative transform transition-all scale-100">
-                        <div className="flex flex-col items-center text-center gap-4">
-                            <div className="size-16 rounded-full bg-green-500/10 flex items-center justify-center mb-2">
-                                <MaterialIcon name="check_circle" className="text-4xl text-green-500" />
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-fade-in">
+                    <div className="bg-[#111a16] border border-white/10 p-10 rounded-[40px] shadow-2xl max-w-md w-full relative">
+                        <div className="flex flex-col items-center text-center gap-6">
+                            <div className="size-20 bg-primary/20 rounded-[30px] flex items-center justify-center shadow-lg shadow-primary/20">
+                                <CheckCircle2 size={40} className="text-primary" />
                             </div>
-                            <h2 className="text-2xl font-black italic text-slate-900 dark:text-white">Farmácia Aprovada!</h2>
-                            <p className="text-sm text-slate-500 font-medium">As credenciais de acesso foram geradas.</p>
+                            <div>
+                                <h2 className="text-3xl font-[900] italic text-white tracking-tighter uppercase">Parceiro Ativo!</h2>
+                                <p className="text-primary font-bold text-[10px] uppercase tracking-[0.3em] mt-2">Acesso gerado com sucesso</p>
+                            </div>
 
-                            <div className="w-full bg-slate-50 dark:bg-black/30 p-6 rounded-2xl border border-dashed border-slate-300 dark:border-white/10 mt-2 text-left space-y-3">
+                            <div className="w-full bg-white/5 p-6 rounded-[24px] border border-white/5 space-y-4 text-left">
                                 <div>
-                                    <span className="text-[10px] font-black uppercase tracking-widest text-[#92c9a9] block mb-1">E-mail</span>
-                                    <code className="text-sm font-bold text-slate-700 dark:text-slate-200 select-all">{successModal.email}</code>
+                                    <span className="text-[8px] font-black uppercase tracking-widest text-slate-500 block mb-1">E-mail de Acesso</span>
+                                    <code className="text-sm font-bold text-white select-all">{successModal.email}</code>
                                 </div>
-                                {successModal.password ? (
+                                {successModal.password && (
                                     <div>
-                                        <span className="text-[10px] font-black uppercase tracking-widest text-[#92c9a9] block mb-1">Senha Temporária</span>
-                                        <code className="text-lg font-black text-primary select-all">{successModal.password}</code>
-                                    </div>
-                                ) : (
-                                    <div>
-                                        <span className="text-[10px] font-black uppercase tracking-widest text-yellow-500 block mb-1">Aviso</span>
-                                        <span className="text-xs font-bold text-slate-500 dark:text-slate-400">Usuário já existia. Senha mantida.</span>
+                                        <span className="text-[8px] font-black uppercase tracking-widest text-slate-500 block mb-1">Senha Provisória</span>
+                                        <code className="text-xl font-[900] italic text-primary select-all tracking-wider">{successModal.password}</code>
                                     </div>
                                 )}
                             </div>
 
-                            <div className="flex w-full gap-3 mt-4">
-                                <button
-                                    onClick={copyToClipboard}
-                                    className="flex-1 bg-primary hover:bg-primary/90 text-background-dark h-12 rounded-xl font-bold flex items-center justify-center gap-2 transition-all active:scale-95"
-                                >
-                                    <MaterialIcon name="content_copy" />
-                                    <span>Copiar Dados</span>
-                                </button>
-                                <button
-                                    onClick={() => setSuccessModal({ open: false })}
-                                    className="px-6 bg-slate-100 hover:bg-slate-200 dark:bg-white/5 dark:hover:bg-white/10 text-slate-600 dark:text-slate-300 h-12 rounded-xl font-bold transition-all active:scale-95"
-                                >
-                                    Fechar
-                                </button>
-                            </div>
-                            <p className="text-xs text-slate-400 mt-2">Dica: Envie agora mesmo para o lojista.</p>
+                            <button
+                                onClick={() => setSuccessModal({ open: false })}
+                                className="w-full bg-primary hover:bg-primary/90 text-[#0a0f0d] h-14 rounded-2xl font-black uppercase tracking-widest transition-all active:scale-95"
+                            >
+                                Concluir
+                            </button>
                         </div>
                     </div>
                 </div>
             )}
 
-            <header className="sticky top-0 z-30 bg-background-light/80 dark:bg-background-dark/80 backdrop-blur-md border-b border-slate-200 dark:border-white/10 -mx-8 px-8 flex items-center justify-between p-5">
+            {/* Header Area */}
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
                 <div>
-                    <h1 className="text-xl font-black tracking-tighter italic text-slate-900 dark:text-white">Gestão de Farmácias</h1>
-                    <p className="text-[10px] text-slate-500 dark:text-[#92c9a9] font-black uppercase tracking-widest mt-1">Controle de parceiros e aprovações</p>
+                    <h2 className="text-3xl font-[900] italic text-white tracking-none uppercase leading-none">Gestão de Parceiros</h2>
+                    <p className="text-primary font-bold text-xs uppercase tracking-widest mt-2 opacity-80">Controle total sobre farmácias e faturamento.</p>
                 </div>
-                <button
-                    onClick={() => navigate('/dashboard/pharmacy/new')} // Navegar para página de criação
-                    className="bg-primary hover:bg-primary/90 text-background-dark flex h-10 px-4 items-center justify-center rounded-2xl shadow-lg shadow-primary/20 transition-all active:scale-90 gap-2 text-xs font-black uppercase tracking-widest"
-                >
-                    <MaterialIcon name="add_business" />
-                    <span className="hidden sm:inline">Nova Farmácia</span>
-                </button>
-            </header>
 
-            <main className="pb-32 md:pb-10 p-4 md:p-8">
-                {loading ? (
-                    <div className="py-20 flex justify-center"><div className="animate-spin size-8 border-4 border-primary border-t-transparent rounded-full"></div></div>
-                ) : (
-                    <div className="bg-white dark:bg-[#1a2e23] rounded-[32px] border border-slate-200 dark:border-white/5 shadow-xl overflow-hidden">
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-left border-collapse">
-                                <thead className="bg-slate-50 dark:bg-black/30 border-b border-slate-200 dark:border-white/5">
-                                    <tr>
-                                        <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-[#92c9a9]">Farmácia</th>
-                                        <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-[#92c9a9] hidden md:table-cell">Localização</th>
-                                        <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-[#92c9a9] hidden sm:table-cell">Plano</th>
-                                        <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-[#92c9a9]">Loja</th>
-                                        <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-[#92c9a9]">Status</th>
-                                        <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-[#92c9a9] text-right">Ações</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {pharmacies.map((pharm) => (
-                                        <tr
-                                            key={pharm.id}
-                                            onClick={() => navigate(`/dashboard/pharmacy/${pharm.id}`)}
-                                            className="border-b border-slate-100 dark:border-white/5 hover:bg-slate-50 dark:hover:bg-white/5 transition-colors cursor-pointer group"
-                                        >
-                                            <td className="p-5">
-                                                <div className="flex items-center gap-4">
-                                                    <div className="size-12 rounded-xl bg-slate-100 dark:bg-black/20 border border-slate-200 dark:border-white/10 flex items-center justify-center overflow-hidden shrink-0">
-                                                        {pharm.logo_url ? (
-                                                            <img src={pharm.logo_url} alt={pharm.name} className="w-full h-full object-cover" />
-                                                        ) : (
-                                                            <MaterialIcon name="store" className="text-xl text-primary/40" />
-                                                        )}
-                                                    </div>
-                                                    <div>
-                                                        <h3 className="text-sm font-black italic text-slate-900 dark:text-white leading-tight">{pharm.name}</h3>
-                                                        <p className="text-[10px] text-slate-500 font-medium mt-1">Desde {new Date(pharm.created_at).toLocaleDateString('pt-BR')}</p>
-                                                    </div>
-                                                </div>
-                                            </td>
+                <div className="flex items-center gap-3">
+                    <button
+                        onClick={() => navigate('/dashboard/pharmacy/new')}
+                        className="bg-primary hover:bg-primary/90 text-[#0a0f0d] h-14 px-8 rounded-2xl font-black uppercase tracking-widest flex items-center gap-3 transition-all active:scale-95 shadow-lg shadow-primary/10"
+                    >
+                        <Store size={18} />
+                        Nova Farmácia
+                    </button>
+                </div>
+            </div>
 
-                                            <td className="p-5 hidden md:table-cell">
-                                                <div className="flex items-center gap-2 max-w-[200px]">
-                                                    <MaterialIcon name="location_on" className="text-slate-400 text-sm" />
-                                                    <span className="text-xs font-bold text-slate-600 dark:text-slate-300 truncate">{pharm.address || 'Endereço não informado'}</span>
-                                                </div>
-                                            </td>
+            {/* Filters Bar */}
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-center">
+                <div className="md:col-span-8 relative group">
+                    <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-primary transition-colors" size={20} />
+                    <input
+                        type="text"
+                        placeholder="Pesquisar farmácia, dono ou email..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="w-full h-16 bg-[#111a16] border border-white/5 rounded-[28px] pl-16 pr-6 py-4 text-sm text-white font-bold outline-none focus:border-primary/30 focus:bg-primary/[0.02] transition-all placeholder:text-slate-600 shadow-inner"
+                    />
+                </div>
+                <div className="md:col-span-4 flex gap-3 h-16">
+                    {[
+                        { id: 'all', label: 'Tudo', icon: ShieldCheck },
+                        { id: 'Pendente', label: 'Pendentes', icon: Clock },
+                        { id: 'SemPlano', label: 'Sem Plano', icon: AlertTriangle }
+                    ].map(f => (
+                        <button
+                            key={f.id}
+                            onClick={() => setFilterStatus(f.id as any)}
+                            className={`flex-1 rounded-[24px] flex flex-col md:flex-row items-center justify-center gap-2 text-[9px] font-black uppercase tracking-widest transition-all px-2 ${filterStatus === f.id
+                                ? 'bg-primary text-[#0a0f0d] shadow-lg shadow-primary/20 scale-105 z-10'
+                                : 'bg-white/5 text-slate-500 border border-white/5 hover:bg-white/10'}`}
+                        >
+                            <f.icon size={14} className={filterStatus === f.id ? 'animate-pulse' : ''} />
+                            <span className="hidden sm:inline-block">{f.label}</span>
+                        </button>
+                    ))}
+                </div>
+            </div>
 
-                                            <td className="p-5 hidden sm:table-cell">
-                                                <div className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-lg ${pharm.plan === 'Premium' ? 'bg-[#13ec6d]/10 text-[#13ec6d]' : 'bg-slate-100 dark:bg-white/10 text-slate-500 dark:text-gray-400'}`}>
-                                                    <span className="text-[9px] font-black uppercase tracking-widest">{pharm.plan || 'Gratuito'}</span>
-                                                </div>
-                                            </td>
-
-                                            <td className="p-5" onClick={e => e.stopPropagation()}>
-                                                <button
-                                                    onClick={(e) => handleToggleStore(pharm, e)}
-                                                    className={`h-8 px-3 rounded-full flex items-center gap-2 transition-all ${pharm.is_open
-                                                        ? 'bg-green-500 text-white shadow-lg shadow-green-500/30'
-                                                        : 'bg-slate-200 dark:bg-white/10 text-slate-500 dark:text-slate-400'
-                                                        }`}
-                                                >
-                                                    <span className={`size-2 rounded-full ${pharm.is_open ? 'bg-white animate-pulse' : 'bg-slate-400'}`}></span>
-                                                    <span className="text-[10px] font-black uppercase tracking-widest leading-none pt-0.5">
-                                                        {pharm.is_open ? 'Aberta' : 'Fechada'}
-                                                    </span>
-                                                </button>
-                                            </td>
-
-                                            <td className="p-5">
-                                                {(() => {
-                                                    const statusMap: Record<string, { label: string, color: string, dot: string }> = {
-                                                        'Aprovado': { label: 'Aprovado', color: 'bg-[#13ec6d]/10 text-[#13ec6d]', dot: 'bg-[#13ec6d]' },
-                                                        'Pendente': { label: 'Pendente', color: 'bg-yellow-500/10 text-yellow-500', dot: 'bg-yellow-500' },
-                                                        'Rejeitado': { label: 'Rejeitado', color: 'bg-red-500/10 text-red-500', dot: 'bg-red-500' },
-                                                        'Suspenso': { label: 'Suspenso', color: 'bg-slate-500/10 text-slate-500', dot: 'bg-slate-500' }
-                                                    };
-
-                                                    // Fallback for unknown status or uppercase
-                                                    const normalizedStatus = pharm.status || 'Pendente';
-                                                    const style = statusMap[normalizedStatus] || statusMap['Pendente'];
-
-                                                    return (
-                                                        <span className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${style.color}`}>
-                                                            <span className={`size-1.5 rounded-full ${style.dot}`}></span>
-                                                            {style.label}
-                                                        </span>
-                                                    );
-                                                })()}
-                                            </td>
-
-                                            <td className="p-5 text-right">
-                                                <div className="flex items-center justify-end gap-2" onClick={e => e.stopPropagation()}>
-                                                    {/* Approve Button (if distinct from status) or just Actions */}
-                                                    {pharm.status !== 'Aprovado' && (
-                                                        <button
-                                                            onClick={(e) => handleApprove(pharm.id, e)}
-                                                            className="size-9 rounded-xl bg-[#13ec6d]/10 hover:bg-[#13ec6d]/20 text-[#13ec6d] flex items-center justify-center transition-all"
-                                                            title="Aprovar"
-                                                        >
-                                                            <MaterialIcon name="check" className="text-lg" />
-                                                        </button>
+            {/* Pharmacies Grid/List */}
+            <div className="bg-[#111a16] border border-white/5 rounded-[40px] shadow-2xl overflow-hidden">
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                        <thead>
+                            <tr className="bg-black/20">
+                                <th className="p-8 text-[11px] font-black uppercase tracking-[0.2em] text-primary/50 text-left">Farmácia / Gestor</th>
+                                <th className="p-8 text-[11px] font-black uppercase tracking-[0.2em] text-primary/50 text-left">Vínculo / Plano</th>
+                                <th className="p-8 text-[11px] font-black uppercase tracking-[0.2em] text-primary/50 text-left">Operacional</th>
+                                <th className="p-8 text-[11px] font-black uppercase tracking-[0.2em] text-primary/50 text-right">Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-white/5">
+                            {loading ? (
+                                <tr>
+                                    <td colSpan={4} className="p-24 text-center">
+                                        <div className="flex flex-col items-center gap-4 animate-pulse">
+                                            <div className="size-14 rounded-full border-[3px] border-primary border-t-transparent animate-spin"></div>
+                                            <span className="text-primary font-black uppercase tracking-widest text-[10px]">Carregando Parceiros...</span>
+                                        </div>
+                                    </td>
+                                </tr>
+                            ) : filteredPharmacies.length > 0 ? filteredPharmacies.map((pharm) => (
+                                <tr
+                                    key={pharm.id}
+                                    onClick={() => navigate(`/dashboard/pharmacy/${pharm.id}`)}
+                                    className="group hover:bg-white/[0.02] transition-colors cursor-pointer"
+                                >
+                                    <td className="p-8">
+                                        <div className="flex items-center gap-5">
+                                            <div className="size-14 rounded-2xl bg-[#0a0f0d] border border-white/5 flex items-center justify-center overflow-hidden shrink-0 group-hover:border-primary/20 transition-all">
+                                                {pharm.logo_url ? (
+                                                    <img src={pharm.logo_url} alt="" className="w-full h-full object-cover" />
+                                                ) : (
+                                                    <Store size={24} className="text-slate-700" />
+                                                )}
+                                            </div>
+                                            <div className="flex flex-col gap-1">
+                                                <h4 className="text-sm font-[900] italic text-white leading-none uppercase tracking-tight group-hover:text-primary transition-colors">{pharm.name}</h4>
+                                                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mt-1 flex items-center gap-2">
+                                                    {pharm.address || 'Sem endereço'}
+                                                    {pharm.owner_email && (
+                                                        <>
+                                                            <span className="size-1 rounded-full bg-white/10"></span>
+                                                            <span className="text-slate-600 font-medium italic lowercase">{pharm.owner_email}</span>
+                                                        </>
                                                     )}
-
-                                                    <button
-                                                        onClick={(e) => { e.stopPropagation(); navigate(`/dashboard/pharmacy/${pharm.id}`); }}
-                                                        className="size-9 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-white/5 dark:hover:bg-white/10 text-slate-500 dark:text-white flex items-center justify-center transition-all"
-                                                        title="Editar"
-                                                    >
-                                                        <MaterialIcon name="edit" className="text-lg" />
-                                                    </button>
-
-                                                    <button
-                                                        onClick={(e) => handleDelete(pharm.id, e)}
-                                                        className="size-9 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-500 flex items-center justify-center transition-all"
-                                                        title="Excluir"
-                                                    >
-                                                        <MaterialIcon name="delete" className="text-lg" />
-                                                    </button>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                    {pharmacies.length === 0 && (
-                                        <tr>
-                                            <td colSpan={6} className="p-10 text-center text-slate-500">
-                                                Nenhuma farmácia encontrada.
-                                            </td>
-                                        </tr>
-                                    )}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                )}
-            </main>
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td className="p-8">
+                                        <div className="flex flex-col gap-2">
+                                            <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest border w-fit ${pharm.status === 'Aprovado' ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' :
+                                                pharm.status === 'Pendente' ? 'bg-amber-500/10 text-amber-500 border-amber-500/20 animate-pulse' :
+                                                    'bg-red-500/10 text-red-500 border-red-500/20'
+                                                }`}>
+                                                <div className={`size-1.5 rounded-full ${pharm.status === 'Aprovado' ? 'bg-emerald-500' : pharm.status === 'Pendente' ? 'bg-amber-500' : 'bg-red-500'}`}></div>
+                                                {pharm.status || 'Pendente'}
+                                            </div>
+                                            <span className="text-[10px] font-bold text-slate-500 px-1 uppercase tracking-widest flex items-center gap-2">
+                                                {pharm.plan === 'Premium' ? <ShieldCheck size={12} className="text-primary" /> : <Clock size={12} />}
+                                                {pharm.plan || 'Gratuito'}
+                                            </span>
+                                        </div>
+                                    </td>
+                                    <td className="p-8" onClick={e => e.stopPropagation()}>
+                                        <button
+                                            onClick={(e) => handleToggleStore(pharm, e)}
+                                            className={`h-11 px-5 rounded-[18px] flex items-center gap-3 transition-all ${pharm.is_open
+                                                ? 'bg-primary text-[#0a0f0d] shadow-lg shadow-primary/20'
+                                                : 'bg-white/5 text-slate-500 grayscale opacity-60'
+                                                }`}
+                                        >
+                                            <div className={`size-2 rounded-full ${pharm.is_open ? 'bg-[#0a0f0d] animate-pulse' : 'bg-slate-500'}`}></div>
+                                            <span className="text-[10px] font-black uppercase tracking-[0.1em]">
+                                                {pharm.is_open ? 'Aberta' : 'Fechada'}
+                                            </span>
+                                        </button>
+                                    </td>
+                                    <td className="p-8 text-right">
+                                        <div className="flex items-center justify-end gap-3" onClick={e => e.stopPropagation()}>
+                                            {pharm.status !== 'Aprovado' && (
+                                                <button
+                                                    onClick={(e) => handleApprove(pharm.id, e)}
+                                                    className="h-11 px-5 rounded-2xl bg-primary/20 hover:bg-primary text-primary hover:text-[#0a0f0d] flex items-center justify-center gap-2 transition-all font-black text-[10px] uppercase tracking-widest border border-primary/20"
+                                                    title="Aprovar Agora"
+                                                >
+                                                    <ShieldCheck size={16} />
+                                                    Aprovar
+                                                </button>
+                                            )}
+                                            <button
+                                                onClick={() => navigate(`/dashboard/pharmacy/${pharm.id}`)}
+                                                className="size-11 rounded-2xl bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white flex items-center justify-center transition-all border border-white/5"
+                                                title="Ver Detalhes"
+                                            >
+                                                <Eye size={18} />
+                                            </button>
+                                            <button
+                                                onClick={(e) => handleDelete(pharm.id, e)}
+                                                className="size-11 rounded-2xl bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white flex items-center justify-center transition-all border border-red-500/10"
+                                                title="Excluir"
+                                            >
+                                                <Trash2 size={18} />
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            )) : (
+                                <tr>
+                                    <td colSpan={4} className="p-32 text-center">
+                                        <div className="flex flex-col items-center gap-4">
+                                            <div className="size-20 bg-white/5 rounded-[30px] flex items-center justify-center text-slate-700 mb-4">
+                                                <Store size={40} />
+                                            </div>
+                                            <h4 className="text-white font-[900] italic text-xl uppercase tracking-tight">Nenhuma Farmácia Encontrada</h4>
+                                            <p className="text-slate-500 font-bold text-[10px] uppercase tracking-widest max-w-xs">Tente ajustar seus filtros ou pesquisar por outro termo.</p>
+                                        </div>
+                                    </td>
+                                </tr>
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
         </div>
     );
 };

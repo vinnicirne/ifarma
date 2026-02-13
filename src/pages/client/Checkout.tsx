@@ -75,30 +75,52 @@ const Checkout = () => {
             setPharmacy(pharmData);
         }
 
-        // Buscar endereço do perfil
+        // 1. Buscar endereço do perfil (Principal)
         const { data: profile } = await supabase
             .from('profiles')
-            .select('address')
+            .select('address, latitude, longitude')
             .eq('id', session.user.id)
             .single();
 
-        if (profile?.address) {
-            setAddress(profile.address);
-        }
-
-        // Buscar todos os endereços salvos
+        // 2. Buscar todos os endereços salvos na user_addresses
         const { data: userAddresses } = await supabase
             .from('user_addresses')
             .select('*')
             .eq('user_id', session.user.id);
 
-        if (userAddresses) {
-            setAddresses(userAddresses);
-            const main = userAddresses.find(a => a.is_default);
-            if (main) {
-                setAddress(main.street || main.address);
-                setSelectedAddressId(main.id);
-            }
+        let allPossibleAddresses: any[] = [];
+
+        // Adicionar endereço do perfil como "Principal" se existir
+        if (profile?.address) {
+            allPossibleAddresses.push({
+                id: 'profile_main',
+                name: 'Principal',
+                street: profile.address, // Já vem completo do UserProfile.tsx
+                latitude: profile.latitude,
+                longitude: profile.longitude,
+                is_default: !userAddresses || userAddresses.every(a => !a.is_default)
+            });
+        }
+
+        if (userAddresses && userAddresses.length > 0) {
+            const mapped = userAddresses.map(a => {
+                // Para user_addresses, precisamos concatenar
+                let full = a.street || a.address || '';
+                if (a.number && !full.includes(a.number)) full += `, ${a.number}`;
+                return { ...a, street: full }; // Normalizar para exibir no UI
+            });
+            allPossibleAddresses = [...allPossibleAddresses, ...mapped];
+        }
+
+        setAddresses(allPossibleAddresses);
+
+        // Selecionar o padrão ou o primeiro disponível
+        const defaultAddr = allPossibleAddresses.find(a => a.is_default) || allPossibleAddresses[0];
+        if (defaultAddr) {
+            setAddress(defaultAddr.street);
+            setSelectedAddressId(defaultAddr.id);
+            setComplement(defaultAddr.complement || '');
+            // Se for do perfil, talvez o complemento já esteja na string, mas deixamos vazio ou extraímos
         }
     };
 
@@ -276,10 +298,10 @@ const Checkout = () => {
     };
 
     const paymentMethods = [
-        { id: 'pix', name: 'PIX', icon: 'qr_code', enabled: paymentSettings?.accepts_pix },
-        { id: 'cash', name: 'Dinheiro', icon: 'payments', enabled: paymentSettings?.accepts_cash },
-        { id: 'debit', name: 'Débito', icon: 'credit_card', enabled: paymentSettings?.accepts_debit },
-        { id: 'credit', name: 'Crédito', icon: 'credit_card', enabled: paymentSettings?.accepts_credit }
+        { id: 'pix', name: 'PIX', icon: 'qr_code', enabled: paymentSettings ? paymentSettings.accepts_pix : true },
+        { id: 'cash', name: 'Dinheiro', icon: 'payments', enabled: paymentSettings ? paymentSettings.accepts_cash : true },
+        { id: 'debit', name: 'Débito', icon: 'credit_card', enabled: paymentSettings ? paymentSettings.accepts_debit : true },
+        { id: 'credit', name: 'Crédito', icon: 'credit_card', enabled: paymentSettings ? paymentSettings.accepts_credit : true }
     ];
 
     return (
@@ -292,7 +314,7 @@ const Checkout = () => {
                 <h2 className="text-[#0d1b13] dark:text-white text-lg font-bold leading-tight tracking-[-0.015em] flex-1 text-center pr-12">Finalizar Pedido</h2>
             </header>
 
-            <main className="flex-1 flex flex-col gap-4 p-4">
+            <main className="flex-1 flex flex-col gap-4 p-4 pb-48">
                 {/* Endereço de Entrega (Seleção Inteligente) */}
                 <div className="bg-white dark:bg-background-dark/40 rounded-2xl p-4 border border-gray-100 dark:border-gray-800">
                     <div className="flex items-center justify-between mb-4">
@@ -311,53 +333,69 @@ const Checkout = () => {
                             <button
                                 key={addr.id}
                                 onClick={() => {
-                                    setAddress(addr.street || addr.address);
+                                    setAddress(addr.street);
                                     setSelectedAddressId(addr.id);
+                                    setComplement(addr.complement || '');
                                 }}
                                 className={`flex flex-col min-w-[160px] p-3 rounded-xl border-2 transition-all ${selectedAddressId === addr.id
                                     ? 'border-primary bg-primary/10'
                                     : 'border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30'}`}
                             >
                                 <div className="flex items-center gap-2 mb-1">
-                                    <MaterialIcon name={(addr.name || addr.label) === 'Trabalho' ? 'work' : 'home'} className={`text-sm ${selectedAddressId === addr.id ? 'text-primary' : 'text-slate-400'}`} />
-                                    <span className="text-xs font-bold uppercase truncate">{addr.name || addr.label}</span>
+                                    <MaterialIcon
+                                        name={
+                                            addr.id === 'profile_main' ? 'person' :
+                                                (addr.name || addr.label) === 'Trabalho' ? 'work' : 'home'
+                                        }
+                                        className={`text-sm ${selectedAddressId === addr.id ? 'text-primary' : 'text-slate-400'}`}
+                                    />
+                                    <span className="text-xs font-bold uppercase truncate">{addr.name || addr.label || 'Endereço'}</span>
                                 </div>
-                                <p className="text-[10px] text-left line-clamp-2 opacity-70">{addr.street || addr.address}</p>
+                                <p className="text-[10px] text-left line-clamp-2 opacity-70">{addr.street}</p>
                             </button>
                         ))}
                     </div>
 
-                    <p className="text-xs font-bold text-slate-500 uppercase mb-2">Endereço selecionado:</p>
-                    <div className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-sm font-medium min-h-[60px] flex flex-col justify-center">
-                        <p className="text-slate-900 dark:text-white leading-tight">
-                            {address || <span className="text-slate-400 italic">Nenhum endereço selecionado</span>}
-                        </p>
+                    <p className="text-[10px] font-black text-slate-500 uppercase mb-2 tracking-widest px-1">Endereço de entrega</p>
+                    <div className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 rounded-2xl p-4 text-sm font-medium shadow-sm transition-all flex items-start gap-3">
+                        <div className="mt-1 flex items-center justify-center size-8 bg-primary/10 text-primary rounded-lg shrink-0">
+                            <MaterialIcon name="location_on" className="text-xl" />
+                        </div>
+                        <div className="flex-1 flex flex-col">
+                            <p className="text-slate-900 dark:text-white font-black text-base leading-tight italic">
+                                {address || <span className="text-slate-400">Nenhum endereço selecionado</span>}
+                            </p>
+                            {complement && (
+                                <p className="text-primary text-[11px] font-bold uppercase mt-1 tracking-wider flex items-center gap-1">
+                                    <MaterialIcon name="info" className="text-[14px]" />
+                                    {complement}
+                                </p>
+                            )}
+                        </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-3 mt-4">
-                        <div>
-                            <label className="text-[10px] font-black uppercase text-slate-400 mb-1 block">Complemento</label>
+                    <div className="mt-6 space-y-4">
+                        <div className="flex flex-col gap-1">
+                            <label className="text-[10px] font-black uppercase text-slate-400 ml-1 tracking-widest">Observações p/ o Entregador</label>
+                            <textarea
+                                value={observation}
+                                onChange={(e) => setObservation(e.target.value)}
+                                placeholder="Ex: Tocar a campainha, deixar na portaria, ponto de referência..."
+                                className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 rounded-2xl p-4 text-sm resize-none font-medium h-24 outline-none focus:border-primary transition-all focus:bg-white dark:focus:bg-slate-900 shadow-sm"
+                            />
+                        </div>
+
+                        {/* Complemento as optional/secondary if not already in main address */}
+                        <div className="flex items-center gap-2 group">
+                            <MaterialIcon name="add_circle" className="text-primary text-sm" />
                             <input
                                 type="text"
                                 value={complement}
                                 onChange={(e) => setComplement(e.target.value)}
-                                placeholder="Apto, Bloco..."
-                                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-sm font-medium outline-none focus:border-primary"
+                                placeholder="Editar complemento (opcional)"
+                                className="flex-1 bg-transparent border-none text-[11px] font-bold uppercase text-slate-400 focus:text-primary outline-none tracking-widest transition-colors"
                             />
                         </div>
-                        <div className="col-span-1">
-                            {/* Empty space or another field if needed */}
-                        </div>
-                    </div>
-
-                    <div className="mt-4">
-                        <label className="text-[10px] font-black uppercase text-slate-400 mb-1 block">Observações p/ o Entregador</label>
-                        <textarea
-                            value={observation}
-                            onChange={(e) => setObservation(e.target.value)}
-                            placeholder="Ex: Tocar a campainha, deixar na portaria..."
-                            className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-sm resize-none font-medium h-20 outline-none focus:border-primary"
-                        />
                     </div>
                 </div>
 

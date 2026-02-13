@@ -16,8 +16,12 @@ import {
     Layers,
     ShieldCheck,
     Navigation,
+    CreditCard,
+    ScrollText,
     LogOut,
-    BookmarkCheck
+    BookmarkCheck,
+    Receipt,
+    BarChart3
 } from 'lucide-react';
 
 const Sidebar = ({ profile }: { profile?: any }) => {
@@ -65,7 +69,10 @@ const Sidebar = ({ profile }: { profile?: any }) => {
             title: 'FINANCEIRO',
             items: [
                 { icon: DollarSign, label: 'Monetização', path: '/dashboard/monetization', roles: ['admin'] },
-                { icon: FileText, label: 'Relatórios', path: '/dashboard/reports', roles: ['admin', 'operator'] },
+                { icon: CreditCard, label: 'Planos de Cobrança', path: '/dashboard/billing-plans', roles: ['admin'] },
+                { icon: ScrollText, label: 'Políticas e Configs', path: '/dashboard/billing-policies', roles: ['admin'] },
+                { icon: Receipt, label: 'Faturas e Cobranças', path: '/dashboard/billing-invoices', roles: ['admin'] },
+                { icon: BarChart3, label: 'Relatórios', path: '/dashboard/reports', roles: ['admin', 'operator'] },
             ]
         },
         {

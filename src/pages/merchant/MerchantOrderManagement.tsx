@@ -635,13 +635,16 @@ const MerchantOrderManagement = () => {
     const fetchOrders = async (pId: string) => {
         try {
             // Include 'entregue' orders
-            // Using explicit foreign key constraint via hint !customer_id to avoid PGRST201
-            // Also fetching motoboy details via !motoboy_id
+            const threeDaysAgo = new Date();
+            threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+            const threeDaysAgoISO = threeDaysAgo.toISOString();
+
             const { data, error } = await supabase
                 .from('orders')
                 .select('*, profiles!customer_id(full_name, phone), motoboy:profiles!motoboy_id(full_name), order_items(*, products(name))')
                 .eq('pharmacy_id', pId)
                 .neq('status', 'cancelado')
+                .gte('created_at', threeDaysAgoISO)
                 .order('created_at', { ascending: true });
 
             if (error) throw error;

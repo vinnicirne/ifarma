@@ -25,11 +25,12 @@ async function fixFeedDuplicates() {
     console.log('2️⃣ Inserting correct feed sections...');
     const correctSections = [
         { title: 'Destaques da Semana', type: 'banner.top', position: 1, is_active: true, config: { images: [] } },
-        { title: 'Publicidade (Google AdMob)', type: 'admob.banner', position: 2, is_active: true, config: {} },
+        { title: 'Patrocinado', type: 'ads.internal', position: 2, is_active: true, config: {} },
         { title: 'Categorias', type: 'category_grid', position: 3, is_active: true, config: { limit: 10 } },
-        { title: 'Ofertas Especiais', type: 'pharmacy_list.bonus', position: 4, is_active: true, config: { limit: 5 } },
-        { title: 'Perto de Você', type: 'pharmacy_list.nearby', position: 5, is_active: true, config: { limit: 5 } },
-        { title: 'Farmácias em Destaque', type: 'pharmacy_list.featured', position: 6, is_active: true, config: { limit: 5 } },
+        { title: 'Farmácias em Destaque', type: 'pharmacy_list.featured', position: 4, is_active: true, config: { limit: 10 } },
+        { title: 'Ofertas Especiais', type: 'pharmacy_list.bonus', position: 5, is_active: true, config: { limit: 10 } },
+        { title: 'Perto de Você', type: 'pharmacy_list.nearby', position: 6, is_active: true, config: { limit: 10 } },
+        { title: 'Publicidade Externa', type: 'admob.banner', position: 7, is_active: true, config: {} },
     ];
 
     const { data: insertData, error: insertError } = await supabase

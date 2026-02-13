@@ -143,7 +143,7 @@ serve(async (req) => {
             console.log(`[Prioritizing] Aprovando farmácia ${pharmacy_id}...`);
             const { error: approvalError } = await supabaseClient
                 .from('pharmacies')
-                .update({ status: 'approved' })
+                .update({ status: 'Aprovado' })
                 .eq('id', pharmacy_id);
 
             if (approvalError) console.error('Erro na aprovação prioritária:', approvalError);

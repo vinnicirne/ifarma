@@ -165,14 +165,16 @@ const MerchantLayout = ({ children, activeTab, title }: { children: React.ReactN
         { id: 'team', label: 'Equipe / Cargos', icon: 'groups', path: '/gestor/equipe' },
         { id: 'promotions', label: 'Campanhas', icon: 'campaign', path: '/gestor/promotions' },
         { id: 'financial', label: 'Financeiro', icon: 'payments', path: '/gestor/financial' },
-        { id: 'settings', label: 'Configurações', icon: 'store', path: '/gestor/settings' },
+        { id: 'billing', label: 'Assinatura', icon: 'verified_user', path: '/gestor/billing' },
+        { id: 'settings', label: 'Configurações', icon: 'settings', path: '/gestor/settings' },
     ];
 
     return (
         <div className="min-h-screen bg-slate-50 dark:bg-zinc-900 font-display flex flex-col md:flex-row">
             {/* Sidebar Desktop */}
-            <aside className={`hidden md:flex flex-col bg-white dark:bg-zinc-800 border-r border-slate-100 dark:border-white/5 h-screen sticky top-0 transition-all duration-300 z-40 print:hidden ${isCollapsed ? 'w-24 p-4' : 'w-72 p-6'}`}>
-
+            <aside
+                className={`hidden md:flex flex-col bg-white dark:bg-zinc-800 border-r border-slate-100 dark:border-white/5 h-screen fixed top-0 left-0 transition-all duration-300 z-40 print:hidden ${isCollapsed ? 'w-24 p-4' : 'w-72 p-6'}`}
+            >
                 {/* Header with Toggle */}
                 <div className={`flex items-center gap-3 mb-10 ${isCollapsed ? 'justify-center flex-col' : ''}`}>
                     <div className="size-10 bg-primary rounded-xl flex items-center justify-center shadow-lg shadow-primary/20 shrink-0 cursor-pointer" onClick={() => setIsCollapsed(!isCollapsed)}>
@@ -207,25 +209,19 @@ const MerchantLayout = ({ children, activeTab, title }: { children: React.ReactN
                                             let pharmacyId = null;
                                             const impersonatedId = localStorage.getItem('impersonatedPharmacyId');
 
-                                            // LOG DE DEBUG PARA CONFIRMAR VERSÃO V2
-                                            console.log("[DEBUG v2] Verificando ID:", impersonatedId);
-
                                             if (impersonatedId) {
-                                                console.log("MerchantLayout (v2): Admin Impersonating:", impersonatedId);
                                                 pharmacyId = impersonatedId;
                                             } else {
-                                                // 1. Check Owner
                                                 const { data: owned } = await supabase.from('pharmacies').select('id').eq('owner_id', user.id).maybeSingle();
                                                 if (owned) {
                                                     pharmacyId = owned.id;
                                                 } else {
-                                                    // 2. Check Staff
                                                     const { data: profile } = await supabase.from('profiles').select('pharmacy_id').eq('id', user.id).single();
                                                     pharmacyId = profile?.pharmacy_id;
                                                 }
                                             }
 
-                                            if (!pharmacyId) throw new Error("Farmácia não encontrada (Código v2 Atualizado - ID Nulo)");
+                                            if (!pharmacyId) throw new Error("Farmácia não encontrada");
 
                                             const { error } = await supabase.from('pharmacies')
                                                 .update({ is_open: newStatus, auto_open_status: false })
@@ -235,8 +231,7 @@ const MerchantLayout = ({ children, activeTab, title }: { children: React.ReactN
                                         } catch (err: any) {
                                             console.error("Erro ao atualizar status:", err);
                                             setStoreStatus(previousStatus);
-                                            // Alerta com mensagem de erro detalhada para confirmação visual
-                                            alert(`Erro ao atualizar status (v2): ${err.message}`);
+                                            alert(`Erro ao atualizar status: ${err.message}`);
                                         }
                                     }}
                                     className={`ml-2 w-8 h-4 rounded-full transition-colors relative border border-white/10 ${storeStatus ? 'bg-green-500/20' : 'bg-red-500/20'}`}
@@ -248,7 +243,7 @@ const MerchantLayout = ({ children, activeTab, title }: { children: React.ReactN
                     )}
                 </div>
 
-                <nav className="flex-1 space-y-2">
+                <nav className="flex-1 space-y-2 overflow-y-auto hide-scrollbar pr-1">
                     <Link
                         to="/gestor/notifications"
                         title={isCollapsed ? "Notificações" : ''}
@@ -265,7 +260,7 @@ const MerchantLayout = ({ children, activeTab, title }: { children: React.ReactN
                                 </span>
                             )}
                         </div>
-                        {!isCollapsed && <span className="font-bold text-sm tracking-wide whitespace-nowrap overflow-hidden">Notificações</span>}
+                        {!isCollapsed && <span className="font-bold text-sm tracking-wide whitespace-nowrap overflow-hidden text-ellipsis">Notificações</span>}
                     </Link>
 
                     {navItems.map((item) => (
@@ -279,18 +274,18 @@ const MerchantLayout = ({ children, activeTab, title }: { children: React.ReactN
                                 } ${isCollapsed ? 'justify-center px-0' : ''}`}
                         >
                             <MaterialIcon name={item.icon} className={activeTab === item.id ? "" : "group-hover:scale-110 transition-transform"} />
-                            {!isCollapsed && <span className="font-bold text-sm tracking-wide whitespace-nowrap overflow-hidden">{item.label}</span>}
+                            {!isCollapsed && <span className="font-bold text-sm tracking-wide whitespace-nowrap overflow-hidden text-ellipsis">{item.label}</span>}
                         </Link>
                     ))}
                 </nav>
 
-                <div className={`mt-auto space-y-2 ${isCollapsed ? 'flex flex-col items-center' : ''}`}>
+                <div className={`mt-auto pt-6 space-y-2 border-t border-slate-100 dark:border-white/5 ${isCollapsed ? 'flex flex-col items-center' : ''}`}>
                     <button
                         onClick={() => setIsCollapsed(!isCollapsed)}
                         className={`flex items-center justify-center gap-3 px-4 py-3.5 rounded-2xl text-slate-400 hover:bg-slate-50 dark:hover:bg-white/5 transition-colors w-full ${isCollapsed ? 'px-0' : ''}`}
                     >
                         <MaterialIcon name={isCollapsed ? "chevron_right" : "chevron_left"} />
-                        {!isCollapsed && <span className="font-bold text-xs uppercase tracking-widest">Recolher</span>}
+                        {!isCollapsed && <span className="font-bold text-[10px] uppercase tracking-widest">Recolher</span>}
                     </button>
 
                     <button
@@ -304,8 +299,10 @@ const MerchantLayout = ({ children, activeTab, title }: { children: React.ReactN
                 </div>
             </aside>
 
-            {/* Main Content */}
-            <div className="flex-1 flex flex-col min-w-0 transition-all duration-300">
+            {/* Main Content Area */}
+            <div
+                className={`flex-1 flex flex-col min-w-0 transition-all duration-300 ${isCollapsed ? 'md:pl-24' : 'md:pl-72'}`}
+            >
                 {/* Mobile Header */}
                 <header className="md:hidden sticky top-0 z-30 bg-white/80 dark:bg-zinc-800/80 backdrop-blur-md border-b border-slate-100 dark:border-white/5 p-4 flex justify-between items-center print:hidden">
                     <div className="flex items-center gap-2">
@@ -315,7 +312,7 @@ const MerchantLayout = ({ children, activeTab, title }: { children: React.ReactN
                         <span className="font-black italic text-slate-900 dark:text-white">{title || 'Painel'}</span>
                     </div>
                     <div className="flex items-center gap-3">
-                        <Link to="/notifications" className="relative size-10 flex items-center justify-center bg-slate-100 dark:bg-white/5 rounded-full">
+                        <Link to="/gestor/notifications" className="relative size-10 flex items-center justify-center bg-slate-100 dark:bg-white/5 rounded-full">
                             <MaterialIcon name="notifications" />
                             {unreadCount > 0 && (
                                 <span className="absolute -top-1 -right-1 size-5 bg-red-500 rounded-full flex items-center justify-center text-[10px] font-black border-2 border-white dark:border-zinc-800 animate-pulse text-white">
@@ -329,24 +326,24 @@ const MerchantLayout = ({ children, activeTab, title }: { children: React.ReactN
                     </div>
                 </header>
 
-                <main className="flex-1 p-4 md:p-8 pb-32 md:pb-8 overflow-hidden">
+                <main className="flex-1 p-4 md:p-10 pb-32 md:pb-12">
                     {children}
                 </main>
 
                 {/* Mobile Bottom Nav */}
-                <nav className="md:hidden fixed bottom-4 left-4 right-4 bg-white dark:bg-zinc-800 rounded-[2rem] p-4 shadow-2xl border border-slate-100 dark:border-white/5 z-50 flex justify-between items-center print:hidden">
+                <nav className="md:hidden fixed bottom-4 left-4 right-4 bg-white dark:bg-zinc-800 rounded-[2.5rem] p-4 shadow-2xl border border-slate-100 dark:border-white/5 z-50 flex justify-between items-center print:hidden">
                     {navItems.slice(0, 4).map((item) => (
                         <Link
                             key={item.id}
                             to={item.path}
-                            className={`flex flex-col items-center gap-1 p-2 rounded-2xl transition-colors ${activeTab === item.id ? 'text-primary' : 'text-slate-400'}`}
+                            className={`flex flex-col items-center gap-1 p-3 rounded-2xl transition-colors ${activeTab === item.id ? 'text-primary' : 'text-slate-400'}`}
                         >
                             <MaterialIcon name={item.icon} className="text-2xl" />
                         </Link>
                     ))}
                     <Link
                         to="/gestor/settings"
-                        className={`flex flex-col items-center gap-1 p-2 rounded-2xl transition-colors ${activeTab === 'settings' ? 'text-primary' : 'text-slate-400'}`}
+                        className={`flex flex-col items-center gap-1 p-3 rounded-2xl transition-colors ${activeTab === 'settings' ? 'text-primary' : 'text-slate-400'}`}
                     >
                         <MaterialIcon name="menu" className="text-2xl" />
                     </Link>

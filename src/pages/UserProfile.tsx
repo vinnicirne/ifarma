@@ -104,6 +104,48 @@ const UserProfile = ({ session, profile, onRefresh }: { session: any, profile: a
         navigate('/login');
     };
 
+    const fileInputRef = useRef<HTMLInputElement>(null);
+
+    const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (!file || !session?.user?.id) return;
+
+        // Validação básica
+        if (!file.type.startsWith('image/')) {
+            alert('Por favor, selecione uma imagem válida.');
+            return;
+        }
+
+        if (file.size > 2 * 1024 * 1024) {
+            alert('A imagem deve ter no máximo 2MB.');
+            return;
+        }
+
+        setLoading(true);
+        try {
+            const fileExt = file.name.split('.').pop();
+            const fileName = `${session.user.id}/${Date.now()}.${fileExt}`;
+
+            const { error: uploadError } = await supabase.storage
+                .from('avatars')
+                .upload(fileName, file, { upsert: true });
+
+            if (uploadError) throw uploadError;
+
+            const { data: { publicUrl } } = supabase.storage
+                .from('avatars')
+                .getPublicUrl(fileName);
+
+            setFormData(prev => ({ ...prev, avatar_url: publicUrl }));
+            alert('Foto carregada! Clique em "Salvar Alterações" para confirmar.');
+        } catch (error: any) {
+            console.error('Erro no upload:', error);
+            alert('Erro ao carregar foto: ' + (error.message || 'Verifique as permissões do Storage'));
+        } finally {
+            setLoading(false);
+        }
+    };
+
     const handleSave = async () => {
         if (loading) return;
         setLoading(true);
@@ -430,15 +472,33 @@ const UserProfile = ({ session, profile, onRefresh }: { session: any, profile: a
                         </div>
 
                         <div className="space-y-4">
-                            <div>
-                                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Foto de Perfil (URL)</label>
+                            <div className="flex flex-col items-center gap-4 py-4 bg-slate-50 dark:bg-zinc-800/50 rounded-2xl border-2 border-dashed border-slate-200 dark:border-zinc-700">
+                                <div className="size-24 rounded-full bg-slate-200 dark:bg-zinc-800 overflow-hidden border-4 border-white dark:border-zinc-900 shadow-md">
+                                    {formData.avatar_url ? (
+                                        <img src={formData.avatar_url} alt="Preview" className="w-full h-full object-cover" />
+                                    ) : (
+                                        <div className="w-full h-full flex items-center justify-center">
+                                            <MaterialIcon name="person" className="text-4xl text-slate-400" />
+                                        </div>
+                                    )}
+                                </div>
+
                                 <input
-                                    type="text"
-                                    value={formData.avatar_url}
-                                    onChange={(e) => setFormData({ ...formData, avatar_url: e.target.value })}
-                                    className="w-full bg-slate-50 dark:bg-zinc-800 border-none rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary outline-none"
-                                    placeholder="https://..."
+                                    type="file"
+                                    ref={fileInputRef}
+                                    className="hidden"
+                                    accept="image/*"
+                                    onChange={handleFileUpload}
                                 />
+
+                                <button
+                                    onClick={() => fileInputRef.current?.click()}
+                                    className="bg-primary/10 text-primary px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider hover:bg-primary/20 transition-colors flex items-center gap-2"
+                                >
+                                    <MaterialIcon name="photo_camera" className="text-lg" />
+                                    Alterar Foto
+                                </button>
+                                <p className="text-[10px] text-slate-400 font-medium">JPG ou PNG, máx 2MB</p>
                             </div>
                             <div>
                                 <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Nome Completo</label>

@@ -58,29 +58,20 @@ export const pharmacyService = {
 
         if (!session?.access_token) throw new Error("Sessão expirada.");
 
-        const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-user-admin`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
-                'Authorization': `Bearer ${session.access_token}`
-            },
-            body: JSON.stringify({
+        const { data: responseData, error: invokeError } = await supabase.functions.invoke('create-user-admin', {
+            body: {
                 email: pharm.owner_email,
                 password: tempPassword,
-                auth_token: session.access_token,
                 pharmacy_id: id,
                 metadata: {
                     full_name: pharm.owner_name || pharm.name,
                     role: 'merchant'
                 }
-            })
+            }
         });
 
-        const responseText = await response.text();
-        if (!response.ok) {
-            const errorJson = JSON.parse(responseText);
-            const errorText = (errorJson.error || errorJson.message || '').toLowerCase();
+        if (invokeError) {
+            const errorText = (invokeError.message || '').toLowerCase();
 
             if (errorText.includes('already registered') || errorText.includes('already exists')) {
                 // Find existing profile
@@ -103,11 +94,10 @@ export const pharmacyService = {
                 }
                 throw new Error('Usuário já existe sem perfil vinculado.');
             }
-            throw new Error(errorJson.error || errorJson.message || 'Erro na Edge Function');
+            throw new Error(invokeError.message || 'Erro na Edge Function');
         }
 
-        const authData = JSON.parse(responseText);
-        const userId = authData.user?.id;
+        const userId = responseData?.user?.id;
 
         if (userId) {
             await supabase.from('profiles').upsert({

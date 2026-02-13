@@ -47,10 +47,17 @@ export const ClientHome = ({ userLocation, sortedPharmacies, session }: { userLo
                 .select('*');
 
             if (data && data.length > 0) {
-                setFeedSections(data);
+                // Prevenir duplicatas de tipo no frontend por segurança
+                const uniqueSections = data.reduce((acc: any[], current: any) => {
+                    const x = acc.find(item => item.type === current.type);
+                    if (!x) return acc.concat([current]);
+                    else return acc;
+                }, []);
+
+                setFeedSections(uniqueSections);
                 const settingsMap: any = {};
                 settingsData?.forEach(s => settingsMap[s.key] = s.value);
-                handleAdMob(data, settingsMap);
+                handleAdMob(uniqueSections, settingsMap);
             }
             setLoadingFeed(false);
         };
