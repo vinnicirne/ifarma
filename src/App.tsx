@@ -337,9 +337,9 @@ function App() {
         }
       }
 
-      // Feature Flag - Somente planos pagos aparecem como Destaque (Ads de Loja)
+      // Feature Flag - is_featured do banco OU planos pagos aparecem como Destaque
       const plan = p.plan?.toLowerCase();
-      const is_featured = p.is_featured || ['premium', 'pro', 'destaque'].includes(plan);
+      const is_featured = p.is_featured === true || ['premium', 'pro', 'destaque'].includes(plan);
 
       // 🧠 ALGORITMO DE RANQUEAMENTO INTELIGENTE (iFood Style)
       // ======================================================
