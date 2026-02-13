@@ -169,13 +169,9 @@ function App() {
       if (error) {
         console.error("❌ App: Erro ao buscar farmácias:", error);
       } else {
-        // [FIXED] Filtragem Client-Side com chaves obrigatórias
-        const approved = (data || []).filter(p => {
-          const s = p.status?.toLowerCase() || '';
-          return s.includes('aprovado') || s.includes('approved');
-        });
-
-        setAllPharmacies(approved);
+        // [DEBUG] SEM FILTRO - MOSTRAR TUDO QUE VIER DO BANCO
+        console.log("✅ Carregando farmácias sem filtro:", data?.length);
+        setAllPharmacies(data || []);
       }
     }, 500); // Defer 500ms to prioritize auth/profile
 

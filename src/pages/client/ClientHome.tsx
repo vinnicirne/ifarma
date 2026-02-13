@@ -333,6 +333,13 @@ export const ClientHome = ({ userLocation, sortedPharmacies, session }: { userLo
                     </>
                 )}
             </main>
+
+            {import.meta.env.DEV && (
+                <div className="fixed bottom-2 right-2 z-[9999] bg-black/80 text-green-300 text-[10px] p-2 rounded pointer-events-none max-w-sm overflow-hidden border border-green-500/30 font-mono">
+                    PHARMAS: {sortedPharmacies?.length}
+                    <pre className="mt-1">{JSON.stringify(sortedPharmacies?.slice(0, 1), null, 2)}</pre>
+                </div>
+            )}
         </div>
     );
 };

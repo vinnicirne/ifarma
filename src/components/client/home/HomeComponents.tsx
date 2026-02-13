@@ -278,10 +278,11 @@ export const CategoryGrid = ({ config, title }: { config?: any, title?: string }
 // --- FEATURED PHARMACIES ---
 export const FeaturedPharmacies = ({ pharmacies, config, title }: { pharmacies: any[], config?: any, title?: string }) => {
     // Garante array
-    const sourceList = pharmacies || [];
+    const checkIsFeatured = (p: any) => p?.is_featured === true || p?.is_featured === 'true' || p?.is_featured === 1;
+    const sourceList = Array.isArray(pharmacies) ? pharmacies : [];
 
     // Filtra featured
-    let displayList = sourceList.filter(p => p.is_featured === true);
+    let displayList = sourceList.filter(checkIsFeatured);
 
     // Fallback agressivo
     if ((!displayList || displayList.length === 0) && sourceList.length > 0) {
