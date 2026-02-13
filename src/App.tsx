@@ -1,6 +1,7 @@
 ﻿import React, { useState, useEffect, useMemo, useDeferredValue } from 'react';
 import { BrowserRouter as Router } from 'react-router-dom';
 import { supabase } from './lib/supabase';
+import { PharmacyService } from './services/pharmacy.service';
 import { useNotifications } from './hooks/useNotifications';
 import { initAppContext } from './lib/appContext';
 import { calculateDistance } from './lib/geoUtils';
@@ -158,23 +159,25 @@ function App() {
   }, []);
 
   // Fetch all pharmacies (DEFERRED - Priority 3)
+  // Fetch all pharmacies (Priority 3) - Premium Refactor
   useEffect(() => {
-    // Defer pharmacy fetch to avoid blocking initial render
-    const timer = setTimeout(async () => {
-      const { data, error } = await supabase
-        .from('pharmacies')
-        .select('*')
-        .order('is_featured', { ascending: false });
+    const loadPharmacies = async () => {
+      try {
+        console.log('🔄 App: Buscando farmácias via Service...');
+        const pharmacies = await PharmacyService.getApproved();
+        console.log(`✅ App: ${pharmacies.length} farmácias carregadas.`);
+        setAllPharmacies(pharmacies);
 
-      if (error) {
-        console.error("❌ App: Erro ao buscar farmácias:", error);
-      } else {
-        // [DEBUG] SEM FILTRO - MOSTRAR TUDO QUE VIER DO BANCO
-        console.log("✅ Carregando farmácias sem filtro:", data?.length);
-        setAllPharmacies(data || []);
+        if (import.meta.env.DEV && pharmacies.length === 0) {
+          console.warn('⚠️ Nenhuma farmácia APROVADA encontrada. Verifique o banco de dados.');
+        }
+      } catch (error) {
+        console.error('❌ App: Falha crítica ao carregar farmácias', error);
+        setAllPharmacies([]);
       }
-    }, 500); // Defer 500ms to prioritize auth/profile
+    };
 
+    const timer = setTimeout(loadPharmacies, 500);
     return () => clearTimeout(timer);
   }, []);
 
