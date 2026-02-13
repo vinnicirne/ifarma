@@ -1,5 +1,5 @@
-export type PharmacyStatus = 'approved' | 'pending' | 'rejected' | 'suspended';
-export type PlanType = 'Gratuito' | 'Premium';
+export type PharmacyStatus = 'Aprovado' | 'Pendente' | 'Rejeitado' | 'Suspenso';
+export type PlanType = 'Gratuito' | 'Bronze' | 'Prata' | 'Ouro';
 
 export interface Pharmacy {
     id: string;

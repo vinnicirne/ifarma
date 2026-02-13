@@ -372,8 +372,8 @@ export const SpecialHighlights = ({ config, title, pharmacies }: { pharmacies: a
                 .eq('pharmacies.status', 'Aprovado')
                 .limit(config?.limit || 10);
 
-            if ((!data || data.length === 0) && pharmacies && pharmacies.length > 0) {
-                const nearPharmacyIds = pharmacies.slice(0, 3).map(p => p.id);
+            if ((!data || data.length === 0)) {
+                // FALLBACK: Get products from any approved pharmacy if featured pharmacies aren't available
                 const { data: fallbackData } = await supabase
                     .from('products')
                     .select(`
@@ -385,14 +385,14 @@ export const SpecialHighlights = ({ config, title, pharmacies }: { pharmacies: a
                         pharmacy_id,
                         pharmacies!inner(name, plan, status)
                     `)
-                    .in('pharmacy_id', nearPharmacyIds)
+                    .eq('pharmacies.status', 'Aprovado')
                     .limit(10);
 
                 data = fallbackData;
                 setIsFallback(true);
             }
 
-            if (data && !isFallback) {
+            if (data) {
                 data = data.sort(() => Math.random() - 0.5);
             }
 

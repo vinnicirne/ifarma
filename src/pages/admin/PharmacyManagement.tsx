@@ -236,15 +236,15 @@ const PharmacyManagement = ({ profile }: { profile: any }) => {
                                             <td className="p-5">
                                                 {(() => {
                                                     const statusMap: Record<string, { label: string, color: string, dot: string }> = {
-                                                        'approved': { label: 'Aprovado', color: 'bg-[#13ec6d]/10 text-[#13ec6d]', dot: 'bg-[#13ec6d]' },
-                                                        'pending': { label: 'Pendente', color: 'bg-yellow-500/10 text-yellow-500', dot: 'bg-yellow-500' },
-                                                        'rejected': { label: 'Rejeitado', color: 'bg-red-500/10 text-red-500', dot: 'bg-red-500' },
-                                                        'suspended': { label: 'Suspenso', color: 'bg-slate-500/10 text-slate-500', dot: 'bg-slate-500' }
+                                                        'Aprovado': { label: 'Aprovado', color: 'bg-[#13ec6d]/10 text-[#13ec6d]', dot: 'bg-[#13ec6d]' },
+                                                        'Pendente': { label: 'Pendente', color: 'bg-yellow-500/10 text-yellow-500', dot: 'bg-yellow-500' },
+                                                        'Rejeitado': { label: 'Rejeitado', color: 'bg-red-500/10 text-red-500', dot: 'bg-red-500' },
+                                                        'Suspenso': { label: 'Suspenso', color: 'bg-slate-500/10 text-slate-500', dot: 'bg-slate-500' }
                                                     };
 
                                                     // Fallback for unknown status or uppercase
-                                                    const normalizedStatus = (pharm.status || 'pending').toLowerCase();
-                                                    const style = statusMap[normalizedStatus] || statusMap['pending'];
+                                                    const normalizedStatus = pharm.status || 'Pendente';
+                                                    const style = statusMap[normalizedStatus] || statusMap['Pendente'];
 
                                                     return (
                                                         <span className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${style.color}`}>
