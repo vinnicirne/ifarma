@@ -1,5 +1,5 @@
 import { supabase } from '../lib/supabase';
-import type { Pharmacy, PharmacyStatus } from '../types/pharmacy';
+import type { Pharmacy } from '../types/pharmacy';
 
 export const pharmacyService = {
     async getPharmacies(): Promise<Pharmacy[]> {

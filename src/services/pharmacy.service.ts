@@ -1,6 +1,6 @@
 import { supabase } from '../lib/supabase';
 import type { Pharmacy } from '../types/pharmacy';
-import { PharmacyStatus } from '../types/pharmacy';
+
 
 export class PharmacyService {
     /**

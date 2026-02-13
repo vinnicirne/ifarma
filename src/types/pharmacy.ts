@@ -1,9 +1,11 @@
-export enum PharmacyStatus {
-    APPROVED = 'Aprovado',
-    PENDING = 'Pendente',
-    REJECTED = 'Reprovado', // Assumido por padrão, mesmo que não visto
-    INACTIVE = 'Inativo'
-}
+export const PharmacyStatus = {
+    APPROVED: 'Aprovado',
+    PENDING: 'Pendente',
+    REJECTED: 'Reprovado', // Assumido por padrão, mesmo que não visto
+    INACTIVE: 'Inativo'
+} as const;
+
+export type PharmacyStatusType = typeof PharmacyStatus[keyof typeof PharmacyStatus];
 
 export interface Pharmacy {
     id: string;
@@ -25,9 +27,11 @@ export interface Pharmacy {
     longitude?: number;
 
     // Status e Configuração
-    status: PharmacyStatus | string; // String allow para tolerância, mas idealmente Enum
-    is_active: boolean; // Coluna existe? Vamos checar, mas status é a fonte da verdade
+    status: PharmacyStatusType | string;
+    is_active: boolean;
     is_featured: boolean;
+    is_open?: boolean; // Novo campo
+    plan?: string;     // Novo campo
 
     // Avaliação
     rating?: number;
