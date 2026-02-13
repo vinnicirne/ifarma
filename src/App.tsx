@@ -341,6 +341,8 @@ function App() {
       const plan = p.plan?.toLowerCase();
       const is_featured = p.is_featured === true || ['premium', 'pro', 'destaque'].includes(plan);
 
+      // console.log(`App.tsx: ${p.name} - is_featured=${is_featured} (DB=${p.is_featured}, Plan=${plan})`);
+
       // 🧠 ALGORITMO DE RANQUEAMENTO INTELIGENTE (iFood Style)
       // ======================================================
 

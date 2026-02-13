@@ -278,11 +278,12 @@ export const CategoryGrid = ({ config, title }: { config?: any, title?: string }
 // --- FEATURED PHARMACIES ---
 export const FeaturedPharmacies = ({ pharmacies, config, title }: { pharmacies: any[], config?: any, title?: string }) => {
     let displayList = (pharmacies || []).filter(p => p.is_featured === true).slice(0, config?.limit || 10);
-    let isFallback = false;
 
+    // Fallback: Se não houver featured explícito, mostra as top ranked como destaque
+    // Isso garante que a seção Patrocinado sempre tenha conteúdo se houver farmácias
     if (displayList.length === 0 && pharmacies && pharmacies.length > 0) {
+        // console.log("Using fallback for featured pharmacies");
         displayList = pharmacies.slice(0, 5);
-        isFallback = true;
     }
 
     if (displayList.length === 0) return null;
