@@ -69,6 +69,18 @@ export const OrderChatModal: React.FC<OrderChatModalProps> = ({ isOpen, onClose,
                 table: 'order_messages',
                 filter: `order_id=eq.${orderId}`
             }, (payload) => {
+                // Play sound for incoming messages from others
+                const isFromMe = payload.new.sender_id === session?.user?.id;
+
+                if (!isFromMe) {
+                    const msgSound = 'https://assets.mixkit.co/active_storage/sfx/2571/2571-preview.mp3';
+                    const audio = new Audio(msgSound);
+                    audio.play().catch(e => console.warn("🔇 Chat audio blocked:", e));
+
+                    // Vibrate if available
+                    if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
+                }
+
                 setMessages(prev => [...prev, payload.new]);
                 // Scroll to bottom on new message
                 setTimeout(() => {

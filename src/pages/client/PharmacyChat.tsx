@@ -16,7 +16,12 @@ export const PharmacyChat = () => {
 
     useEffect(() => {
         supabase.auth.getSession().then(({ data: { session } }) => setSession(session));
-    }, []);
+
+        // Reset unread chat count when opening chat
+        if (orderId) {
+            window.dispatchEvent(new CustomEvent('chat_opened', { detail: { orderId } }));
+        }
+    }, [orderId]);
 
     useEffect(() => {
         if (!orderId) return;
@@ -58,14 +63,26 @@ export const PharmacyChat = () => {
                 table: 'order_messages',
                 filter: `order_id=eq.${orderId}`
             }, (payload) => {
-                const hornSound = 'https://assets.mixkit.co/active_storage/sfx/2855/2855-preview.mp3';
-                if (payload.new.message_type === 'horn' && payload.new.sender_id !== session?.user?.id) {
-                    const audio = new Audio(hornSound);
+                // Play sound for ALL incoming messages (not just horn)
+                const isFromMe = payload.new.sender_id === session?.user?.id;
+
+                if (!isFromMe) {
+                    const hornSound = 'https://assets.mixkit.co/active_storage/sfx/2855/2855-preview.mp3';
+                    const msgSound = 'https://assets.mixkit.co/active_storage/sfx/2571/2571-preview.mp3';
+
+                    // Use horn sound for horn messages, regular sound for others
+                    const soundUrl = payload.new.message_type === 'horn' ? hornSound : msgSound;
+                    const audio = new Audio(soundUrl);
+
                     audio.play().catch(e => {
                         console.warn("Chat audio blocked:", e);
                         window.addEventListener('click', () => audio.play(), { once: true });
                     });
+
+                    // Vibrate if available
+                    if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
                 }
+
                 setMessages(prev => [...prev, payload.new]);
             })
             .subscribe();

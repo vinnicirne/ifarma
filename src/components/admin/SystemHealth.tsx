@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Store, Package, Megaphone, ChevronRight } from 'lucide-react';
+import { Store, Package, Megaphone, ChevronRight, ShieldCheck } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useNavigate } from 'react-router-dom';
 

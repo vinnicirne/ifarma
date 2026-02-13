@@ -20,7 +20,7 @@ import {
     XCircle
 } from 'lucide-react';
 
-const PharmacyManagement = () => {
+const PharmacyManagement = ({ profile }: { profile: any }) => {
     const navigate = useNavigate();
     const [pharmacies, setPharmacies] = useState<Pharmacy[]>([]);
     const [loading, setLoading] = useState(true);

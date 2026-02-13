@@ -16,7 +16,12 @@ export const MotoboyChat = () => {
 
     useEffect(() => {
         supabase.auth.getSession().then(({ data: { session } }) => setSession(session));
-    }, []);
+
+        // Reset unread chat count when opening chat
+        if (orderId) {
+            window.dispatchEvent(new CustomEvent('chat_opened', { detail: { orderId } }));
+        }
+    }, [orderId]);
 
     useEffect(() => {
         if (!orderId) return;

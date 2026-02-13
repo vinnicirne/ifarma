@@ -286,6 +286,21 @@ export const UserOrderTracking = () => {
         };
     }, [orderId, order?.motoboy_id]);
 
+    // Listen for chat_opened event to reset unread count
+    useEffect(() => {
+        const handleChatOpened = (e: CustomEvent) => {
+            if (e.detail?.orderId === orderId) {
+                setUnreadChatCount(0);
+            }
+        };
+
+        window.addEventListener('chat_opened', handleChatOpened as EventListener);
+
+        return () => {
+            window.removeEventListener('chat_opened', handleChatOpened as EventListener);
+        };
+    }, [orderId]);
+
     useEffect(() => {
         if (order?.status === 'entregue') {
             const timer = setTimeout(() => navigate('/'), 4000);

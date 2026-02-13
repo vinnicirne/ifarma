@@ -170,10 +170,10 @@ const MerchantLayout = ({ children, activeTab, title }: { children: React.ReactN
     ];
 
     return (
-        <div className="min-h-screen bg-slate-50 dark:bg-zinc-900 font-display flex flex-col md:flex-row">
+        <div className="h-screen overflow-hidden bg-slate-50 dark:bg-zinc-900 font-display flex">
             {/* Sidebar Desktop */}
             <aside
-                className={`hidden md:flex flex-col bg-white dark:bg-zinc-800 border-r border-slate-100 dark:border-white/5 h-screen fixed top-0 left-0 transition-all duration-300 z-40 print:hidden ${isCollapsed ? 'w-24 p-4' : 'w-72 p-6'}`}
+                className={`hidden md:flex flex-col bg-white dark:bg-zinc-800 border-r border-slate-100 dark:border-white/5 h-full transition-all duration-300 z-40 print:hidden ${isCollapsed ? 'w-24 p-4' : 'w-72 p-6'}`}
             >
                 {/* Header with Toggle */}
                 <div className={`flex items-center gap-3 mb-10 ${isCollapsed ? 'justify-center flex-col' : ''}`}>
@@ -300,9 +300,7 @@ const MerchantLayout = ({ children, activeTab, title }: { children: React.ReactN
             </aside>
 
             {/* Main Content Area */}
-            <div
-                className={`flex-1 flex flex-col min-w-0 transition-all duration-300 ${isCollapsed ? 'md:pl-24' : 'md:pl-72'}`}
-            >
+            <div className="flex-1 min-h-0 flex flex-col">
                 {/* Mobile Header */}
                 <header className="md:hidden sticky top-0 z-30 bg-white/80 dark:bg-zinc-800/80 backdrop-blur-md border-b border-slate-100 dark:border-white/5 p-4 flex justify-between items-center print:hidden">
                     <div className="flex items-center gap-2">
@@ -326,7 +324,7 @@ const MerchantLayout = ({ children, activeTab, title }: { children: React.ReactN
                     </div>
                 </header>
 
-                <main className="flex-1 p-4 md:p-10 pb-32 md:pb-12">
+                <main className="flex-1 min-h-0 overflow-y-auto p-4 md:p-10 pb-24 md:pb-10">
                     {children}
                 </main>
 

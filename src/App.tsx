@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useMemo } from 'react';
+﻿import React, { useState, useEffect, useMemo, useDeferredValue } from 'react';
 import { BrowserRouter as Router } from 'react-router-dom';
 import { supabase } from './lib/supabase';
 import { useNotifications } from './hooks/useNotifications';
@@ -58,7 +58,6 @@ function App() {
   useEffect(() => {
     const checkSession = async () => {
       if (!session) return;
-      // Tenta validar o token batendo no Auth
       const { error } = await supabase.auth.getUser();
       if (error && (error.status === 401 || error.message?.includes('Invalid JWT') || error.message?.includes('token is expired'))) {
         console.warn("🚨 Watchdog: Sessão expirada ou inválida. Forçando logout...");
@@ -69,8 +68,8 @@ function App() {
       }
     };
 
-    const interval = setInterval(checkSession, 60 * 1000); // Checa a cada 1 min
-    const onFocus = () => checkSession(); // Checa ao focar na aba
+    const interval = setInterval(checkSession, 5 * 60 * 1000); // Optimized: Check every 5 min instead of 1 min
+    const onFocus = () => checkSession();
     window.addEventListener('focus', onFocus);
 
     return () => {
@@ -122,9 +121,10 @@ function App() {
     }
   };
 
-  // Detect Geolocation
+  // Detect Geolocation (DEFERRED - Priority 3)
   useEffect(() => {
-    const initLocation = async () => {
+    // Defer geolocation to avoid blocking initial render
+    const timer = setTimeout(async () => {
       console.log("🎯 App: Iniciando Geolocation...");
       try {
         const { Geolocation } = await import('@capacitor/geolocation');
@@ -140,8 +140,8 @@ function App() {
         }
 
         const pos = await Geolocation.getCurrentPosition({
-          enableHighAccuracy: true, // Aumentado para ter certeza no APK
-          timeout: 10000 // Aumentado para 10s
+          enableHighAccuracy: true,
+          timeout: 10000
         });
 
         setUserLocation({
@@ -152,14 +152,15 @@ function App() {
       } catch (error: any) {
         console.error("❌ App: Falha crítica ao obter localização:", error.message, error);
       }
-    };
-    initLocation();
+    }, 500); // Defer 500ms to prioritize auth/profile
+
+    return () => clearTimeout(timer);
   }, []);
 
-  // Fetch all pharmacies
+  // Fetch all pharmacies (DEFERRED - Priority 3)
   useEffect(() => {
-    const fetchPharmacies = async () => {
-      // Filter for approved pharmacies only
+    // Defer pharmacy fetch to avoid blocking initial render
+    const timer = setTimeout(async () => {
       const { data, error } = await supabase
         .from('pharmacies')
         .select('*')
@@ -167,138 +168,142 @@ function App() {
 
       if (error) console.error("Error fetching pharmacies:", error);
       else setAllPharmacies(data || []);
-    };
-    fetchPharmacies();
+    }, 500); // Defer 500ms to prioritize auth/profile
+
+    return () => clearTimeout(timer);
   }, []);
 
-  // Realtime Order Listener for Client
+  // Realtime Order Listener for Client (DEFERRED - Priority 4)
   useEffect(() => {
     if (!session?.user?.id || profile?.role !== 'customer') return;
 
-    const playNotificationSound = (status: string) => {
-      const sounds: any = {
-        default: 'https://assets.mixkit.co/active_storage/sfx/571/571-preview.mp3',
-        horn: 'https://assets.mixkit.co/active_storage/sfx/2855/2855-preview.mp3', // Bike horn for em_rota
-        success: 'https://assets.mixkit.co/active_storage/sfx/2013/2013-preview.mp3' // Cash sound for delivered
+    // Defer subscription to avoid blocking initial render
+    const timer = setTimeout(() => {
+      const playNotificationSound = (status: string) => {
+        const sounds: any = {
+          default: 'https://assets.mixkit.co/active_storage/sfx/571/571-preview.mp3',
+          horn: 'https://assets.mixkit.co/active_storage/sfx/2855/2855-preview.mp3',
+          success: 'https://assets.mixkit.co/active_storage/sfx/2013/2013-preview.mp3'
+        };
+
+        let src = sounds.default;
+        if (status === 'em_rota') src = sounds.horn;
+        if (status === 'entregue') src = sounds.success;
+
+        const audio = new Audio(src);
+        audio.play().catch(e => console.warn("Audio play blocked:", e));
       };
 
-      let src = sounds.default;
-      if (status === 'em_rota') src = sounds.horn;
-      if (status === 'entregue') src = sounds.success;
+      const channel = supabase
+        .channel(`client_orders_${session.user.id}`)
+        .on('postgres_changes', {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'orders',
+          filter: `customer_id=eq.${session.user.id}`
+        }, (payload) => {
+          if (payload.new.status !== payload.old.status) {
+            console.log('📦 Pedido atualizado:', payload.new.status);
+            playNotificationSound(payload.new.status);
 
-      const audio = new Audio(src);
-      audio.play().catch(e => console.warn("Audio play blocked:", e));
-    };
-
-    const channel = supabase
-      .channel(`client_orders_${session.user.id}`)
-      .on('postgres_changes', {
-        event: 'UPDATE',
-        schema: 'public',
-        table: 'orders',
-        filter: `customer_id=eq.${session.user.id}`
-      }, (payload) => {
-        if (payload.new.status !== payload.old.status) {
-          console.log('📦 Pedido atualizado:', payload.new.status);
-          playNotificationSound(payload.new.status);
-
-          // Opcional: Mostrar notificação visual se não estiver na página de tracking
-          if (window.Notification?.permission === 'granted') {
-            new Notification('Ifarma: Atualização do Pedido', {
-              body: `Seu pedido está agora: ${payload.new.status.replace('_', ' ')}`,
-              icon: '/pwa-192x192.png'
-            });
-          }
-        }
-      })
-      .subscribe();
-
-    return () => {
-      channel.unsubscribe();
-    };
-  }, [session?.user?.id, profile?.role]);
-
-  // Global Chat/Notifications Listener
-  useEffect(() => {
-    if (!session?.user?.id) return;
-
-    const globalChannel = supabase
-      .channel(`global_messages_${session.user.id}`)
-      .on('postgres_changes', {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'order_messages'
-      }, (payload) => {
-        const newMsg = payload.new;
-        // Ignore my own messages
-        if (newMsg.sender_id === session.user.id) return;
-
-        // Play Sound
-        console.log("💬 Nova mensagem recebida:", newMsg.message_type);
-
-        // Specialized Horn Sound for "BI-BI"
-        const hornSound = 'https://assets.mixkit.co/active_storage/sfx/2855/2855-preview.mp3';
-        const defaultChatSound = 'https://assets.mixkit.co/active_storage/sfx/2346/2346-preview.mp3';
-
-        const soundToPlay = newMsg.message_type === 'horn' ? hornSound : defaultChatSound;
-
-        const audio = new Audio(soundToPlay);
-        audio.volume = 0.8;
-        audio.play().catch(e => {
-          console.warn("Audio play blocked by browser. User must interact first.", e);
-          // Fallback: try to play again on next click
-          window.addEventListener('click', () => audio.play(), { once: true });
-        });
-
-        // Local Notification (Capacitor)
-        const showLocalNotification = async () => {
-          try {
-            // Dynamic import to avoid SSR issues
-            const { LocalNotifications } = await import('@capacitor/local-notifications');
-
-            await LocalNotifications.schedule({
-              notifications: [
-                {
-                  title: newMsg.message_type === 'horn' ? '📢 MOTOBOY CHEGOU!' : 'Ifarma: Nova mensagem',
-                  body: newMsg.content || 'Novo anexo recebido.',
-                  id: Math.floor(Math.random() * 100000),
-                  schedule: { at: new Date(Date.now() + 100) },
-                  sound: newMsg.message_type === 'horn' ? 'horn.wav' : undefined,
-                  actionTypeId: '',
-                  extra: null
-                }
-              ]
-            });
-          } catch (e) {
-            console.error("Local Notification Error:", e);
-            // Fallback to Web Notification
-            if (window.Notification?.permission === 'granted' && document.hidden) {
-              new Notification(newMsg.message_type === 'horn' ? '📢 MOTOBOY CHEGOU!' : 'Ifarma: Nova mensagem', {
-                body: newMsg.content || 'Novo anexo recebido.',
+            if (window.Notification?.permission === 'granted') {
+              new Notification('Ifarma: Atualização do Pedido', {
+                body: `Seu pedido está agora: ${payload.new.status.replace('_', ' ')}`,
                 icon: '/pwa-192x192.png'
               });
             }
           }
-        };
-        showLocalNotification();
+        })
+        .subscribe();
 
-      })
-      .subscribe();
+      return () => {
+        channel.unsubscribe();
+      };
+    }, 1000); // Defer 1s to prioritize critical operations
 
-    return () => {
-      globalChannel.unsubscribe();
-    }
+    return () => clearTimeout(timer);
+  }, [session?.user?.id, profile?.role]);
+
+  // Global Chat/Notifications Listener (DEFERRED - Priority 4)
+  useEffect(() => {
+    if (!session?.user?.id) return;
+
+    // Defer subscription to avoid blocking initial render
+    const timer = setTimeout(() => {
+      const globalChannel = supabase
+        .channel(`global_messages_${session.user.id}`)
+        .on('postgres_changes', {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'order_messages'
+        }, (payload) => {
+          const newMsg = payload.new;
+          if (newMsg.sender_id === session.user.id) return;
+
+          console.log("💬 Nova mensagem recebida:", newMsg.message_type);
+
+          const hornSound = 'https://assets.mixkit.co/active_storage/sfx/2855/2855-preview.mp3';
+          const defaultChatSound = 'https://assets.mixkit.co/active_storage/sfx/2346/2346-preview.mp3';
+          const soundToPlay = newMsg.message_type === 'horn' ? hornSound : defaultChatSound;
+
+          const audio = new Audio(soundToPlay);
+          audio.volume = 0.8;
+          audio.play().catch(e => {
+            console.warn("Audio play blocked by browser. User must interact first.", e);
+            window.addEventListener('click', () => audio.play(), { once: true });
+          });
+
+          const showLocalNotification = async () => {
+            try {
+              const { LocalNotifications } = await import('@capacitor/local-notifications');
+              await LocalNotifications.schedule({
+                notifications: [
+                  {
+                    title: newMsg.message_type === 'horn' ? '📢 MOTOBOY CHEGOU!' : 'Ifarma: Nova mensagem',
+                    body: newMsg.content || 'Novo anexo recebido.',
+                    id: Math.floor(Math.random() * 100000),
+                    schedule: { at: new Date(Date.now() + 100) },
+                    sound: newMsg.message_type === 'horn' ? 'horn.wav' : undefined,
+                    actionTypeId: '',
+                    extra: null
+                  }
+                ]
+              });
+            } catch (e) {
+              console.error("Local Notification Error:", e);
+              if (window.Notification?.permission === 'granted' && document.hidden) {
+                new Notification(newMsg.message_type === 'horn' ? '📢 MOTOBOY CHEGOU!' : 'Ifarma: Nova mensagem', {
+                  body: newMsg.content || 'Novo anexo recebido.',
+                  icon: '/pwa-192x192.png'
+                });
+              }
+            }
+          };
+          showLocalNotification();
+        })
+        .subscribe();
+
+      return () => {
+        globalChannel.unsubscribe();
+      };
+    }, 1000); // Defer 1s to prioritize critical operations
+
+    return () => clearTimeout(timer);
   }, [session?.user?.id]);
 
   // Process and sort nearby pharmacies (with fallback)
+  // Using useDeferredValue to avoid blocking UI updates
+  const deferredPharmacies = useDeferredValue(allPharmacies);
+  const deferredUserLocation = useDeferredValue(userLocation);
+
   const sortedPharmacies = useMemo(() => {
-    const referenceLoc = userLocation || { lat: -22.8269, lng: -43.0539 };
+    const referenceLoc = deferredUserLocation || { lat: -22.8269, lng: -43.0539 };
     const now = new Date();
     const isNewThreshold = 90 * 24 * 60 * 60 * 1000; // 90 days in ms
     const currentDay = now.getDay();
     const currentTime = now.getHours() * 60 + now.getMinutes();
 
-    return allPharmacies.map(p => {
+    return deferredPharmacies.map(p => {
       let distance = Infinity;
       if (p.latitude && p.longitude) {
         distance = calculateDistance(
