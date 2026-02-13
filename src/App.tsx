@@ -164,13 +164,18 @@ function App() {
       const { data, error } = await supabase
         .from('pharmacies')
         .select('*')
-        .eq('status', 'Aprovado')
         .order('is_featured', { ascending: false });
 
       if (error) {
         console.error("❌ App: Erro ao buscar farmácias:", error);
       } else {
-        setAllPharmacies(data || []);
+        // Filtragem Client-Side para robustez de status
+        const approved = (data || []).filter(p => {
+          const s = p.status?.toLowerCase() || '';
+          return s.includes('aprovado') || s.includes('approved');
+        });
+
+        setAllPharmacies(approved);
       }
     }, 500); // Defer 500ms to prioritize auth/profile
 

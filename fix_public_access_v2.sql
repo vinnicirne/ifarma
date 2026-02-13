@@ -1,27 +1,29 @@
--- Garante que RLS está habilitado
+-- fix_public_access_v2.sql
+-- Garante RLS nas tabelas principais
 ALTER TABLE app_feed_sections ENABLE ROW LEVEL SECURITY;
 ALTER TABLE pharmacies ENABLE ROW LEVEL SECURITY;
+ALTER TABLE promotions ENABLE ROW LEVEL SECURITY;
 
--- Remove policies antigas para recriar (evita erros de duplicidade)
+-- Limpa policies antigas para evitar conflitos/erros
 DROP POLICY IF EXISTS "Public view feed" ON app_feed_sections;
 DROP POLICY IF EXISTS "Public view approved pharmacies" ON pharmacies;
+DROP POLICY IF EXISTS "Public view active promotions" ON promotions;
 
--- Cria policy para permitir leitura pública da home (feed)
+-- 1. Feed (Home) - Visível para todos
 CREATE POLICY "Public view feed" 
 ON app_feed_sections FOR SELECT 
 TO anon, authenticated 
 USING (true);
 
--- Cria policy para permitir leitura pública de farmácias aprovadas
+-- 2. Farmácias (Aprovadas) - Visível para todos
+-- Nota: Usando ILIKE para compatibilidade com qualquer casing do status 'Aprovado'
 CREATE POLICY "Public view approved pharmacies" 
 ON pharmacies FOR SELECT 
 TO anon, authenticated 
-USING (status = 'Aprovado');
+USING (status ~* 'aprovado');
 
--- Permite leitura da tabela promotions também (para banners do carrossel)
-ALTER TABLE promotions ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "Public view active promotions" ON promotions;
+-- 3. Promoções (Ativas) - Visível para todos (is_active corrigido)
 CREATE POLICY "Public view active promotions" 
 ON promotions FOR SELECT 
 TO anon, authenticated 
-USING (active = true);
+USING (is_active = true);

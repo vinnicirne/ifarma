@@ -46,7 +46,7 @@ export const PromoCarousel = ({ config }: { config?: any }) => {
                 const { data } = await supabase
                     .from('promotions')
                     .select('*')
-                    .eq('active', true)
+                    .eq('is_active', true)
                     .gte('end_date', new Date().toISOString().split('T')[0]);
 
                 if (data && data.length > 0) {
