@@ -54,9 +54,14 @@ export const pharmacyService = {
         if (!pharm.owner_email) throw new Error('E-mail do dono não encontrado.');
 
         const tempPassword = Math.random().toString(36).slice(-8) + 'A1@';
-        const { data: { session } } = await supabase.auth.getSession();
 
-        if (!session?.access_token) throw new Error("Sessão expirada.");
+        // Refresh session to avoid expired token 401 errors
+        const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+        const session = refreshData?.session;
+
+        if (refreshError || !session?.access_token) {
+            throw new Error("Sessão expirada. Faça logout e login novamente.");
+        }
 
         const { data: responseData, error: invokeError } = await supabase.functions.invoke('create-user-admin', {
             body: {
@@ -72,6 +77,11 @@ export const pharmacyService = {
 
         if (invokeError) {
             const errorText = (invokeError.message || '').toLowerCase();
+
+            // Handle 401 specifically
+            if (errorText.includes('non-2xx') || errorText.includes('401')) {
+                throw new Error('Sessão expirada ou permissão negada. Faça logout e login novamente no painel admin.');
+            }
 
             if (errorText.includes('already registered') || errorText.includes('already exists')) {
                 // Find existing profile
@@ -90,6 +100,10 @@ export const pharmacyService = {
                         phone: pharm.owner_phone,
                         pharmacy_id: id
                     });
+
+                    // Also approve the pharmacy directly
+                    await supabase.from('pharmacies').update({ status: 'Aprovado' }).eq('id', id);
+
                     return { email: pharm.owner_email, userWasCreated: false };
                 }
                 throw new Error('Usuário já existe sem perfil vinculado.');

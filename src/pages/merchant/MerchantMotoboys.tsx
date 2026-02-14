@@ -101,7 +101,11 @@ const MerchantMotoboys = () => { // Assuming session/profile context or fetching
             // 1. Gerar e-mail de login baseado no telefone
             const loginEmail = `${formData.phone.replace(/\D/g, '')}@motoboy.ifarma.com`;
 
-            // 2. Chamar Edge Function para criar o usuário Auth
+            // 2. Refresh session to ensure valid token
+            const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+            if (refreshError || !refreshData.session) throw new Error("Sessão expirada. Faça login novamente.");
+
+            // 3. Chamar Edge Function para criar o usuário Auth
             const { data, error } = await supabase.functions.invoke('create-user-admin', {
                 body: {
                     email: loginEmail,
@@ -118,12 +122,11 @@ const MerchantMotoboys = () => { // Assuming session/profile context or fetching
                 }
             });
 
-            if (error) throw new Error(`Erro ao criar usuário: ${error.message}`);
-            // The previous line is incorrect. Let's fix it in the next correction. 
-            // Wait, I am replacing the file, so I should write the correct code.
-
             if (error) {
                 console.error('Erro na Edge Function:', error);
+                if (error.message?.includes('401') || error.message?.includes('non-2xx')) {
+                    throw new Error('Sessão expirada ou permissão negada.');
+                }
                 throw new Error(error.message || 'Erro ao comunicar com o servidor.');
             }
 

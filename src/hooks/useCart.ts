@@ -38,14 +38,33 @@ export const useCart = () => {
             throw new Error('Usuário não autenticado. Por favor, faça login novamente.');
         }
 
-        const { error } = await supabase
+        // Check if item already exists in cart
+        const { data: existing } = await supabase
             .from('cart_items')
-            .upsert({
-                customer_id: session.user.id,
-                product_id: productId,
-                pharmacy_id: pharmacyId,
-                quantity
-            });
+            .select('id, quantity')
+            .eq('customer_id', session.user.id)
+            .eq('product_id', productId)
+            .maybeSingle();
+
+        let error;
+
+        if (existing) {
+            // Item exists: increment quantity
+            ({ error } = await supabase
+                .from('cart_items')
+                .update({ quantity: existing.quantity + quantity })
+                .eq('id', existing.id));
+        } else {
+            // New item: insert
+            ({ error } = await supabase
+                .from('cart_items')
+                .insert({
+                    customer_id: session.user.id,
+                    product_id: productId,
+                    pharmacy_id: pharmacyId,
+                    quantity
+                }));
+        }
 
         if (error) {
             if (error.message.includes('schema cache')) {

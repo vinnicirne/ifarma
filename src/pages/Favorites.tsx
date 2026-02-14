@@ -52,13 +52,30 @@ const Favorites = ({ session }: { session: any }) => {
         }
 
         try {
-            const { error } = await supabase
+            // Check if item already exists in cart
+            const { data: existing } = await supabase
                 .from('cart_items')
-                .insert({
-                    customer_id: session.user.id,
-                    product_id: product.id,
-                    quantity: 1
-                });
+                .select('id, quantity')
+                .eq('customer_id', session.user.id)
+                .eq('product_id', product.id)
+                .maybeSingle();
+
+            let error;
+
+            if (existing) {
+                ({ error } = await supabase
+                    .from('cart_items')
+                    .update({ quantity: existing.quantity + 1 })
+                    .eq('id', existing.id));
+            } else {
+                ({ error } = await supabase
+                    .from('cart_items')
+                    .insert({
+                        customer_id: session.user.id,
+                        product_id: product.id,
+                        quantity: 1
+                    }));
+            }
 
             if (error) throw error;
             alert(`${product.name} adicionado ao carrinho!`);

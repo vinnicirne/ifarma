@@ -151,7 +151,11 @@ function App() {
         });
         console.log("📍 App: Localização obtida com sucesso:", pos.coords.latitude, pos.coords.longitude);
       } catch (error: any) {
-        console.error("❌ App: Falha crítica ao obter localização:", error.message, error);
+        if (error.message === 'User denied Geolocation') {
+          console.warn("⚠️ App: Usuário negou geolocalização.");
+        } else {
+          console.error("❌ App: Falha ao obter localização:", error.message);
+        }
       }
     }, 500); // Defer 500ms to prioritize auth/profile
 

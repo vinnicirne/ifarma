@@ -303,7 +303,7 @@ export const FeaturedPharmacies = ({ pharmacies, config, title }: { pharmacies: 
                     </div>
                     <div className="flex flex-col gap-0.5">
                         <p className="text-[10px] font-black text-white uppercase tracking-[0.15em] italic leading-tight">PATROCINADO</p>
-                        <p className="text-[9px] font-black text-primary uppercase tracking-widest">Lojas em destaque por publicidade</p>
+                        <p className="text-[9px] font-black text-primary uppercase tracking-widest">Destaque por publicidade</p>
                     </div>
                 </div>
                 {displayList.length > 3 && (

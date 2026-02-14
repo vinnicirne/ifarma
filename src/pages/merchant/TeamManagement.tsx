@@ -111,8 +111,10 @@ const TeamManagement = () => {
         setSaving(true);
         try {
             // 1. Deletar do Auth (isso cascateia para profiles devido ao ON DELETE CASCADE)
-            const { data: { session } } = await supabase.auth.getSession();
-            if (!session) throw new Error("Sessão expirada");
+            // 1. Deletar do Auth (isso cascateia para profiles devido ao ON DELETE CASCADE)
+            const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+            const session = refreshData?.session;
+            if (refreshError || !session) throw new Error("Sessão expirada");
 
             const baseUrl = import.meta.env.VITE_SUPABASE_URL;
             const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -219,7 +221,8 @@ const TeamManagement = () => {
                 }
 
                 // Manual Fetch to bypass potential Supabase Client invoke issues
-                const { data: { session: freshSession } } = await supabase.auth.getSession();
+                const { data: refreshData } = await supabase.auth.refreshSession();
+                const freshSession = refreshData?.session;
                 if (!freshSession) throw new Error("Sessão expirada. Por favor, faça login novamente.");
 
                 const baseUrl = import.meta.env.VITE_SUPABASE_URL;

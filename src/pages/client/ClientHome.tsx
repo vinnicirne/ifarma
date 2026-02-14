@@ -118,35 +118,24 @@ export const ClientHome = ({ userLocation, sortedPharmacies, session }: { userLo
             setLoadingFeed(false);
         };
 
-        const handleAdMob = async (feedData: any[], settings: any) => {
+        const handleAdMob = async (feedData: any[], _settings: any) => {
             if (!Capacitor.isNativePlatform()) return;
-            if (settings.admob_enabled !== 'true') {
-                await AdMob.hideBanner().catch(() => { });
-                return;
-            }
 
             try {
-                await AdMob.initialize();
+                // Use centralized library for all AdMob logic
+                const { initializeAdMob, showBanner, hideBanner } = await import('../../lib/adMob');
+                await initializeAdMob();
 
-                // 1. Banner Logic
                 const admobSection = feedData.find(s => s.type === 'admob.banner');
                 if (admobSection) {
                     const index = feedData.findIndex(s => s.type === 'admob.banner');
                     const position = index === 0 ? 'TOP_CENTER' : 'BOTTOM_CENTER';
-                    const bannerId = settings.admob_banner_id_android || 'ca-app-pub-3940256099942544/6300978111';
-
-                    await AdMob.showBanner({
-                        adId: bannerId,
-                        adSize: BannerAdSize.ADAPTIVE_BANNER,
-                        position: BannerAdPosition[position as keyof typeof BannerAdPosition] || BannerAdPosition.BOTTOM_CENTER,
-                        margin: 0,
-                        isTesting: bannerId.includes('3940256099942544')
-                    });
+                    await showBanner(position as 'TOP_CENTER' | 'BOTTOM_CENTER');
                 } else {
-                    await AdMob.hideBanner().catch(() => { });
+                    await hideBanner();
                 }
             } catch (e) {
-                console.error('AdMob Control Error:', e);
+                console.error('AdMob Execution Error:', e);
             }
         };
 

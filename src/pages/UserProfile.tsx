@@ -161,11 +161,14 @@ const UserProfile = ({ session, profile, onRefresh }: { session: any, profile: a
                 fullAddress += ` - ${formData.complement}`;
             }
 
+            // Treat empty/whitespace-only CPF as null to avoid unique constraint issues
+            const cpfValue = formData.cpf?.trim() || null;
+
             const { data, error } = await supabase
                 .from('profiles')
                 .update({
                     full_name: formData.full_name,
-                    cpf: formData.cpf,
+                    cpf: cpfValue,
                     phone: formData.phone,
                     avatar_url: formData.avatar_url,
                     address: fullAddress,
@@ -177,6 +180,13 @@ const UserProfile = ({ session, profile, onRefresh }: { session: any, profile: a
 
             if (error) {
                 console.error('❌ Erro Supabase ao atualizar perfil:', error);
+
+                // Friendly message for duplicate CPF
+                if (error.message?.includes('profiles_cpf_key')) {
+                    alert('Este CPF já está cadastrado em outra conta. Verifique o número digitado.');
+                    return;
+                }
+
                 throw error;
             }
 
