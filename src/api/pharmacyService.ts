@@ -64,10 +64,13 @@ export const pharmacyService = {
         }
 
         const { data: responseData, error: invokeError } = await supabase.functions.invoke('create-user-admin', {
+            headers: {
+                Authorization: `Bearer ${session.access_token}` // Force header
+            },
             body: {
                 email: pharm.owner_email,
                 password: tempPassword,
-                auth_token: session.access_token, // Explicitly pass token
+                auth_token: session.access_token, // Keep body for new function
                 pharmacy_id: id,
                 metadata: {
                     full_name: pharm.owner_name || pharm.name,
