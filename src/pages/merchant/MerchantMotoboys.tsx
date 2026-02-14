@@ -110,6 +110,7 @@ const MerchantMotoboys = () => { // Assuming session/profile context or fetching
                 body: {
                     email: loginEmail,
                     password: formData.password,
+                    auth_token: refreshData.session.access_token, // 🔥 Explicitly pass token
                     metadata: {
                         role: 'motoboy',
                         full_name: formData.name,

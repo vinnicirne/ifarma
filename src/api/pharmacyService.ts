@@ -67,6 +67,7 @@ export const pharmacyService = {
             body: {
                 email: pharm.owner_email,
                 password: tempPassword,
+                auth_token: session.access_token, // Explicitly pass token
                 pharmacy_id: id,
                 metadata: {
                     full_name: pharm.owner_name || pharm.name,

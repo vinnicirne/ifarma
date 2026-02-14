@@ -208,7 +208,7 @@ export const AdManagement = ({ profile }: { profile: any }) => {
                                                     {item.destination_type === 'external' ? 'Externo' : 'No App'}
                                                 </span>
                                             </div>
-                                            <p className="text-white text-[10px] font-bold opacity-80 uppercase tracking-widest">Lojas em destaque por publicidade</p>
+                                            <p className="text-white text-[10px] font-bold opacity-80 uppercase tracking-widest">Destaque por publicidade</p>
                                         </div>
                                     </div>
 
