@@ -72,6 +72,7 @@ export const pharmacyService = {
                 email: pharm.owner_email,
                 password: tempPassword || Math.random().toString(36).slice(-8), // Fallback password
                 pharmacy_id: id,
+                approve_pharmacy: true, // ✅ Required by new Edge Function logic
                 metadata: {
                     full_name: pharm.owner_name || pharm.name,
                     role: 'merchant',
@@ -81,14 +82,33 @@ export const pharmacyService = {
         });
 
         if (invokeError) {
+            console.error("Invoke Error:", invokeError);
             const errorText = (invokeError.message || '').toLowerCase();
 
-            // Handle 401 specifically
-            if (errorText.includes('non-2xx') || errorText.includes('401')) {
+            // Handle 401 specifically (Invalid JWT)
+            // Note: supabase-js might wrap the response. context.json() is better if available but invokeError usually is just an Error object with text.
+            // If the message explicitly says 'Invalid JWT' or status 401
+            if (errorText.includes('invalid jwt') || (invokeError as any).context?.status === 401) {
                 throw new Error('Sessão expirada ou permissão negada. Faça logout e login novamente no painel admin.');
             }
 
-            if (errorText.includes('already registered') || errorText.includes('already exists')) {
+            // For other errors (400, 500), try to extract the message
+            let serverMsg = invokeError.message || 'Erro na Edge Function';
+            try {
+                // If it's a FunctionsHttpError, it might have context
+                if ((invokeError as any).context && typeof (invokeError as any).context.json === 'function') {
+                    const body = await (invokeError as any).context.json();
+                    if (body && body.error) {
+                        serverMsg = body.error;
+                        if (body.detail) serverMsg += ` (${body.detail})`;
+                    }
+                }
+            } catch (e) {
+                // ignore json parse error
+            }
+
+            if (serverMsg.toLowerCase().includes('already registered') || serverMsg.toLowerCase().includes('already exists')) {
+                // Find existing profile logic... (keeping existing logic flow)
                 // Find existing profile
                 const { data: existingProfile } = await supabase
                     .from('profiles')
@@ -113,7 +133,8 @@ export const pharmacyService = {
                 }
                 throw new Error('Usuário já existe sem perfil vinculado.');
             }
-            throw new Error(invokeError.message || 'Erro na Edge Function');
+
+            throw new Error(serverMsg);
         }
 
         const userId = responseData?.user?.id;
