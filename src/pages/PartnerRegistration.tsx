@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 
@@ -36,8 +36,55 @@ const PartnerRegistration = () => {
         neighborhood: '',
         city: '',
         state: '',
-        delivery_enabled: 'false' // string for radio input logic
+        delivery_enabled: 'false', // string for radio input logic
+        plan_id: '' // Selected plan ID
     });
+
+    const [plans, setPlans] = useState<any[]>([]);
+
+    useEffect(() => {
+        const fetchPlans = async () => {
+            try {
+                const { data, error } = await supabase
+                    .from('billing_plans')
+                    .select('*')
+                    .eq('is_active', true);
+
+                if (error) throw error;
+
+                // De-duplicate and filter for canonical plans
+                const canonicalNames = ['FREE', 'PROFESSIONAL', 'ENTERPRISE'];
+                const uniquePlans: any[] = [];
+                const seen = new Set();
+
+                // Sort data first to ensure we pick the "best" one if duplicates exist (e.g. prefer 'free' slug over 'gratuito')
+                const sortedData = (data || []).sort((a, b) => {
+                    // Custom sort to prioritize canonical slugs
+                    const score = (slug: string) => {
+                        if (['free', 'professional', 'enterprise'].includes(slug)) return 2;
+                        return 1;
+                    };
+                    return score(b.slug) - score(a.slug);
+                });
+
+                sortedData.forEach(plan => {
+                    if (canonicalNames.includes(plan.name) && !seen.has(plan.name)) {
+                        seen.add(plan.name);
+                        uniquePlans.push(plan);
+                    }
+                });
+
+                // Sort by price for display
+                uniquePlans.sort((a, b) => a.monthly_fee_cents - b.monthly_fee_cents);
+
+                setPlans(uniquePlans);
+            } catch (error) {
+                console.error("Erro ao carregar planos", error);
+            }
+        };
+
+        fetchPlans();
+    }, []);
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
@@ -129,6 +176,9 @@ const PartnerRegistration = () => {
                 formData.establishment_phone;
         }
         if (currentStep === 3) {
+            return formData.plan_id !== '';
+        }
+        if (currentStep === 4) {
             return formData.cep && formData.address && formData.address_number &&
                 formData.neighborhood && formData.city && formData.state;
         }
@@ -145,47 +195,62 @@ const PartnerRegistration = () => {
     const prevStep = () => setStep(prev => prev - 1);
 
     const [success, setSuccess] = useState(false);
+    const [successMessage, setSuccessMessage] = useState("");
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
 
         try {
-            const fullAddress = `${formData.address}, ${formData.address_number} - ${formData.neighborhood}, ${formData.city} - ${formData.state}`;
-
             const payload = {
-                name: formData.trade_name, // Main name used in app
-                address: fullAddress, // Simple address string for compatibility
-                status: 'Pendente',
-                plan: 'Gratuito',
+                plan_id: formData.plan_id,
+                pharmacy: {
+                    trade_name: formData.trade_name,
+                    cnpj: formData.cnpj,
+                    legal_name: formData.legal_name,
+                    establishment_phone: formData.establishment_phone,
+                    specialty: formData.specialty,
+                    delivery_enabled: formData.delivery_enabled === 'true',
 
-                // Detailed Info
-                owner_name: formData.owner_name,
-                owner_last_name: formData.owner_last_name,
-                owner_email: formData.owner_email,
-                owner_phone: formData.owner_phone,
-                owner_cpf: formData.owner_cpf,
-                owner_rg: formData.owner_rg,
-                owner_rg_issuer: formData.owner_rg_issuer,
+                    owner_name: formData.owner_name,
+                    owner_last_name: formData.owner_last_name,
+                    owner_email: formData.owner_email,
+                    owner_phone: formData.owner_phone,
+                    owner_cpf: formData.owner_cpf,
+                    owner_rg: formData.owner_rg,
+                    owner_rg_issuer: formData.owner_rg_issuer,
 
-                cnpj: formData.cnpj,
-                legal_name: formData.legal_name,
-                trade_name: formData.trade_name,
-                establishment_phone: formData.establishment_phone,
-                specialty: formData.specialty,
-                delivery_enabled: formData.delivery_enabled === 'true'
+                    cep: formData.cep,
+                    address: formData.address,
+                    address_number: formData.address_number,
+                    address_complement: formData.address_complement,
+                    neighborhood: formData.neighborhood,
+                    city: formData.city,
+                    state: formData.state,
+                }
             };
 
-            const { error } = await supabase.from('pharmacies').insert([payload]);
+            const { data, error } = await supabase.functions.invoke('partner-register', {
+                body: payload
+            });
 
             if (error) throw error;
+            if (!data?.success) throw new Error(data?.error || "Falha no cadastro.");
 
+            setSuccessMessage(data.message);
             setSuccess(true);
             window.scrollTo(0, 0);
 
         } catch (error: any) {
             console.error(error);
-            alert("Erro ao realizar cadastro: " + error.message);
+            // Check for specific error messages if possible, though Edge Function might wrap them
+            const msg = error.message || "Erro ao realizar cadastro.";
+
+            if (msg.includes('pharmacies_cnpj_key') || msg.includes('Este CNPJ já está cadastrado')) {
+                alert("Este CNPJ já está cadastrado. Por favor, entre em contato conosco ou tente recuperar sua senha.");
+            } else {
+                alert(msg);
+            }
         } finally {
             setLoading(false);
         }
@@ -200,7 +265,7 @@ const PartnerRegistration = () => {
                     </div>
                     <h2 className="text-3xl font-black text-slate-900 dark:text-white mb-4">Cadastro Realizado!</h2>
                     <p className="text-slate-600 dark:text-slate-300 text-lg leading-relaxed mb-8">
-                        Recebemos seus dados com sucesso. Nossa equipe fará uma análise rápida e você receberá suas <strong>credenciais de acesso</strong> no e-mail:
+                        {successMessage || "Recebemos seus dados com sucesso. Nossa equipe fará uma análise rápida e você receberá suas credenciais de acesso no e-mail:"}
                         <br />
                         <span className="font-bold text-primary block mt-2">{formData.owner_email}</span>
                     </p>
@@ -236,7 +301,7 @@ const PartnerRegistration = () => {
             <div className="w-full max-w-2xl bg-white dark:bg-zinc-800 rounded-[32px] shadow-2xl overflow-hidden border border-slate-100 dark:border-white/5">
                 {/* Progress Bar */}
                 <div className="bg-slate-100 dark:bg-black/20 h-2 w-full flex">
-                    <div className={`h-full bg-primary transition-all duration-500 ${step === 1 ? 'w-1/3' : step === 2 ? 'w-2/3' : 'w-full'}`}></div>
+                    <div className={`h-full bg-primary transition-all duration-500 ${step === 1 ? 'w-1/4' : step === 2 ? 'w-2/4' : step === 3 ? 'w-3/4' : 'w-full'}`}></div>
                 </div>
 
                 <form onSubmit={handleSubmit} className="p-8 md:p-12">
@@ -337,8 +402,61 @@ const PartnerRegistration = () => {
                         </div>
                     )}
 
-                    {/* STEP 3: ADDRESS */}
+                    {/* STEP 3: PLAN SELECTION */}
                     {step === 3 && (
+                        <div className="animate-fade-in">
+                            <h2 className="text-2xl font-black text-slate-900 dark:text-white mb-6 flex items-center gap-2">
+                                <MaterialIcon name="verified" className="text-primary" />
+                                Escolha seu Plano
+                            </h2>
+
+                            <div className="grid md:grid-cols-2 gap-4">
+                                {plans.map((plan) => (
+                                    <div
+                                        key={plan.id}
+                                        onClick={() => setFormData(prev => ({ ...prev, plan_id: plan.id }))}
+                                        className={`cursor-pointer border-2 rounded-2xl p-6 transition-all ${formData.plan_id === plan.id
+                                            ? 'border-primary bg-primary/5 shadow-lg scale-[1.02]'
+                                            : 'border-slate-100 dark:border-white/5 hover:border-slate-300 dark:hover:border-white/10'
+                                            }`}
+                                    >
+                                        <div className="flex justify-between items-start mb-4">
+                                            <div>
+                                                <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase">{plan.name}</h3>
+                                                <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mt-1">
+                                                    {plan.monthly_fee_cents === 0 ? 'Grátis' : `R$ ${(plan.monthly_fee_cents / 100).toFixed(2)}/mês`}
+                                                </p>
+                                            </div>
+                                            <div className={`size-6 rounded-full border-2 flex items-center justify-center ${formData.plan_id === plan.id ? 'border-primary bg-primary' : 'border-slate-300'
+                                                }`}>
+                                                {formData.plan_id === plan.id && <MaterialIcon name="check" className="text-white text-sm" />}
+                                            </div>
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <p className="text-sm text-slate-600 dark:text-slate-400 flex items-center gap-2">
+                                                <MaterialIcon name="shopping_bag" className="text-primary text-base" />
+                                                <span className="font-bold">{plan.free_orders_per_period}</span> pedidos grátis/mês
+                                            </p>
+                                            <p className="text-sm text-slate-600 dark:text-slate-400 flex items-center gap-2">
+                                                <MaterialIcon name="percent" className="text-primary text-base" />
+                                                <span className="font-bold">{(plan.overage_percent_bp / 100)}%</span> taxa sobre excedente
+                                            </p>
+                                            {plan.overage_fixed_fee_cents > 0 && (
+                                                <p className="text-sm text-slate-600 dark:text-slate-400 flex items-center gap-2">
+                                                    <MaterialIcon name="attach_money" className="text-primary text-base" />
+                                                    <span className="font-bold">R$ {(plan.overage_fixed_fee_cents / 100).toFixed(2)}</span> taxa fixa adicional
+                                                </p>
+                                            )}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* STEP 4: ADDRESS */}
+                    {step === 4 && (
                         <div className="animate-fade-in">
                             <h2 className="text-2xl font-black text-slate-900 dark:text-white mb-6 flex items-center gap-2">
                                 <MaterialIcon name="location_on" className="text-primary" />
@@ -408,7 +526,7 @@ const PartnerRegistration = () => {
                             </button>
                         )}
 
-                        {step < 3 ? (
+                        {step < 4 ? (
                             <button type="button" onClick={nextStep} className="flex-1 bg-primary text-background-dark h-14 rounded-2xl font-black uppercase tracking-widest hover:opacity-90 transition-opacity shadow-lg shadow-primary/20">
                                 Continuar
                             </button>

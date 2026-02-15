@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import MerchantLayout from './MerchantLayout';
 import { supabase } from '../../lib/supabase';
+import { isUuid } from '../../lib/uuidUtils';
 import { Toast } from '../../components/Toast';
 
 const formatCurrency = (value: string | number) => {
@@ -196,7 +197,7 @@ const InventoryControl = () => {
         let pharmacyId = null;
         const impersonatedId = localStorage.getItem('impersonatedPharmacyId');
 
-        if (impersonatedId) {
+        if (impersonatedId && isUuid(impersonatedId)) {
             console.log('🎭 Admin visualizando farmácia:', impersonatedId);
             pharmacyId = impersonatedId;
         } else {
@@ -242,7 +243,7 @@ const InventoryControl = () => {
             let pharmacyId = null;
             const impersonatedId = localStorage.getItem('impersonatedPharmacyId');
 
-            if (impersonatedId) {
+            if (impersonatedId && isUuid(impersonatedId)) {
                 console.log('🎭 Admin gerenciando farmácia:', impersonatedId);
                 pharmacyId = impersonatedId;
             } else {

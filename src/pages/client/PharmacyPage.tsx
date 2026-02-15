@@ -5,6 +5,7 @@ import { MaterialIcon } from '../../components/Shared';
 import { useCart } from '../../hooks/useCart';
 import { useNotifications } from '../../hooks/useNotifications';
 import { NavigationDrawer } from '../../components/layout/NavigationDrawer';
+import { ConfirmModal } from '../../components/ConfirmModal';
 
 export const PharmacyPage = ({ session }: { session: any }) => {
     const { id } = useParams();
@@ -16,10 +17,16 @@ export const PharmacyPage = ({ session }: { session: any }) => {
     const [activeCategory, setActiveCategory] = useState('Todos');
     const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
+    const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
     const { unreadCount: notificationCount } = useNotifications(session?.user?.id);
     const { addToCart } = useCart();
 
     const handleAddToCart = async (productId: string) => {
+        if (!session?.user) {
+            setIsLoginModalOpen(true);
+            return;
+        }
+
         try {
             await addToCart(productId, id || '');
             alert('Produto adicionado ao carrinho! 🛒');
@@ -28,6 +35,8 @@ export const PharmacyPage = ({ session }: { session: any }) => {
             alert(`Erro: ${error.message}`);
         }
     };
+
+    // ... (rest of the component)
 
     useEffect(() => {
         const fetchPharmacyData = async () => {
@@ -169,6 +178,16 @@ export const PharmacyPage = ({ session }: { session: any }) => {
 
     return (
         <div className="max-w-lg mx-auto bg-slate-50 dark:bg-zinc-950 min-h-screen pb-10">
+            <ConfirmModal
+                isOpen={isLoginModalOpen}
+                onClose={() => setIsLoginModalOpen(false)}
+                onConfirm={() => navigate('/login')}
+                title="Login Necessário 🔐"
+                description="Para adicionar produtos ao carrinho e fazer pedidos, você precisa entrar na sua conta."
+                confirmText="Fazer Login"
+                cancelText="Agora não"
+                type="info"
+            />
             {/* Top Navigation Bar */}
             <div className="fixed top-0 left-0 right-0 z-50 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-md border-b border-slate-100 dark:border-white/5">
                 <div className="flex items-center p-4 justify-between max-w-lg mx-auto">

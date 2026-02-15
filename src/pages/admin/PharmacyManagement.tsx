@@ -98,7 +98,7 @@ const PharmacyManagement = ({ profile }: { profile: any }) => {
         let matchesFilter = true;
         if (filterStatus === 'Pendente') matchesFilter = p.status === 'Pendente';
         if (filterStatus === 'Aprovado') matchesFilter = p.status === 'Aprovado';
-        if (filterStatus === 'SemPlano') matchesFilter = !p.plan || p.plan === 'Gratuito';
+        if (filterStatus === 'SemPlano') matchesFilter = !p.plan || p.plan === 'FREE';
 
         return matchesSearch && matchesFilter;
     });
@@ -253,8 +253,8 @@ const PharmacyManagement = ({ profile }: { profile: any }) => {
                                                 {pharm.status || 'Pendente'}
                                             </div>
                                             <span className="text-[10px] font-bold text-slate-500 px-1 uppercase tracking-widest flex items-center gap-2">
-                                                {pharm.plan === 'Premium' ? <ShieldCheck size={12} className="text-primary" /> : <Clock size={12} />}
-                                                {pharm.plan || 'Gratuito'}
+                                                {pharm.plan === 'PREMIUM' ? <ShieldCheck size={12} className="text-primary" /> : <Clock size={12} />}
+                                                {pharm.plan || 'FREE'}
                                             </span>
                                         </div>
                                     </td>

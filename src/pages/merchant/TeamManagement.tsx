@@ -240,6 +240,7 @@ const TeamManagement = () => {
                     body: JSON.stringify({
                         email: loginEmail,
                         password: loginPassword,
+                        approve_pharmacy: false, // Staff creation does not approve pharmacy
                         metadata: {
                             full_name: formData.name,
                             role: formData.role,

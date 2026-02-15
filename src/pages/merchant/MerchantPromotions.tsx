@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import MerchantLayout from './MerchantLayout';
 import { supabase } from '../../lib/supabase';
 import { MaterialIcon } from '../../components/Shared';
+import { isUuid } from '../../lib/uuidUtils';
 
 export const MerchantPromotions = () => {
     const [promotions, setPromotions] = useState<any[]>([]);
@@ -14,7 +15,7 @@ export const MerchantPromotions = () => {
             if (!user) return;
 
             let pid = localStorage.getItem('impersonatedPharmacyId');
-            if (!pid) {
+            if (!pid || !isUuid(pid)) {
                 const { data: owned } = await supabase.from('pharmacies').select('id').eq('owner_id', user.id).maybeSingle();
                 pid = owned?.id;
                 if (!pid) {

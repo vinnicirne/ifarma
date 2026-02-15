@@ -7,7 +7,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
 
 const ASAAS_API_KEY = Deno.env.get('ASAAS_API_KEY') || '';
-const ASAAS_BASE_URL = 'https://sandbox.asaas.com/api/v3'; // Trocar para produção
+const ASAAS_BASE_URL = Deno.env.get('ASAAS_BASE_URL') || 'https://sandbox.asaas.com/api/v3';
 
 interface BillingCycle {
     id: string;
@@ -71,13 +71,15 @@ Deno.serve(async (req) => {
             try {
                 console.log(`\n🔄 Processando ciclo ${cycle.id} (farmácia ${cycle.pharmacy_id})`);
 
-                // 3.1. Buscar assinatura da farmácia
+                // 3.1. Buscar assinatura da farmácia com dados do cliente Asaas
                 const { data: subscription, error: subError } = await supabase
                     .from('pharmacy_subscriptions')
-                    .select('*, billing_plans(*)')
+                    .select('*, billing_plans(*), pharmacies:pharmacies(asaas_customer_id)')
                     .eq('pharmacy_id', cycle.pharmacy_id)
                     .eq('status', 'active')
-                    .single();
+                    .order('started_at', { ascending: false })
+                    .limit(1)
+                    .maybeSingle();
 
                 if (subError || !subscription) {
                     console.warn(`⚠️ Assinatura não encontrada para farmácia ${cycle.pharmacy_id}`);
@@ -86,6 +88,8 @@ Deno.serve(async (req) => {
 
                 const sub = subscription as any;
                 const plan = sub.billing_plans as BillingPlan;
+                // Get customer ID from the joined pharmacies table
+                const asaasCustomerId = sub.pharmacies?.asaas_customer_id;
 
                 // 3.2. Fechar ciclo
                 const { error: updateError } = await supabase
@@ -102,10 +106,10 @@ Deno.serve(async (req) => {
                 closedCount++;
 
                 // 3.3. Gerar fatura de mensalidade (se houver)
-                if (plan.monthly_fee_cents > 0 && sub.asaas_customer_id) {
+                if (plan.monthly_fee_cents > 0 && asaasCustomerId) {
                     try {
                         const monthlyInvoice = await createAsaasPayment({
-                            customer: sub.asaas_customer_id,
+                            customer: asaasCustomerId,
                             value: plan.monthly_fee_cents / 100,
                             description: `Mensalidade ${plan.name} - ${cycle.period_start} a ${cycle.period_end}`,
                             dueDate: new Date(new Date().setDate(new Date().getDate() + 5)).toISOString().split('T')[0],
@@ -131,10 +135,10 @@ Deno.serve(async (req) => {
                 }
 
                 // 3.4. Gerar fatura de excedente (se houver)
-                if (cycle.overage_amount_cents > 0 && sub.asaas_customer_id) {
+                if (cycle.overage_amount_cents > 0 && asaasCustomerId) {
                     try {
                         const overageInvoice = await createAsaasPayment({
-                            customer: sub.asaas_customer_id,
+                            customer: asaasCustomerId,
                             value: cycle.overage_amount_cents / 100,
                             description: `Excedente de ${cycle.overage_orders} pedidos - ${cycle.period_start} a ${cycle.period_end}`,
                             dueDate: new Date(new Date().setDate(new Date().getDate() + 5)).toISOString().split('T')[0],

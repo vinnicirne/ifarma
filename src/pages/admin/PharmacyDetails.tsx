@@ -9,6 +9,23 @@ import { Autocomplete, useJsApiLoader } from '@react-google-maps/api';
 
 const libraries: ("places" | "visualization")[] = ["places", "visualization"];
 
+// --- HELPERS ---
+function debounce<T extends (...args: any[]) => void>(fn: T, wait = 600) {
+    let t: number | undefined;
+    return (...args: Parameters<T>) => {
+        if (t) window.clearTimeout(t);
+        t = window.setTimeout(() => fn(...args), wait);
+    };
+}
+
+const parseNumberSafe = (value: string, fallback = 0) => {
+    // Converte "10,5" -> "10.5" e garante número finito
+    const v = value.toString().trim().replace(',', '.');
+    if (v === '') return fallback;
+    const n = Number(v);
+    return Number.isFinite(n) ? n : fallback;
+};
+
 const PharmacyDetails = () => {
     const [googleKey, setGoogleKey] = useState<string | null>(null);
 
@@ -35,9 +52,12 @@ const PharmacyDetails = () => {
 
     const { isLoaded } = useJsApiLoader({
         id: 'google-map-script',
-        googleMapsApiKey: googleKey || import.meta.env.VITE_GOOGLE_MAPS_API_KEY || "",
-        libraries: libraries
+        googleMapsApiKey: googleKey ?? '',
+        libraries: libraries,
+        preventGoogleFontsLoading: true
     });
+
+    const canUseMaps = !!googleKey && isLoaded;
 
     const [autocomplete, setAutocomplete] = useState<google.maps.places.Autocomplete | null>(null);
 
@@ -99,6 +119,14 @@ const PharmacyDetails = () => {
     const logoInputRef = useRef<HTMLInputElement>(null);
     const bannerInputRef = useRef<HTMLInputElement>(null);
 
+    // Refs for Geocoding (Debounce & Cache)
+    const lastGeocodeKeyRef = useRef<string>('');
+    const isGeocodingRef = useRef(false);
+    const formDataRef = useRef(formData);
+
+    // Update ref with latest formData on every render to ensure geocoding uses current values
+    formDataRef.current = formData;
+
     // Form State
     const [formData, setFormData] = useState({
         name: '',
@@ -114,8 +142,8 @@ const PharmacyDetails = () => {
         longitude: '',
         rating: '5.0',
         is_open: true,
-        plan: 'Gratuito',
-        status: 'Aprovado', // Manter como string inicialmente para compatibilidade com UI
+        plan: 'FREE',
+        status: 'pending', // Manter como string inicialmente para compatibilidade com UI
         cnpj: '',
         owner_name: '',
         owner_phone: '',
@@ -154,6 +182,13 @@ const PharmacyDetails = () => {
     const fetchPharmacyData = async (pharmacyId: string) => {
         setInitialLoading(true);
         try {
+            // Validate UUID before query
+            const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+            if (!uuidRegex.test(pharmacyId)) {
+                console.warn("Invalid Pharmacy ID for fetch:", pharmacyId);
+                return;
+            }
+
             // 1. Fetch Pharmacy Details
             const { data: pharmaData, error: pharmaError } = await supabase
                 .from('pharmacies')
@@ -186,7 +221,8 @@ const PharmacyDetails = () => {
                     delivery_ranges: pharmaData.delivery_ranges || [],
                     delivery_free_min_km: pharmaData.delivery_free_min_km || 0,
                     delivery_free_min_value: pharmaData.delivery_free_min_value || 0,
-                    delivery_max_km: pharmaData.delivery_max_km || 15
+                    delivery_max_km: pharmaData.delivery_max_km || 15,
+                    status: pharmaData.status || 'pending'
                 }));
             }
 
@@ -227,7 +263,7 @@ const PharmacyDetails = () => {
             // Upload to Supabase Storage (Bucket 'app-assets' used as general assets bucket)
             const { error: uploadError } = await supabase.storage
                 .from('app-assets')
-                .upload(filePath, file);
+                .upload(filePath, file, { upsert: true });
 
             if (uploadError) throw uploadError;
 
@@ -244,9 +280,64 @@ const PharmacyDetails = () => {
         }
     };
 
+    const handleApprovePharmacy = async () => {
+        if (!id || id === 'new') return;
+
+        const confirmApprove = window.confirm("Deseja aprovar esta farmácia? Isso verificará se há uma assinatura ativa.");
+        if (!confirmApprove) return;
+
+        setLoading(true);
+        try {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session?.access_token) {
+                alert('Sessão expirada. Faça login novamente.');
+                return;
+            }
+
+            const { data, error } = await supabase.functions.invoke(
+                'create-user-admin',
+                {
+                    body: {
+                        pharmacy_id: id,
+                        approve_pharmacy: true
+                    },
+                    headers: {
+                        Authorization: `Bearer ${session.access_token}`
+                    }
+                }
+            );
+
+            if (error) {
+                console.error("Erro na aprovação:", error);
+                const errorBody = await error.context?.json().catch(() => ({}));
+                const msg = errorBody?.error || error.message || "Erro desconhecido";
+                alert(`Erro: ${msg}`);
+                return;
+            }
+
+            if (data?.error) {
+                alert(`Erro: ${data.error}`);
+                return;
+            }
+
+            alert('Farmácia aprovada com sucesso!');
+            fetchPharmacyData(id);
+
+        } catch (err: any) {
+            console.error("Erro ao aprovar:", err);
+            alert("Erro ao aprovar farmácia.");
+        } finally {
+            setLoading(false);
+        }
+    };
+
     // --- REALTIME SUBSCRIPTION ---
     useEffect(() => {
         if (!id || id === 'new') return;
+
+        // Validate UUID for subscription using local regex since utils import might not be available or circle dep
+        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        if (!uuidRegex.test(id)) return;
 
         const channel = supabase
             .channel(`pharmacy-orders-${id}`)
@@ -275,7 +366,7 @@ const PharmacyDetails = () => {
 
     // --- Geocoding Functions ---
     const geocodeAddress = async (address: string): Promise<{ lat: string, lng: string, formattedAddress?: string } | null> => {
-        const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+        const apiKey = googleKey;
         if (!apiKey) {
             console.warn('Google Maps API key not found');
             return null;
@@ -302,7 +393,7 @@ const PharmacyDetails = () => {
     };
 
     const reverseGeocode = async (lat: number, lng: number): Promise<any> => {
-        const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+        const apiKey = googleKey;
         if (!apiKey) return null;
 
         try {
@@ -373,53 +464,99 @@ const PharmacyDetails = () => {
         }
     };
 
-    // Handler for manual address changes
-    const handleAddressChange = async () => {
-        if (!formData.street || !formData.city || !formData.state) return;
+    // --- Advanced Geocoding Logic ---
+    const geocodeFromForm = async () => {
+        if (isGeocodingRef.current) return;
+        const currentData = formDataRef.current;
+        if (!currentData.street || !currentData.city || !currentData.state) return;
 
-        const fullAddress = `${formData.street}${formData.number ? ', ' + formData.number : ''}, ${formData.neighborhood}, ${formData.city} - ${formData.state}, Brasil`;
+        const fullAddress =
+            `${currentData.street}${currentData.number ? ', ' + currentData.number : ''}, ` +
+            `${currentData.neighborhood ? currentData.neighborhood + ', ' : ''}` +
+            `${currentData.city} - ${currentData.state}, Brasil`;
 
-        const geoResult = await geocodeAddress(fullAddress);
-        if (geoResult) {
-            setFormData(prev => ({
-                ...prev,
-                latitude: geoResult.lat,
-                longitude: geoResult.lng
-            }));
+        // avoid repeating geocode for same string
+        const normalizedKey = fullAddress.trim().toLowerCase();
+        if (normalizedKey === lastGeocodeKeyRef.current) return;
+        lastGeocodeKeyRef.current = normalizedKey;
+
+        isGeocodingRef.current = true;
+        try {
+            const geoResult = await geocodeAddress(fullAddress);
+            if (geoResult) {
+                setFormData(prev => ({
+                    ...prev,
+                    latitude: geoResult.lat,
+                    longitude: geoResult.lng,
+                    address: geoResult.formattedAddress || prev.address,
+                }));
+            }
+        } finally {
+            isGeocodingRef.current = false;
         }
     };
 
+    const debouncedGeocodeFromForm = useMemo(
+        () => debounce(geocodeFromForm, 700),
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        [googleKey] // Recreate only if API key changes
+    );
+
+    // Auto-trigger geocode when address changes
+    useEffect(() => {
+        if (!googleKey) return;
+        if (!formData.street || !formData.city || !formData.state) return;
+
+        debouncedGeocodeFromForm();
+
+        // cleanup if needed
+        return () => { };
+    }, [
+        googleKey,
+        formData.street,
+        formData.number,
+        formData.neighborhood,
+        formData.city,
+        formData.state,
+        debouncedGeocodeFromForm
+    ]);
+
+    // Handler for manual address changes (Button)
+    const handleAddressChange = () => {
+        geocodeFromForm();
+    };
+
     const handleSave = async () => {
+        if (loading) return; // Prevent double submit
         if (!formData.name) return alert("Nome é obrigatório");
         setLoading(true);
 
-        // Mapeia status de PT para EN (banco)
-        const statusMap: Record<string, string> = {
-            'Aprovado': 'Aprovado',
-            'Pendente': 'Pendente',
-            'Rejeitado': 'Rejeitado',
-            'Suspenso': 'Suspenso',
-            'approved': 'Aprovado',
-            'pending': 'Pendente',
-            'rejected': 'Rejeitado',
-            'suspended': 'Suspenso'
-        };
+        // Status mapping removed - using separate flow
 
         // Mapeia plano (PT -> EN) para satisfazer check constraint
         const planMap: Record<string, string> = {
-            'Gratuito': 'Gratuito',
-            'Bronze': 'Bronze',
-            'Prata': 'Prata',
-            'Ouro': 'Ouro',
-            // Fallbacks
-            'basic': 'Gratuito',
-            'pro': 'Bronze',
-            'premium': 'Prata',
-            'enterprise': 'Ouro'
+            'FREE': 'FREE',
+            'PROFESSIONAL': 'PROFESSIONAL',
+            'ENTERPRISE': 'ENTERPRISE', // Padronizado
+            // Fallbacks for legacy values
+            'Gratuito': 'FREE',
+            'Básico': 'PROFESSIONAL',
+            'Pro': 'PROFESSIONAL', // Manter apenas para compatibilidade de leitura antiga
+            'Bronze': 'PROFESSIONAL',
+            'Prata': 'ENTERPRISE',
+            'Ouro': 'ENTERPRISE',
+            'basic': 'FREE',
+            'pro': 'PROFESSIONAL',
+            'premium': 'ENTERPRISE', // Mapeia antigo premium para enterprise
+            'enterprise': 'ENTERPRISE'
         };
 
 
-        const planValue = planMap[formData.plan] || 'basic';
+        const planValue = planMap[formData.plan] || 'FREE';
+
+        // Safe numbers for delivery fees
+        const safeFixed = Number.isFinite(formData.delivery_fee_fixed) ? formData.delivery_fee_fixed : 0;
+        const safePerKm = Number.isFinite(formData.delivery_fee_per_km) ? formData.delivery_fee_per_km : 0;
 
         // Mapeamento correto dos campos do formulário para o banco de dados
         // address e establishment_phone são campos legados/redundantes mas mantidos por compatibilidade
@@ -434,13 +571,13 @@ const PharmacyDetails = () => {
             city: formData.city,
             state: formData.state,
             address: `${formData.street}, ${formData.number} - ${formData.neighborhood}, ${formData.city} - ${formData.state}`,
-            latitude: parseFloat(formData.latitude) || 0,
-            longitude: parseFloat(formData.longitude) || 0,
-            // Contato e Status
+            latitude: formData.latitude ? parseFloat(formData.latitude) : null,
+            longitude: formData.longitude ? parseFloat(formData.longitude) : null,
+            // Contato
             phone: formData.establishment_phone || formData.phone,
             establishment_phone: formData.establishment_phone,
             is_open: formData.is_open,
-            status: statusMap[formData.status] || 'pending',
+            // status: REMOVED (Managed via separate flow)
             plan: planValue,
             rating: parseFloat(formData.rating) || 5.0,
 
@@ -455,8 +592,8 @@ const PharmacyDetails = () => {
 
             // Configurações de Entrega
             delivery_fee_type: formData.delivery_fee_type,
-            delivery_fee_fixed: formData.delivery_fee_fixed,
-            delivery_fee_per_km: formData.delivery_fee_per_km,
+            delivery_fee_fixed: safeFixed,
+            delivery_fee_per_km: safePerKm,
             delivery_ranges: formData.delivery_ranges,
             delivery_free_min_km: formData.delivery_free_min_km,
             delivery_free_min_value: formData.delivery_free_min_value,
@@ -491,6 +628,25 @@ const PharmacyDetails = () => {
                 pharmacyId = newPharmacy.id;
                 console.log("Farmácia criada com ID:", pharmacyId);
 
+
+
+                // ⚠️ Criação de Assinatura via UPSERT para garantir idempotência
+                console.log("Criando/Garantindo assinatura inicial...");
+                const { error: directSubError } = await supabase
+                    .from('pharmacy_subscriptions')
+                    .upsert({
+                        pharmacy_id: pharmacyId,
+                        plan: 'ENTERPRISE',
+                        status: 'trialing',
+                    }, { onConflict: 'pharmacy_id' });
+
+                if (directSubError) {
+                    console.warn("Falha ao criar assinatura automática (pode ser RLS):", directSubError);
+                    alert("Farmácia criada, mas NÃO consegui criar a assinatura (RLS). Sem assinatura, não dá pra aprovar. Verifique políticas/permite admin criar subscriptions.");
+                } else {
+                    console.log("Assinatura trialing criada com sucesso.");
+                }
+
                 // Criar Usuário Dono (Merchant) se dados fornecidos
                 if (formData.merchant_email && formData.merchant_password) {
                     if (formData.merchant_password.length < 6) {
@@ -507,18 +663,20 @@ const PharmacyDetails = () => {
                         return;
                     }
 
-                    const { data: authData, error: authErr } = await supabase.functions.invoke('create-user-admin', {
+                    const { data: authData, error: authErr } = await supabase.functions.invoke('create-staff-user', {
                         body: {
                             email: formData.merchant_email,
                             password: formData.merchant_password,
-                            auth_token: currentSession.access_token, // 🔥 TOKEN ADICIONADO
-                            pharmacy_id: pharmacyId, // 🔥 PHARMACY_ID NO CORPO PRINCIPAL
+                            pharmacy_id: pharmacyId,
                             metadata: {
                                 full_name: formData.owner_name,
                                 role: 'merchant',
-                                pharmacy_id: pharmacyId, // Também em metadata para compatibilidade
+                                pharmacy_id: pharmacyId,
                                 phone: formData.owner_phone
                             }
+                        },
+                        headers: {
+                            Authorization: `Bearer ${currentSession.access_token}`,
                         }
                     });
 
@@ -577,7 +735,14 @@ const PharmacyDetails = () => {
                         </h1>
                         {!isNew && (
                             <div className="flex items-center gap-3 mt-1 text-[10px] font-black uppercase tracking-widest text-[#92c9a9]">
-                                <span>Status: {formData.status}</span>
+                                <span>
+                                    Status:{' '}
+                                    {formData.status === 'approved'
+                                        ? 'Aprovado'
+                                        : formData.status === 'pending'
+                                            ? 'Pendente'
+                                            : formData.status}
+                                </span>
                                 <span className="size-1 rounded-full bg-white/20"></span>
                                 <span>Plano: {formData.plan}</span>
                             </div>
@@ -589,7 +754,12 @@ const PharmacyDetails = () => {
                     {!isNew && (
                         <button
                             onClick={() => {
-                                localStorage.setItem('impersonatedPharmacyId', id || '');
+                                const isUuid = (v?: string | null) => !!v && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
+                                if (!isUuid(id)) {
+                                    alert("ID da farmácia inválido ou não salvo. Recarregue a página.");
+                                    return;
+                                }
+                                localStorage.setItem('impersonatedPharmacyId', id!);
                                 navigate('/gestor');
                             }}
                             className="bg-white/10 hover:bg-white/20 text-white flex h-10 px-4 items-center justify-center rounded-2xl transition-all active:scale-95 gap-2 text-xs font-black uppercase tracking-widest border border-white/10"
@@ -772,12 +942,11 @@ const PharmacyDetails = () => {
                                         </div>
                                         <div className="flex flex-col gap-2">
                                             <label className="text-[10px] font-black uppercase tracking-widest text-[#92c9a9] px-1">Plano Atual</label>
-                                            <select value={formData.plan} onChange={e => setFormData({ ...formData, plan: e.target.value })} className="h-14 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-2xl px-4 text-slate-900 dark:text-white font-bold outline-none focus:border-primary/50 transition-colors appearance-none">
-                                                <option value="Gratuito">Gratuito</option>
-                                                <option value="Bronze">Bronze</option>
-                                                <option value="Prata">Prata</option>
-                                                <option value="Ouro">Ouro</option>
-                                            </select>
+                                            <input
+                                                value={formData.plan}
+                                                disabled
+                                                className="h-14 bg-black/20 border border-white/10 rounded-2xl px-4 text-white font-black"
+                                            />
                                         </div>
                                     </div>
                                 </section>
@@ -813,10 +982,14 @@ const PharmacyDetails = () => {
                                         </div>
                                         <div className="col-span-12 md:col-span-9 flex flex-col gap-2">
                                             <label className="text-[10px] font-black uppercase tracking-widest text-[#92c9a9] px-1">Rua / Logradouro</label>
-                                            {isLoaded ? (
+                                            {canUseMaps ? (
                                                 <Autocomplete
                                                     onLoad={onLoadAutocomplete}
                                                     onPlaceChanged={onPlaceChanged}
+                                                    options={{
+                                                        componentRestrictions: { country: 'br' },
+                                                        fields: ['address_components', 'geometry', 'formatted_address']
+                                                    }}
                                                 >
                                                     <input
                                                         value={formData.street}
@@ -949,7 +1122,7 @@ const PharmacyDetails = () => {
                                                         }
                                                     }
                                                 }}
-                                                isLoaded={isLoaded}
+                                                isLoaded={canUseMaps}
                                             />
                                         </div>
                                     </div>
@@ -990,12 +1163,32 @@ const PharmacyDetails = () => {
                                             {formData.delivery_fee_type === 'fixed' ? (
                                                 <div className="flex flex-col gap-2">
                                                     <label className="text-[10px] font-black uppercase tracking-widest text-[#92c9a9] px-1">Valor Fixo (R$)</label>
-                                                    <input type="number" value={formData.delivery_fee_fixed} onChange={e => setFormData({ ...formData, delivery_fee_fixed: parseFloat(e.target.value) })} className="h-14 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-2xl px-4 text-slate-900 dark:text-white font-bold outline-none focus:border-primary/50" />
+                                                    <input
+                                                        type="number"
+                                                        value={formData.delivery_fee_fixed}
+                                                        onChange={e =>
+                                                            setFormData(prev => ({
+                                                                ...prev,
+                                                                delivery_fee_fixed: parseNumberSafe(e.target.value, 0)
+                                                            }))
+                                                        }
+                                                        className="h-14 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-2xl px-4 text-slate-900 dark:text-white font-bold outline-none focus:border-primary/50"
+                                                    />
                                                 </div>
                                             ) : formData.delivery_fee_type === 'km' ? (
                                                 <div className="flex flex-col gap-2">
                                                     <label className="text-[10px] font-black uppercase tracking-widest text-[#92c9a9] px-1">Valor por KM (R$)</label>
-                                                    <input type="number" value={formData.delivery_fee_per_km} onChange={e => setFormData({ ...formData, delivery_fee_per_km: parseFloat(e.target.value) })} className="h-14 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-2xl px-4 text-slate-900 dark:text-white font-bold outline-none focus:border-primary/50" />
+                                                    <input
+                                                        type="number"
+                                                        value={formData.delivery_fee_per_km}
+                                                        onChange={e =>
+                                                            setFormData(prev => ({
+                                                                ...prev,
+                                                                delivery_fee_per_km: parseNumberSafe(e.target.value, 0)
+                                                            }))
+                                                        }
+                                                        className="h-14 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-2xl px-4 text-slate-900 dark:text-white font-bold outline-none focus:border-primary/50"
+                                                    />
                                                 </div>
                                             ) : (
                                                 <div className="space-y-4">
@@ -1096,11 +1289,23 @@ const PharmacyDetails = () => {
                                         </div>
                                         <div className="flex flex-col gap-2">
                                             <label className="text-[10px] font-black uppercase tracking-widest text-[#92c9a9] px-1">Status de Aprovação</label>
-                                            <select value={formData.status} onChange={e => setFormData({ ...formData, status: e.target.value })} className="h-14 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-2xl px-4 text-slate-900 dark:text-white font-bold outline-none focus:border-primary/50 transition-colors appearance-none">
-                                                <option value="Pendente">Pendente</option>
-                                                <option value="Aprovado">Aprovado</option>
-                                                <option value="Rejeitado">Rejeitado</option>
-                                            </select>
+                                            <div className="flex gap-2">
+                                                <div className="h-14 flex items-center px-4 rounded-2xl bg-black/20 border border-white/10 text-white font-black uppercase text-xs tracking-widest flex-1">
+                                                    {formData.status === 'approved' ? 'Aprovado' :
+                                                        formData.status === 'pending' ? 'Pendente' :
+                                                            formData.status}
+                                                </div>
+                                                {!isNew && formData.status !== 'approved' && (
+                                                    <button
+                                                        onClick={handleApprovePharmacy}
+                                                        disabled={loading}
+                                                        className="h-14 px-4 bg-emerald-500 hover:bg-emerald-600 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest transition-colors shadow-lg shadow-emerald-500/20"
+                                                        title="Aprovar Farmácia"
+                                                    >
+                                                        <MaterialIcon name="check_circle" />
+                                                    </button>
+                                                )}
+                                            </div>
                                         </div>
                                     </div>
                                 </section>

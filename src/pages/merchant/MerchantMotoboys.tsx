@@ -107,17 +107,14 @@ const MerchantMotoboys = () => { // Assuming session/profile context or fetching
 
             // 3. Chamar Edge Function para criar o usuário Auth
             const { data, error } = await supabase.functions.invoke('create-user-admin', {
-                headers: {
-                    Authorization: `Bearer ${refreshData.session.access_token}` // Force header
-                },
                 body: {
                     email: loginEmail,
                     password: formData.password,
-                    auth_token: refreshData.session.access_token, // 🔥 Explicitly pass token
+                    pharmacy_id: pharmacyId, // Root level
                     metadata: {
                         role: 'motoboy',
                         full_name: formData.name,
-                        pharmacy_id: pharmacyId,
+                        pharmacy_id: pharmacyId, // Metadata level
                         phone: formData.phone,
                         vehicle_plate: formData.vehicle_plate,
                         vehicle_model: formData.vehicle_model,

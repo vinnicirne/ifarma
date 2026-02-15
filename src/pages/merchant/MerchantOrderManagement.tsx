@@ -439,7 +439,10 @@ const MerchantOrderManagement = () => {
                 // 1. Admin Impersonation
                 if (profile?.role === 'admin') {
                     const impersonatedId = localStorage.getItem('impersonatedPharmacyId');
-                    if (impersonatedId) {
+                    // Helper validation regex
+                    const isUuid = (id: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+
+                    if (impersonatedId && isUuid(impersonatedId)) {
                         const { data: pharm } = await supabase
                             .from('pharmacies')
                             .select('*')

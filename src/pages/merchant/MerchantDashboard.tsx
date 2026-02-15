@@ -63,6 +63,9 @@ const MerchantDashboard = () => {
     const [selectedOrder, setSelectedOrder] = useState<any>(null);
     const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
 
+    // Helper to validate UUID
+    const isUuid = (id?: string | null) => !!id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+
     useEffect(() => {
         const fetchInitialData = async () => {
             const { data: { user } } = await supabase.auth.getUser();
@@ -81,7 +84,7 @@ const MerchantDashboard = () => {
                 // ADMIN IMPERSONATION LOGIC
                 if (profileData.role === 'admin') {
                     const impersonatedId = localStorage.getItem('impersonatedPharmacyId');
-                    if (impersonatedId) {
+                    if (impersonatedId && isUuid(impersonatedId)) {
                         currentProfile.pharmacy_id = impersonatedId;
                         console.log("Admin Impersonating Pharmacy:", impersonatedId);
                     }

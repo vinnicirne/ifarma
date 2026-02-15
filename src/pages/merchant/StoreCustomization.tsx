@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
+import { isUuid } from '../../lib/uuidUtils';
 import MerchantLayout from './MerchantLayout';
 import AdminMap from '../../components/admin/AdminMap';
 
@@ -85,7 +86,7 @@ const StoreCustomization = () => {
 
             // Se tiver impersonatedId, assume que é uma ação administrativa legítima
             // A segurança real deve vir das RLS do banco de dados (Admins can select all)
-            if (impersonatedId) {
+            if (impersonatedId && isUuid(impersonatedId)) {
                 console.log("fetchPharmacyData: Admin Impersonating Mode:", impersonatedId);
                 pharmacyId = impersonatedId;
             } else {

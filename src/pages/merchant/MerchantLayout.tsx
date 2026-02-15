@@ -3,6 +3,7 @@ import React from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { useNotifications } from '../../hooks/useNotifications';
+import { isUuid } from '../../lib/uuidUtils';
 
 const MaterialIcon = ({ name, className = "" }: { name: string, className?: string }) => (
     <span className={`material-symbols-outlined ${className}`}>{name}</span>
@@ -40,7 +41,7 @@ const MerchantLayout = ({ children, activeTab, title }: { children: React.ReactN
             // Also handle Admin Impersonation from localStorage if applicable (simplified here to just focus on direct link or owner)
             // But let's respect the user context
 
-            if (!pharmacyId) return;
+            if (!pharmacyId || !isUuid(pharmacyId)) return;
 
             const { data: pharmacy } = await supabase
                 .from('pharmacies')
@@ -113,7 +114,7 @@ const MerchantLayout = ({ children, activeTab, title }: { children: React.ReactN
                 }
             }
 
-            if (!pid) return;
+            if (!pid || !isUuid(pid)) return;
 
             // Inscreve no canal
             channel = supabase.channel(`pharmacy_sync_${pid}`)
@@ -221,7 +222,7 @@ const MerchantLayout = ({ children, activeTab, title }: { children: React.ReactN
                                                 }
                                             }
 
-                                            if (!pharmacyId) throw new Error("Farmácia não encontrada");
+                                            if (!pharmacyId || !isUuid(pharmacyId)) throw new Error("Farmácia não encontrada ou ID inválido");
 
                                             const { error } = await supabase.from('pharmacies')
                                                 .update({ is_open: newStatus, auto_open_status: false })

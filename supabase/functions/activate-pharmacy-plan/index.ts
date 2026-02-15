@@ -1,249 +1,284 @@
-/**
- * EDGE FUNCTION: Activate Pharmacy Plan
- * 
- * Endpoint: /functions/v1/activate-pharmacy-plan
- * Função: Ativa plano de farmácia e cria assinatura no Asaas
- */
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { extractBearer, authorizeBillingAccess, adminClient } from "../_shared/authz.ts";
 
-import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+const ASAAS_API_KEY = Deno.env.get("ASAAS_API_KEY") || "";
+const ASAAS_BASE_URL = Deno.env.get("ASAAS_BASE_URL") || "https://sandbox.asaas.com/api/v3";
 
-const ASAAS_API_KEY = Deno.env.get('ASAAS_API_KEY') || '';
-const ASAAS_BASE_URL = Deno.env.get('ASAAS_BASE_URL') || 'https://sandbox.asaas.com/api/v3';
+type ActivatePlanRequest = { pharmacy_id: string; plan_id?: string };
 
-interface ActivatePlanRequest {
-    pharmacy_id: string;
-    plan_id: string;
-}
+const corsHeaders = {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
+
+const isUuid = (v: string) =>
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
 
 serve(async (req) => {
+    if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+
     try {
-        // Verificar método
-        if (req.method !== 'POST') {
-            return new Response(JSON.stringify({ error: 'Method not allowed' }), {
-                status: 405,
-                headers: { 'Content-Type': 'application/json' },
-            });
+        const token = extractBearer(req);
+        if (!token) {
+            return json({ error: "Unauthorized" }, 401);
         }
 
-        // Verificar autenticação
-        const authHeader = req.headers.get('Authorization');
-        if (!authHeader) {
-            return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-                status: 401,
-                headers: { 'Content-Type': 'application/json' },
-            });
+        let body: ActivatePlanRequest;
+        try {
+            body = await req.json();
+        } catch {
+            return json({ error: "Invalid JSON body" }, 400);
         }
 
-        // Parsear request
-        const { pharmacy_id, plan_id }: ActivatePlanRequest = await req.json();
+        const { pharmacy_id, plan_id } = body;
 
-        if (!pharmacy_id || !plan_id) {
-            return new Response(JSON.stringify({ error: 'pharmacy_id e plan_id são obrigatórios' }), {
-                status: 400,
-                headers: { 'Content-Type': 'application/json' },
-            });
+        if (!pharmacy_id || !isUuid(pharmacy_id)) {
+            return json({ error: "pharmacy_id inválido" }, 400);
+        }
+        if (plan_id && !isUuid(plan_id)) {
+            return json({ error: "plan_id inválido" }, 400);
         }
 
-        // Criar cliente Supabase
-        const supabaseClient = createClient(
-            Deno.env.get('SUPABASE_URL') ?? '',
-            Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
-            {
-                auth: {
-                    autoRefreshToken: false,
-                    persistSession: false,
-                },
-            }
-        );
+        // ✅ Authorization: admin OR owner OR staff(billing/manager)
+        const authz = await authorizeBillingAccess({ token, pharmacyId: pharmacy_id });
+        if (!authz.allowed) {
+            return json({ error: "Forbidden", reason: authz.reason }, 403);
+        }
 
-        console.log(`[activate-pharmacy-plan] Ativando plano ${plan_id} para farmácia ${pharmacy_id}`);
+        const supabaseAdmin = adminClient();
 
-        // Buscar farmácia
-        const { data: pharmacy, error: pharmacyError } = await supabaseClient
-            .from('pharmacies')
-            .select('*')
-            .eq('id', pharmacy_id)
+        console.log(`[activate-pharmacy-plan] user=${authz.userId} admin=${authz.isAdmin} pharmacy=${pharmacy_id} plan=${plan_id ?? "auto"}`);
+
+        // 1) Fetch pharmacy
+        const { data: pharmacy, error: pErr } = await supabaseAdmin
+            .from("pharmacies")
+            .select("*")
+            .eq("id", pharmacy_id)
             .single();
 
-        if (pharmacyError || !pharmacy) {
-            return new Response(JSON.stringify({ error: 'Farmácia não encontrada' }), {
-                status: 404,
-                headers: { 'Content-Type': 'application/json' },
-            });
+        if (pErr || !pharmacy) return json({ error: "Farmácia não encontrada" }, 404);
+
+        // 2) Find active subscription (avoid single)
+        const { data: activeSubs, error: aErr } = await supabaseAdmin
+            .from("pharmacy_subscriptions")
+            .select("id, plan_id, status, asaas_subscription_id, started_at, created_at")
+            .eq("pharmacy_id", pharmacy_id)
+            .in("status", ["active", "pending_asaas"])
+            .order("started_at", { ascending: false, nullsFirst: false })
+            .order("created_at", { ascending: false });
+
+        if (aErr) throw aErr;
+
+        const existing = activeSubs?.[0] ?? null;
+
+        // 3) Determine target plan
+        let targetPlanId = plan_id ?? existing?.plan_id ?? null;
+
+        if (!targetPlanId) {
+            // Try slug=free, else monthly_fee_cents=0
+            const { data: freeBySlug } = await supabaseAdmin
+                .from("billing_plans")
+                .select("id")
+                .eq("slug", "free")
+                .maybeSingle();
+
+            if (freeBySlug?.id) targetPlanId = freeBySlug.id;
         }
 
-        // Buscar plano
-        const { data: plan, error: planError } = await supabaseClient
-            .from('billing_plans')
-            .select('*')
-            .eq('id', plan_id)
+        if (!targetPlanId) {
+            const { data: freeByZero } = await supabaseAdmin
+                .from("billing_plans")
+                .select("id")
+                .eq("monthly_fee_cents", 0)
+                .order("created_at", { ascending: true })
+                .limit(1)
+                .maybeSingle();
+
+            if (freeByZero?.id) targetPlanId = freeByZero.id;
+        }
+
+        if (!targetPlanId) return json({ error: "Nenhum plano FREE encontrado" }, 400);
+
+        // 4) Fetch plan
+        const { data: plan, error: planErr } = await supabaseAdmin
+            .from("billing_plans")
+            .select("*")
+            .eq("id", targetPlanId)
             .single();
 
-        if (planError || !plan) {
-            return new Response(JSON.stringify({ error: 'Plano não encontrado' }), {
-                status: 404,
-                headers: { 'Content-Type': 'application/json' },
-            });
-        }
+        if (planErr || !plan) return json({ error: "Plano não encontrado" }, 404);
 
-        // Verificar se já existe assinatura ativa
-        const { data: existingSubscription } = await supabaseClient
-            .from('pharmacy_subscriptions')
-            .select('id')
-            .eq('pharmacy_id', pharmacy_id)
-            .eq('status', 'active')
-            .single();
+        // 5) Ensure Asaas customer
+        let asaasCustomerId: string | null = pharmacy.asaas_customer_id ?? null;
 
-        if (existingSubscription) {
-            return new Response(JSON.stringify({ error: 'Farmácia já possui assinatura ativa' }), {
-                status: 400,
-                headers: { 'Content-Type': 'application/json' },
-            });
-        }
-
-        // Criar cliente no Asaas (se não existir)
-        let asaasCustomerId = pharmacy.asaas_customer_id;
         if (!asaasCustomerId) {
-            asaasCustomerId = await createAsaasCustomer(pharmacy);
-
-            // Atualizar pharmacy com asaas_customer_id
-            await supabaseClient
-                .from('pharmacies')
-                .update({ asaas_customer_id: asaasCustomerId })
-                .eq('id', pharmacy_id);
-
-            console.log(`[activate-pharmacy-plan] Cliente Asaas criado: ${asaasCustomerId}`);
+            try {
+                asaasCustomerId = await createAsaasCustomer(pharmacy);
+                await supabaseAdmin
+                    .from("pharmacies")
+                    .update({
+                        asaas_customer_id: asaasCustomerId,
+                        asaas_status: "ok",
+                        asaas_last_error: null,
+                        asaas_updated_at: new Date().toISOString(),
+                    })
+                    .eq("id", pharmacy_id);
+            } catch (err: any) {
+                await supabaseAdmin
+                    .from("pharmacies")
+                    .update({
+                        asaas_status: "pending",
+                        asaas_last_error: err?.message ?? String(err),
+                        asaas_updated_at: new Date().toISOString(),
+                    })
+                    .eq("id", pharmacy_id);
+                // não bloqueia FREE; para pago, vai cair em pending_asaas
+            }
         }
 
-        let asaasSubscriptionId = null;
+        // 6) Cancel prior active/pending
+        if (activeSubs && activeSubs.length > 0) {
+            const { error: cancelErr } = await supabaseAdmin
+                .from("pharmacy_subscriptions")
+                .update({
+                    status: "canceled",
+                    canceled_at: new Date().toISOString(),
+                    ended_at: new Date().toISOString(),
+                })
+                .eq("pharmacy_id", pharmacy_id)
+                .in("status", ["active", "pending_asaas"]);
 
-        // Criar assinatura no Asaas (se mensalidade > 0)
-        if (plan.monthly_fee_cents > 0) {
-            // Calcular próxima data de cobrança (dia 1º do próximo mês)
-            const today = new Date();
-            const nextBillingDate = new Date(today.getFullYear(), today.getMonth() + 1, 1);
-            const nextBillingDateStr = nextBillingDate.toISOString().split('T')[0];
-
-            const asaasSubscription = await createAsaasSubscription({
-                customer: asaasCustomerId,
-                value: plan.monthly_fee_cents / 100,
-                nextDueDate: nextBillingDateStr,
-                description: `Plano ${plan.name} - ${pharmacy.name}`,
-            });
-
-            asaasSubscriptionId = asaasSubscription.id;
-            console.log(`[activate-pharmacy-plan] Assinatura Asaas criada: ${asaasSubscriptionId}`);
+            if (cancelErr) throw cancelErr;
         }
 
-        // Criar assinatura no banco
-        const { data: subscription, error: subscriptionError } = await supabaseClient
-            .from('pharmacy_subscriptions')
-            .insert({
-                pharmacy_id,
-                plan_id,
-                asaas_subscription_id: asaasSubscriptionId,
-                status: 'active',
-                started_at: new Date().toISOString(),
-                next_billing_date: asaasSubscriptionId ? new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1).toISOString().split('T')[0] : null,
-            })
+        // 7) Create Asaas subscription if paid
+        const isPaid = (plan.monthly_fee_cents ?? 0) > 0;
+        let asaasSubscriptionId: string | null = null;
+
+        if (isPaid && asaasCustomerId) {
+            try {
+                const today = new Date();
+                const nextBillingDate = new Date(today.getFullYear(), today.getMonth() + 1, 1);
+                const nextBillingDateStr = nextBillingDate.toISOString().split("T")[0];
+
+                const asaasSub = await createAsaasSubscription({
+                    customer: asaasCustomerId,
+                    value: (plan.monthly_fee_cents ?? 0) / 100,
+                    nextDueDate: nextBillingDateStr,
+                    description: `Plano ${plan.name} - ${pharmacy.name}`,
+                });
+
+                asaasSubscriptionId = asaasSub.id ?? null;
+            } catch (err) {
+                console.error("[activate-pharmacy-plan] Asaas subscription error:", err);
+            }
+        }
+
+        const status = (isPaid && !asaasSubscriptionId) ? "pending_asaas" : "active";
+        const today = new Date();
+        const nextDue = new Date(today.getFullYear(), today.getMonth() + 1, 1).toISOString().split("T")[0];
+
+        const subPayload = {
+            pharmacy_id,
+            plan_id: targetPlanId,
+            asaas_customer_id: asaasCustomerId,
+            status,
+            started_at: new Date().toISOString(),
+            next_billing_date: (isPaid ? nextDue : null),
+            asaas_subscription_id: asaasSubscriptionId,
+            asaas_last_error: (isPaid && !asaasSubscriptionId) ? "Assinatura Asaas não criada" : null,
+            asaas_updated_at: new Date().toISOString(),
+        };
+
+        const { data: sub, error: insErr } = await supabaseAdmin
+            .from("pharmacy_subscriptions")
+            .insert(subPayload)
             .select()
             .single();
 
-        if (subscriptionError) {
-            throw new Error(`Erro ao criar assinatura: ${subscriptionError.message}`);
-        }
+        if (insErr) throw insErr;
 
-        // Criar ciclo inicial
-        const today = new Date();
+        // 8) Ensure billing cycle current month
         const periodStart = new Date(today.getFullYear(), today.getMonth(), 1);
         const periodEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+        const periodStartStr = periodStart.toISOString().split("T")[0];
 
-        await supabaseClient.from('billing_cycles').insert({
-            pharmacy_id,
-            period_start: periodStart.toISOString().split('T')[0],
-            period_end: periodEnd.toISOString().split('T')[0],
-            free_orders_used: 0,
-            overage_orders: 0,
-            overage_amount_cents: 0,
-            status: 'active',
-        });
+        const { data: cycle } = await supabaseAdmin
+            .from("billing_cycles")
+            .select("id")
+            .eq("pharmacy_id", pharmacy_id)
+            .eq("period_start", periodStartStr)
+            .maybeSingle();
 
-        console.log(`[activate-pharmacy-plan] Plano ativado com sucesso`);
+        if (!cycle) {
+            await supabaseAdmin.from("billing_cycles").insert({
+                pharmacy_id,
+                period_start: periodStartStr,
+                period_end: periodEnd.toISOString().split("T")[0],
+                free_orders_used: 0,
+                overage_orders: 0,
+                overage_amount_cents: 0,
+                status: "active",
+            });
+        }
 
-        return new Response(JSON.stringify({
-            success: true,
-            subscription,
-        }), {
-            status: 200,
-            headers: { 'Content-Type': 'application/json' },
-        });
-
-    } catch (error) {
-        console.error('[activate-pharmacy-plan] Erro:', error);
-        return new Response(JSON.stringify({ error: error.message }), {
-            status: 500,
-            headers: { 'Content-Type': 'application/json' },
-        });
+        return json({ success: true, subscription: sub }, 200);
+    } catch (e: any) {
+        console.error("[activate-pharmacy-plan] Fatal:", e);
+        return json({ error: e?.message ?? "Internal Server Error" }, 500);
     }
 });
 
-/**
- * Cria cliente no Asaas
- */
+function json(payload: unknown, status = 200) {
+    return new Response(JSON.stringify(payload), {
+        status,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+}
+
+// --- Asaas helpers (iguais aos seus, mantidos) ---
 async function createAsaasCustomer(pharmacy: any): Promise<string> {
     const response = await fetch(`${ASAAS_BASE_URL}/customers`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'access_token': ASAAS_API_KEY,
-        },
+        method: "POST",
+        headers: { "Content-Type": "application/json", "access_token": ASAAS_API_KEY },
         body: JSON.stringify({
             name: pharmacy.name,
-            email: pharmacy.email,
+            email: pharmacy.owner_email || pharmacy.merchant_email || "email@naoinformado.com",
             cpfCnpj: pharmacy.cnpj,
+            mobilePhone: pharmacy.owner_phone || pharmacy.establishment_phone,
         }),
     });
 
     if (!response.ok) {
-        const error = await response.text();
-        throw new Error(`Erro ao criar cliente no Asaas: ${error}`);
+        const t = await response.text();
+        throw new Error(`Erro Asaas Customer: ${t}`);
     }
 
     const data = await response.json();
     return data.id;
 }
 
-/**
- * Cria assinatura no Asaas
- */
 async function createAsaasSubscription(subscription: {
-    customer: string;
-    value: number;
-    nextDueDate: string;
-    description: string;
+    customer: string; value: number; nextDueDate: string; description: string;
 }): Promise<any> {
     const response = await fetch(`${ASAAS_BASE_URL}/subscriptions`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'access_token': ASAAS_API_KEY,
-        },
+        method: "POST",
+        headers: { "Content-Type": "application/json", "access_token": ASAAS_API_KEY },
         body: JSON.stringify({
             customer: subscription.customer,
-            billingType: 'BOLETO',
+            billingType: "BOLETO",
             value: subscription.value,
             nextDueDate: subscription.nextDueDate,
-            cycle: 'MONTHLY',
+            cycle: "MONTHLY",
             description: subscription.description,
         }),
     });
 
     if (!response.ok) {
-        const error = await response.text();
-        throw new Error(`Erro ao criar assinatura no Asaas: ${error}`);
+        const t = await response.text();
+        throw new Error(`Erro Asaas Subscription: ${t}`);
     }
 
-    const data = await response.json();
-    return data;
+    return await response.json();
 }

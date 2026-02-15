@@ -114,7 +114,7 @@ const MotoboyRouteStatus = () => {
 
     return (
         <div className="bg-[#102218] text-white min-h-screen flex flex-col font-display relative" style={routeTheme}>
-            {/* TopAppBar Premium */}
+            {/* TopAppBar Enterprise */}
             <header className="sticky top-0 z-[1001] bg-[#102218]/90 backdrop-blur-lg border-b border-white/5 pointer-events-auto">
                 <div className="flex items-center p-4 justify-between max-w-lg mx-auto">
                     <button onClick={() => navigate(-1)} className="text-white flex size-12 items-center justify-center bg-white/5 rounded-2xl active:scale-90 transition-transform">

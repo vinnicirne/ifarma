@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import MerchantLayout from './MerchantLayout';
 import { supabase } from '../../lib/supabase';
+import { isUuid } from '../../lib/uuidUtils';
 import { Toast } from '../../components/Toast';
 import {
     Wallet,
@@ -53,7 +54,7 @@ const MerchantFinancial = () => {
             if (!user) return;
 
             let pId = localStorage.getItem('impersonatedPharmacyId');
-            if (!pId) {
+            if (!pId || !isUuid(pId)) {
                 const { data: pharm } = await supabase
                     .from('pharmacies')
                     .select('id')

@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase';
 import type { Pharmacy } from '../types/pharmacy';
+import { assertUuid } from '../lib/uuidUtils';
 
 export const pharmacyService = {
     async getPharmacies(): Promise<Pharmacy[]> {
@@ -13,6 +14,7 @@ export const pharmacyService = {
     },
 
     async updatePharmacyStatus(id: string, isOpen: boolean): Promise<void> {
+        assertUuid(id, "updatePharmacyStatus");
         const { error } = await supabase
             .from('pharmacies')
             .update({ is_open: isOpen })
@@ -22,6 +24,7 @@ export const pharmacyService = {
     },
 
     async deletePharmacy(id: string): Promise<void> {
+        assertUuid(id, "deletePharmacy");
         // 1. Get associated profile
         const { data: profile } = await supabase
             .from('profiles')
@@ -44,6 +47,7 @@ export const pharmacyService = {
     },
 
     async approvePharmacy(id: string): Promise<{ email: string, password?: string, userWasCreated: boolean }> {
+        assertUuid(id, "approvePharmacy");
         const { data: pharm, error: pharmErr } = await supabase
             .from('pharmacies')
             .select('*')
@@ -64,17 +68,14 @@ export const pharmacyService = {
         }
 
         const { data: responseData, error: invokeError } = await supabase.functions.invoke('create-user-admin', {
-            headers: {
-                Authorization: `Bearer ${session.access_token}` // Force header
-            },
             body: {
                 email: pharm.owner_email,
-                password: tempPassword,
-                auth_token: session.access_token, // Keep body for new function
+                password: tempPassword || Math.random().toString(36).slice(-8), // Fallback password
                 pharmacy_id: id,
                 metadata: {
                     full_name: pharm.owner_name || pharm.name,
-                    role: 'merchant'
+                    role: 'merchant',
+                    pharmacy_id: id // Redundant but safe
                 }
             }
         });
@@ -126,6 +127,26 @@ export const pharmacyService = {
                 phone: pharm.owner_phone,
                 pharmacy_id: id
             });
+        }
+
+        // --- CRITICAL: Activate Billing & Subscription ---
+        // Now that the user is approved and linked, we MUST trigger the billing activation
+        // This creates the Asaas subscription and the initial billing_cycles record
+        // We do this via the activate-pharmacy-plan function
+
+        console.log(`[approvePharmacy] Activating plan for pharmacy: ${id}`);
+        const { data: { session: activationSession } } = await supabase.auth.getSession();
+
+        const { error: activationError } = await supabase.functions.invoke('activate-pharmacy-plan', {
+            body: { pharmacy_id: id },
+            headers: { Authorization: `Bearer ${activationSession?.access_token}` }
+        });
+
+        if (activationError) {
+            console.error('[approvePharmacy] Plan activation failed (non-blocking for auth):', activationError);
+            // We don't throw here to avoid rolling back the auth creation, but specific alerting would be good
+        } else {
+            console.log('[approvePharmacy] Plan activated successfully');
         }
 
         return { email: pharm.owner_email, password: tempPassword, userWasCreated: true };

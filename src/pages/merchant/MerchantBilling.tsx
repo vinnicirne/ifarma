@@ -35,13 +35,35 @@ const MerchantBilling = () => {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) return;
 
-            // Get Pharmacy ID (Handle Admin Impersonation)
+            // Validate user ID format (UUID)
+            const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+            if (!uuidRegex.test(user.id)) {
+                console.error("Invalid User UUID:", user.id);
+                return;
+            }
+
+            const isUuid = (v: string | null | undefined) =>
+                !!v && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
+
             let pId = localStorage.getItem('impersonatedPharmacyId');
+
+            if (!isUuid(pId)) {
+                localStorage.removeItem('impersonatedPharmacyId');
+                pId = null;
+            }
+
             if (!pId) {
-                const { data: profile } = await supabase.from('profiles').select('pharmacy_id').eq('id', user.id).single();
+                const { data: profile } = await supabase.from('profiles').select('pharmacy_id').eq('id', user.id).maybeSingle();
                 pId = profile?.pharmacy_id;
+
                 if (!pId) {
-                    const { data: owned } = await supabase.from('pharmacies').select('id').eq('owner_id', user.id).single();
+                    const { data: owned, error: ownedErr } = await supabase
+                        .from('pharmacies')
+                        .select('id')
+                        .eq('owner_id', user.id)
+                        .maybeSingle();
+
+                    if (ownedErr) console.error("Error fetching owned pharmacy:", ownedErr);
                     pId = owned?.id;
                 }
             }
@@ -57,6 +79,9 @@ const MerchantBilling = () => {
                 .from('pharmacy_subscriptions')
                 .select('*, plan:billing_plans(*)')
                 .eq('pharmacy_id', pId)
+                .in('status', ['active', 'pending_asaas'])
+                .order('started_at', { ascending: false })
+                .limit(1)
                 .maybeSingle();
             setSubscription(sub);
 
@@ -79,11 +104,15 @@ const MerchantBilling = () => {
             setInvoices(invs || []);
 
             // 4. Fetch Available Plans (for upgrade/selection)
-            const { data: plans } = await supabase
+            // Removed is_active filter for debugging
+            const { data: plans, error: plansError } = await supabase
                 .from('billing_plans')
                 .select('*')
-                .eq('is_active', true)
                 .order('monthly_fee_cents', { ascending: true });
+
+            if (plansError) console.error("Error fetching plans:", plansError);
+            console.log("Fetched Plans:", plans);
+
             setAvailablePlans(plans || []);
 
         } catch (error: any) {
@@ -104,6 +133,13 @@ const MerchantBilling = () => {
     const handleMigratePlan = async (plan: any) => {
         if (!pharmacyId) return;
 
+        // Validate Pharmacy ID UUID
+        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        if (!uuidRegex.test(pharmacyId)) {
+            toast.error("ID da farmácia inválido. Recarregue a página.");
+            return;
+        }
+
         const confirmMessage = subscription
             ? `Deseja migrar seu plano atual para o "${plan.name}"?`
             : `Deseja assinar o plano "${plan.name}"?`;
@@ -113,7 +149,9 @@ const MerchantBilling = () => {
         setLoading(true);
         try {
             const { data: { session } } = await supabase.auth.getSession();
-            if (!session) throw new Error("Sessão expirada.");
+            if (!session?.access_token) throw new Error("Sessão expirada. Faça login novamente.");
+
+            console.log("Activando plano...", { pharmacyId, planId: plan.id });
 
             const { data, error } = await supabase.functions.invoke('activate-pharmacy-plan', {
                 body: {
@@ -121,7 +159,8 @@ const MerchantBilling = () => {
                     plan_id: plan.id
                 },
                 headers: {
-                    Authorization: `Bearer ${session.access_token}`
+                    Authorization: `Bearer ${session.access_token}`,
+                    "Content-Type": "application/json",
                 }
             });
 
@@ -151,6 +190,21 @@ const MerchantBilling = () => {
         <MerchantLayout activeTab="billing" title="Assinatura e Cobrança">
             <div className="max-w-6xl mx-auto space-y-10 animate-fade-in">
 
+                {subscription?.status === 'pending_asaas' && (
+                    <div className="bg-amber-500/10 border border-amber-500/20 rounded-[32px] p-6 flex items-start gap-4">
+                        <div className="p-3 bg-amber-500/20 rounded-xl shrink-0">
+                            <AlertCircle size={24} className="text-amber-500" />
+                        </div>
+                        <div>
+                            <h3 className="text-lg font-black text-white uppercase tracking-tight">Pagamento em Processamento</h3>
+                            <p className="text-slate-400 text-sm font-bold mt-1">
+                                Sua assinatura foi criada, mas estamos aguardando a confirmação do gateway de pagamento (Asaas).
+                                Isso pode levar alguns instantes. Se o problema persistir, entre em contato com o suporte.
+                            </p>
+                        </div>
+                    </div>
+                )}
+
                 {/* Status Hero */}
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
 
@@ -171,7 +225,11 @@ const MerchantBilling = () => {
                                         {subscription?.plan?.name || "Sem Plano Ativo"}
                                     </h3>
                                 </div>
-                                <div className={`px-4 py-2 rounded-2xl text-[10px] font-black uppercase tracking-widest border ${subscription?.status === 'active' ? 'bg-primary/10 text-primary border-primary/20' : 'bg-red-500/10 text-red-500 border-red-500/20'
+                                <div className={`px-4 py-2 rounded-2xl text-[10px] font-black uppercase tracking-widest border ${subscription?.status === 'active'
+                                    ? 'bg-primary/10 text-primary border-primary/20'
+                                    : subscription?.status === 'pending_asaas'
+                                        ? 'bg-amber-500/10 text-amber-500 border-amber-500/20'
+                                        : 'bg-red-500/10 text-red-500 border-red-500/20'
                                     }`}>
                                     {getSubscriptionStatusLabel(subscription?.status || 'canceled')}
                                 </div>

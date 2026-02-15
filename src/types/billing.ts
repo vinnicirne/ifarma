@@ -7,7 +7,7 @@
 // ENUMS
 // ============================================================================
 
-export type SubscriptionStatus = 'active' | 'overdue' | 'canceled';
+export type SubscriptionStatus = 'active' | 'overdue' | 'canceled' | 'pending' | 'pending_asaas';
 export type BillingCycleStatus = 'active' | 'closed' | 'invoiced';
 export type InvoiceType = 'monthly_fee' | 'overage';
 export type InvoiceStatus = 'pending' | 'paid' | 'overdue' | 'canceled';
@@ -281,6 +281,8 @@ export const getSubscriptionStatusLabel = (status: SubscriptionStatus): string =
         active: 'Ativa',
         overdue: 'Inadimplente',
         canceled: 'Cancelada',
+        pending: 'Pendente',
+        pending_asaas: 'Processando Pagamento',
     };
     return labels[status];
 };
