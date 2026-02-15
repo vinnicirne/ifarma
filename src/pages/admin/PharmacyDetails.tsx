@@ -27,7 +27,8 @@ const parseNumberSafe = (value: string, fallback = 0) => {
 };
 
 const PharmacyDetails = () => {
-    const [googleKey, setGoogleKey] = useState<string | null>(null);
+    // Start as undefined to distinguish "loading key" from "no key"
+    const [googleKey, setGoogleKey] = useState<string | undefined>(undefined);
 
     // Fetch Google Maps Key (Same logic as AdminDashboard)
     useEffect(() => {
@@ -45,14 +46,26 @@ const PharmacyDetails = () => {
 
             if (settings?.value) {
                 setGoogleKey(settings.value);
+            } else {
+                setGoogleKey(''); // Set empty if not found to allow render without maps
             }
         };
         fetchGoogleKey();
     }, []);
 
+    // --- CRITICAL FIX ---
+    // We will wait for googleKey to be defined before rendering the main component content.
+    if (googleKey === undefined) {
+        return <div className="min-h-screen flex items-center justify-center"><div className="animate-spin size-8 border-4 border-primary border-t-transparent rounded-full"></div></div>;
+    }
+
+    return <PharmacyDetailsContent googleKey={googleKey} />;
+};
+
+const PharmacyDetailsContent = ({ googleKey }: { googleKey: string }) => {
     const { isLoaded } = useJsApiLoader({
         id: 'google-map-script',
-        googleMapsApiKey: googleKey ?? '',
+        googleMapsApiKey: googleKey,
         libraries: libraries,
         preventGoogleFontsLoading: true
     });

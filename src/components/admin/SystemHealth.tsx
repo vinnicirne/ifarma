@@ -16,7 +16,7 @@ export const SystemHealth = () => {
                 .from('pharmacies')
                 .select('*', { count: 'exact', head: true })
                 .eq('is_open', false)
-                .eq('status', 'Aprovado');
+                .in('status', ['Aprovado', 'approved', 'Approved']);
 
             setOfflinePharmacies(closedCount || 0);
 
@@ -24,7 +24,7 @@ export const SystemHealth = () => {
             const { count: pendingCount } = await supabase
                 .from('pharmacies')
                 .select('*', { count: 'exact', head: true })
-                .eq('status', 'Pendente');
+                .in('status', ['Pendente', 'pending', 'Pending']);
 
             setPendingPharmacies(pendingCount || 0);
 

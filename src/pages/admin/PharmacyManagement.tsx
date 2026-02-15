@@ -91,13 +91,23 @@ const PharmacyManagement = ({ profile }: { profile: any }) => {
         }
     };
 
+    // Helper to normalize status for UI logic
+    const getStatusType = (status?: string) => {
+        const s = (status || '').toLowerCase();
+        if (s === 'approved' || s === 'aprovado') return 'approved';
+        if (s === 'pending' || s === 'pendente') return 'pending';
+        return 'unknown';
+    };
+
     const filteredPharmacies = pharmacies.filter(p => {
         const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
             (p.owner_email && p.owner_email.toLowerCase().includes(searchTerm.toLowerCase()));
 
         let matchesFilter = true;
-        if (filterStatus === 'Pendente') matchesFilter = p.status === 'Pendente';
-        if (filterStatus === 'Aprovado') matchesFilter = p.status === 'Aprovado';
+        const statusType = getStatusType(p.status);
+
+        if (filterStatus === 'Pendente') matchesFilter = statusType === 'pending';
+        if (filterStatus === 'Aprovado') matchesFilter = statusType === 'approved';
         if (filterStatus === 'SemPlano') matchesFilter = !p.plan || p.plan === 'FREE';
 
         return matchesSearch && matchesFilter;
@@ -214,94 +224,97 @@ const PharmacyManagement = ({ profile }: { profile: any }) => {
                                         </div>
                                     </td>
                                 </tr>
-                            ) : filteredPharmacies.length > 0 ? filteredPharmacies.map((pharm) => (
-                                <tr
-                                    key={pharm.id}
-                                    onClick={() => navigate(`/dashboard/pharmacy/${pharm.id}`)}
-                                    className="group hover:bg-white/[0.02] transition-colors cursor-pointer"
-                                >
-                                    <td className="p-8">
-                                        <div className="flex items-center gap-5">
-                                            <div className="size-14 rounded-2xl bg-[#0a0f0d] border border-white/5 flex items-center justify-center overflow-hidden shrink-0 group-hover:border-primary/20 transition-all">
-                                                {pharm.logo_url ? (
-                                                    <img src={pharm.logo_url} alt="" className="w-full h-full object-cover" />
-                                                ) : (
-                                                    <Store size={24} className="text-slate-700" />
-                                                )}
-                                            </div>
-                                            <div className="flex flex-col gap-1">
-                                                <h4 className="text-sm font-[900] italic text-white leading-none uppercase tracking-tight group-hover:text-primary transition-colors">{pharm.name}</h4>
-                                                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mt-1 flex items-center gap-2">
-                                                    {pharm.address || 'Sem endereço'}
-                                                    {pharm.owner_email && (
-                                                        <>
-                                                            <span className="size-1 rounded-full bg-white/10"></span>
-                                                            <span className="text-slate-600 font-medium italic lowercase">{pharm.owner_email}</span>
-                                                        </>
+                            ) : filteredPharmacies.length > 0 ? filteredPharmacies.map((pharm) => {
+                                const statusType = getStatusType(pharm.status);
+                                return (
+                                    <tr
+                                        key={pharm.id}
+                                        onClick={() => navigate(`/dashboard/pharmacy/${pharm.id}`)}
+                                        className="group hover:bg-white/[0.02] transition-colors cursor-pointer"
+                                    >
+                                        <td className="p-8">
+                                            <div className="flex items-center gap-5">
+                                                <div className="size-14 rounded-2xl bg-[#0a0f0d] border border-white/5 flex items-center justify-center overflow-hidden shrink-0 group-hover:border-primary/20 transition-all">
+                                                    {pharm.logo_url ? (
+                                                        <img src={pharm.logo_url} alt="" className="w-full h-full object-cover" />
+                                                    ) : (
+                                                        <Store size={24} className="text-slate-700" />
                                                     )}
-                                                </p>
+                                                </div>
+                                                <div className="flex flex-col gap-1">
+                                                    <h4 className="text-sm font-[900] italic text-white leading-none uppercase tracking-tight group-hover:text-primary transition-colors">{pharm.name}</h4>
+                                                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mt-1 flex items-center gap-2">
+                                                        {pharm.address || 'Sem endereço'}
+                                                        {pharm.owner_email && (
+                                                            <>
+                                                                <span className="size-1 rounded-full bg-white/10"></span>
+                                                                <span className="text-slate-600 font-medium italic lowercase">{pharm.owner_email}</span>
+                                                            </>
+                                                        )}
+                                                    </p>
+                                                </div>
                                             </div>
-                                        </div>
-                                    </td>
-                                    <td className="p-8">
-                                        <div className="flex flex-col gap-2">
-                                            <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest border w-fit ${pharm.status === 'Aprovado' ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' :
-                                                pharm.status === 'Pendente' ? 'bg-amber-500/10 text-amber-500 border-amber-500/20 animate-pulse' :
-                                                    'bg-red-500/10 text-red-500 border-red-500/20'
-                                                }`}>
-                                                <div className={`size-1.5 rounded-full ${pharm.status === 'Aprovado' ? 'bg-emerald-500' : pharm.status === 'Pendente' ? 'bg-amber-500' : 'bg-red-500'}`}></div>
-                                                {pharm.status || 'Pendente'}
+                                        </td>
+                                        <td className="p-8">
+                                            <div className="flex flex-col gap-2">
+                                                <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest border w-fit ${statusType === 'approved' ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' :
+                                                    statusType === 'pending' ? 'bg-amber-500/10 text-amber-500 border-amber-500/20 animate-pulse' :
+                                                        'bg-red-500/10 text-red-500 border-red-500/20'
+                                                    }`}>
+                                                    <div className={`size-1.5 rounded-full ${statusType === 'approved' ? 'bg-emerald-500' : statusType === 'pending' ? 'bg-amber-500' : 'bg-red-500'}`}></div>
+                                                    {statusType === 'approved' ? 'Aprovado' : statusType === 'pending' ? 'Pendente' : pharm.status}
+                                                </div>
+                                                <span className="text-[10px] font-bold text-slate-500 px-1 uppercase tracking-widest flex items-center gap-2">
+                                                    {pharm.plan === 'PREMIUM' ? <ShieldCheck size={12} className="text-primary" /> : <Clock size={12} />}
+                                                    {pharm.plan || 'FREE'}
+                                                </span>
                                             </div>
-                                            <span className="text-[10px] font-bold text-slate-500 px-1 uppercase tracking-widest flex items-center gap-2">
-                                                {pharm.plan === 'PREMIUM' ? <ShieldCheck size={12} className="text-primary" /> : <Clock size={12} />}
-                                                {pharm.plan || 'FREE'}
-                                            </span>
-                                        </div>
-                                    </td>
-                                    <td className="p-8" onClick={e => e.stopPropagation()}>
-                                        <button
-                                            onClick={(e) => handleToggleStore(pharm, e)}
-                                            className={`h-11 px-5 rounded-[18px] flex items-center gap-3 transition-all ${pharm.is_open
-                                                ? 'bg-primary text-[#0a0f0d] shadow-lg shadow-primary/20'
-                                                : 'bg-white/5 text-slate-500 grayscale opacity-60'
-                                                }`}
-                                        >
-                                            <div className={`size-2 rounded-full ${pharm.is_open ? 'bg-[#0a0f0d] animate-pulse' : 'bg-slate-500'}`}></div>
-                                            <span className="text-[10px] font-black uppercase tracking-[0.1em]">
-                                                {pharm.is_open ? 'Aberta' : 'Fechada'}
-                                            </span>
-                                        </button>
-                                    </td>
-                                    <td className="p-8 text-right">
-                                        <div className="flex items-center justify-end gap-3" onClick={e => e.stopPropagation()}>
-                                            {pharm.status !== 'Aprovado' && (
+                                        </td>
+                                        <td className="p-8" onClick={e => e.stopPropagation()}>
+                                            <button
+                                                onClick={(e) => handleToggleStore(pharm, e)}
+                                                className={`h-11 px-5 rounded-[18px] flex items-center gap-3 transition-all ${pharm.is_open
+                                                    ? 'bg-primary text-[#0a0f0d] shadow-lg shadow-primary/20'
+                                                    : 'bg-white/5 text-slate-500 grayscale opacity-60'
+                                                    }`}
+                                            >
+                                                <div className={`size-2 rounded-full ${pharm.is_open ? 'bg-[#0a0f0d] animate-pulse' : 'bg-slate-500'}`}></div>
+                                                <span className="text-[10px] font-black uppercase tracking-[0.1em]">
+                                                    {pharm.is_open ? 'Aberta' : 'Fechada'}
+                                                </span>
+                                            </button>
+                                        </td>
+                                        <td className="p-8 text-right">
+                                            <div className="flex items-center justify-end gap-3" onClick={e => e.stopPropagation()}>
+                                                {statusType !== 'approved' && (
+                                                    <button
+                                                        onClick={(e) => handleApprove(pharm.id, e)}
+                                                        className="h-11 px-5 rounded-2xl bg-primary/20 hover:bg-primary text-primary hover:text-[#0a0f0d] flex items-center justify-center gap-2 transition-all font-black text-[10px] uppercase tracking-widest border border-primary/20"
+                                                        title="Aprovar Agora"
+                                                    >
+                                                        <ShieldCheck size={16} />
+                                                        Aprovar
+                                                    </button>
+                                                )}
                                                 <button
-                                                    onClick={(e) => handleApprove(pharm.id, e)}
-                                                    className="h-11 px-5 rounded-2xl bg-primary/20 hover:bg-primary text-primary hover:text-[#0a0f0d] flex items-center justify-center gap-2 transition-all font-black text-[10px] uppercase tracking-widest border border-primary/20"
-                                                    title="Aprovar Agora"
+                                                    onClick={() => navigate(`/dashboard/pharmacy/${pharm.id}`)}
+                                                    className="size-11 rounded-2xl bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white flex items-center justify-center transition-all border border-white/5"
+                                                    title="Ver Detalhes"
                                                 >
-                                                    <ShieldCheck size={16} />
-                                                    Aprovar
+                                                    <Eye size={18} />
                                                 </button>
-                                            )}
-                                            <button
-                                                onClick={() => navigate(`/dashboard/pharmacy/${pharm.id}`)}
-                                                className="size-11 rounded-2xl bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white flex items-center justify-center transition-all border border-white/5"
-                                                title="Ver Detalhes"
-                                            >
-                                                <Eye size={18} />
-                                            </button>
-                                            <button
-                                                onClick={(e) => handleDelete(pharm.id, e)}
-                                                className="size-11 rounded-2xl bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white flex items-center justify-center transition-all border border-red-500/10"
-                                                title="Excluir"
-                                            >
-                                                <Trash2 size={18} />
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            )) : (
+                                                <button
+                                                    onClick={(e) => handleDelete(pharm.id, e)}
+                                                    className="size-11 rounded-2xl bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white flex items-center justify-center transition-all border border-red-500/10"
+                                                    title="Excluir"
+                                                >
+                                                    <Trash2 size={18} />
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                )
+                            }) : (
                                 <tr>
                                     <td colSpan={4} className="p-32 text-center">
                                         <div className="flex flex-col items-center gap-4">

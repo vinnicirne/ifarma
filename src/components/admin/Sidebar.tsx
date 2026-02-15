@@ -140,7 +140,7 @@ const Sidebar = ({ profile }: { profile?: any }) => {
 
                     return (
                         <div key={sIdx} className="space-y-1">
-                            <h3 className="px-6 text-[8px] font-black text-slate-600 uppercase tracking-[0.3em] mb-2 px-6">
+                            <h3 className="px-6 text-[10px] font-black text-slate-600 uppercase tracking-[0.3em] mb-2">
                                 {section.title}
                             </h3>
                             <div className="space-y-0.5">
@@ -158,8 +158,8 @@ const Sidebar = ({ profile }: { profile?: any }) => {
                                     >
                                         {({ isActive }) => (
                                             <>
-                                                <item.icon size={18} className={`${isActive ? 'stroke-[2.5px]' : 'stroke-[2px] opacity-70 group-hover:opacity-100'}`} />
-                                                <span className="text-[11px] font-bold tracking-tight italic">{item.label}</span>
+                                                <item.icon size={20} className={`${isActive ? 'stroke-[2.5px]' : 'stroke-[2px] opacity-70 group-hover:opacity-100'}`} />
+                                                <span className="text-[14px] font-bold tracking-tight italic">{item.label}</span>
                                                 {isActive && (
                                                     <div className="size-1.5 bg-primary rounded-full ml-auto shadow-[0_0_8px_#13ec6d]"></div>
                                                 )}
