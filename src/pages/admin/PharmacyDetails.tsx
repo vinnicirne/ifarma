@@ -115,18 +115,6 @@ const PharmacyDetails = () => {
     const [orders, setOrders] = useState<any[]>([]);
     const [searchTerm, setSearchTerm] = useState('');
 
-    // Refs for File Upload
-    const logoInputRef = useRef<HTMLInputElement>(null);
-    const bannerInputRef = useRef<HTMLInputElement>(null);
-
-    // Refs for Geocoding (Debounce & Cache)
-    const lastGeocodeKeyRef = useRef<string>('');
-    const isGeocodingRef = useRef(false);
-    const formDataRef = useRef(formData);
-
-    // Update ref with latest formData on every render to ensure geocoding uses current values
-    formDataRef.current = formData;
-
     // Form State
     const [formData, setFormData] = useState({
         name: '',
@@ -167,6 +155,18 @@ const PharmacyDetails = () => {
         min_order_value: 0,
         allows_pickup: true,
     });
+
+    // Refs for File Upload
+    const logoInputRef = useRef<HTMLInputElement>(null);
+    const bannerInputRef = useRef<HTMLInputElement>(null);
+
+    // Refs for Geocoding (Debounce & Cache)
+    const lastGeocodeKeyRef = useRef<string>('');
+    const isGeocodingRef = useRef(false);
+    const formDataRef = useRef(formData);
+
+    // Update ref with latest formData on every render to ensure geocoding uses current values
+    formDataRef.current = formData;
 
     const isNew = id === 'new';
 
