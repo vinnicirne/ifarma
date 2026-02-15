@@ -19,9 +19,23 @@ serve(async (req) => {
     if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
     try {
+        // --- ENV VAR CHECK ---
+        const asaasKey = Deno.env.get("ASAAS_API_KEY");
+        const sbUrl = Deno.env.get("SUPABASE_URL");
+        const sbKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+
+        if (!asaasKey) {
+            console.error("CRITICAL: ASAAS_API_KEY is missing");
+            return json({ error: "Configuration Error: ASAAS_API_KEY missing" }, 500);
+        }
+        if (!sbUrl || !sbKey) {
+            console.error("CRITICAL: Supabase credentials missing");
+            return json({ error: "Configuration Error: SUPABASE_URL or SERVICE_ROLE_KEY missing" }, 500);
+        }
+
         const token = extractBearer(req);
         if (!token) {
-            return json({ error: "Unauthorized" }, 401);
+            return json({ error: "Unauthorized - Token missing" }, 401);
         }
 
         let body: ActivatePlanRequest;
@@ -33,6 +47,8 @@ serve(async (req) => {
 
         const { pharmacy_id, plan_id } = body;
 
+        console.log(`[activate-pharmacy-plan] Request for pharmacy=${pharmacy_id}`);
+
         if (!pharmacy_id || !isUuid(pharmacy_id)) {
             return json({ error: "pharmacy_id inválido" }, 400);
         }
@@ -43,6 +59,7 @@ serve(async (req) => {
         // ✅ Authorization: admin OR owner OR staff(billing/manager)
         const authz = await authorizeBillingAccess({ token, pharmacyId: pharmacy_id });
         if (!authz.allowed) {
+            console.warn(`[activate-pharmacy-plan] Access denied for user ${authz.userId}: ${authz.reason}`);
             return json({ error: "Forbidden", reason: authz.reason }, 403);
         }
 
@@ -57,7 +74,10 @@ serve(async (req) => {
             .eq("id", pharmacy_id)
             .single();
 
-        if (pErr || !pharmacy) return json({ error: "Farmácia não encontrada" }, 404);
+        if (pErr || !pharmacy) {
+            console.error("[activate-pharmacy-plan] Pharmacy not found or error:", pErr);
+            return json({ error: "Farmácia não encontrada" }, 404);
+        }
 
         // 2) Find active subscription (avoid single)
         const { data: activeSubs, error: aErr } = await supabaseAdmin
@@ -98,7 +118,7 @@ serve(async (req) => {
             if (freeByZero?.id) targetPlanId = freeByZero.id;
         }
 
-        if (!targetPlanId) return json({ error: "Nenhum plano FREE encontrado" }, 400);
+        if (!targetPlanId) return json({ error: "Nenhum plano FREE encontrado no sistema" }, 400);
 
         // 4) Fetch plan
         const { data: plan, error: planErr } = await supabaseAdmin
@@ -107,13 +127,14 @@ serve(async (req) => {
             .eq("id", targetPlanId)
             .single();
 
-        if (planErr || !plan) return json({ error: "Plano não encontrado" }, 404);
+        if (planErr || !plan) return json({ error: "Plano alvo não encontrado" }, 404);
 
         // 5) Ensure Asaas customer
         let asaasCustomerId: string | null = pharmacy.asaas_customer_id ?? null;
 
         if (!asaasCustomerId) {
             try {
+                console.log("[activate-pharmacy-plan] Creating Asaas customer...");
                 asaasCustomerId = await createAsaasCustomer(pharmacy);
                 await supabaseAdmin
                     .from("pharmacies")
@@ -125,6 +146,7 @@ serve(async (req) => {
                     })
                     .eq("id", pharmacy_id);
             } catch (err: any) {
+                console.error("[activate-pharmacy-plan] Asaas creation failed:", err);
                 await supabaseAdmin
                     .from("pharmacies")
                     .update({
@@ -162,6 +184,7 @@ serve(async (req) => {
                 const nextBillingDate = new Date(today.getFullYear(), today.getMonth() + 1, 1);
                 const nextBillingDateStr = nextBillingDate.toISOString().split("T")[0];
 
+                console.log("[activate-pharmacy-plan] Creating Asaas subscription...");
                 const asaasSub = await createAsaasSubscription({
                     customer: asaasCustomerId,
                     value: (plan.monthly_fee_cents ?? 0) / 100,
@@ -226,7 +249,7 @@ serve(async (req) => {
         return json({ success: true, subscription: sub }, 200);
     } catch (e: any) {
         console.error("[activate-pharmacy-plan] Fatal:", e);
-        return json({ error: e?.message ?? "Internal Server Error" }, 500);
+        return json({ error: e?.message ?? "Internal Server Error", stack: e?.stack }, 500);
     }
 });
 
