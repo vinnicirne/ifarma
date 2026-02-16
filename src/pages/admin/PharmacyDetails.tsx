@@ -169,6 +169,8 @@ const PharmacyDetailsContent = ({ googleKey }: { googleKey: string }) => {
         allows_pickup: true,
     });
 
+    const [originalData, setOriginalData] = useState<any>(null);
+
     // Refs for File Upload
     const logoInputRef = useRef<HTMLInputElement>(null);
     const bannerInputRef = useRef<HTMLInputElement>(null);
@@ -238,6 +240,7 @@ const PharmacyDetailsContent = ({ googleKey }: { googleKey: string }) => {
                     status: pharmaData.status || 'pending',
                     merchant_email: pharmaData.owner_email || ''
                 }));
+                setOriginalData(pharmaData);
             }
 
             // 2. Fetch Orders for Analytics
@@ -297,7 +300,7 @@ const PharmacyDetailsContent = ({ googleKey }: { googleKey: string }) => {
     const handleApprovePharmacy = async () => {
         if (!id || id === 'new') return;
 
-        const confirmApprove = window.confirm("Deseja aprovar esta farmácia? Isso verificará se há uma assinatura ativa.");
+        const confirmApprove = window.confirm("Deseja aprovar esta farmácia? Isso ativará o plano e gerará as credenciais de acesso.");
         if (!confirmApprove) return;
 
         setLoading(true);
@@ -308,38 +311,55 @@ const PharmacyDetailsContent = ({ googleKey }: { googleKey: string }) => {
                 return;
             }
 
-            const { data, error } = await supabase.functions.invoke(
-                'create-user-admin',
+            // --- PASSO 1: Ativar Plano ---
+            console.log(`[Approve] Passo 1: Ativando plano para ${id}`);
+            const { data: planData, error: planErr } = await supabase.functions.invoke(
+                'activate-pharmacy-plan',
                 {
-                    body: {
-                        pharmacy_id: id,
-                        approve_pharmacy: true
-                    },
-                    headers: {
-                        Authorization: `Bearer ${session.access_token}`
-                    }
+                    body: { pharmacy_id: id },
+                    headers: { Authorization: `Bearer ${session.access_token}` }
                 }
             );
 
-            if (error) {
-                console.error("Erro na aprovação:", error);
-                const errorBody = await error.context?.json().catch(() => ({}));
-                const msg = errorBody?.error || error.message || "Erro desconhecido";
-                alert(`Erro: ${msg}`);
-                return;
+            if (planErr) {
+                console.error("Erro na ativação do plano:", planErr);
+                const errorBody = await planErr.context?.json().catch(() => ({}));
+                throw new Error(errorBody?.error || planErr.message || "Erro ao ativar plano");
             }
 
-            if (data?.error) {
-                alert(`Erro: ${data.error}`);
-                return;
+            // --- PASSO 2: Provisionar Acesso ---
+            console.log(`[Approve] Passo 2: Provisionando acesso para ${id}`);
+            const { data: accessData, error: accessErr } = await supabase.functions.invoke(
+                'provision-merchant-access',
+                {
+                    body: { pharmacy_id: id },
+                    headers: { Authorization: `Bearer ${session.access_token}` }
+                }
+            );
+
+            if (accessErr) {
+                console.error("Erro no provisionamento de acesso:", accessErr);
+                const errorBody = await accessErr.context?.json().catch(() => ({}));
+                throw new Error(errorBody?.error || accessErr.message || "Erro ao provisionar acesso");
             }
 
-            alert('Farmácia aprovada com sucesso!');
+            const { email, temporary_password } = accessData;
+
+            alert(`Farmácia aprovada com sucesso!\n\nCREDENCIAIS DE ACESSO:\nE-mail: ${email}\nSenha: ${temporary_password}\n\nEnvie estes dados ao lojista.`);
+
+            // Atualiza o status na farmácia localmente para 'approved' 
+            // (a Edge Function provision-merchant-access não atualiza status, 
+            // mas o create-user-admin anterior fazia. Vou adicionar o update status no step 1 ou 2 se necessário, 
+            // mas o activate-pharmacy-plan já altera a assinatura.)
+
+            // Força o status 'approved' na tabela pharmacies se ainda não estiver
+            await supabase.from('pharmacies').update({ status: 'approved' }).eq('id', id);
+
             fetchPharmacyData(id);
 
         } catch (err: any) {
             console.error("Erro ao aprovar:", err);
-            alert("Erro ao aprovar farmácia.");
+            alert(`Erro ao aprovar farmácia: ${err.message}`);
         } finally {
             setLoading(false);
         }
@@ -574,6 +594,7 @@ const PharmacyDetailsContent = ({ googleKey }: { googleKey: string }) => {
 
         // Mapeamento correto dos campos do formulário para o banco de dados
         // address e establishment_phone são campos legados/redundantes mas mantidos por compatibilidade
+        // Sincroniza o email de exibição com o campo oficial do banco
         const payload: any = {
             name: formData.name,
             cnpj: formData.cnpj || null,
@@ -602,7 +623,8 @@ const PharmacyDetailsContent = ({ googleKey }: { googleKey: string }) => {
             // Dados do proprietário
             owner_name: formData.owner_name,
             owner_phone: formData.owner_phone,
-            owner_email: formData.owner_email,
+            owner_email: formData.merchant_email || formData.owner_email, // Garante que o email de acesso seja o email do dono
+            owner_id: formData.owner_id, // Keep owner_id if it exists, will be updated if needed
 
             // Configurações de Entrega
             delivery_fee_type: formData.delivery_fee_type,
@@ -618,51 +640,86 @@ const PharmacyDetailsContent = ({ googleKey }: { googleKey: string }) => {
             complement: formData.complement
         };
 
+        // Remove fields that should not be directly updated in the pharmacies table
+        const cleanPayload = { ...payload };
+        delete cleanPayload.id;
+        delete cleanPayload.created_at;
+        delete cleanPayload.merchant_email;
+        delete cleanPayload.merchant_password;
+
         try {
             let pharmacyId = id;
 
             if (!isNew && id) {
                 // --- ATUALIZAÇÃO ---
-                console.log("Atualizando farmácia:", id, payload);
-                const { error } = await supabase.from('pharmacies').update(payload).eq('id', id);
+                console.log("Atualizando farmácia:", id, cleanPayload);
+                const { error } = await supabase.from('pharmacies').update(cleanPayload).eq('id', id);
                 if (error) throw error;
 
                 // Se houver alteração de senha/email do merchant para farmácia existente
-                if (formData.owner_id && (formData.merchant_password || (formData.merchant_email && formData.merchant_email !== formData.owner_email))) {
-                    console.log("Detectada alteração de credenciais para usuário:", formData.owner_id);
+                const hasPasswordChange = !!formData.merchant_password;
+                const hasEmailChange = formData.merchant_email && originalData && formData.merchant_email !== originalData.owner_email;
 
-                    const { data: { session: currentSession } } = await supabase.auth.getSession();
-                    if (currentSession?.access_token) {
-                        const updateData: any = {
-                            userId: formData.owner_id,
-                            metadata: {
-                                full_name: formData.owner_name,
-                                phone: formData.owner_phone
-                            }
-                        };
+                if (hasPasswordChange || hasEmailChange) {
+                    let userId = formData.owner_id;
 
-                        if (formData.merchant_email) updateData.email = formData.merchant_email;
-                        if (formData.merchant_password) {
-                            if (formData.merchant_password.length < 6) {
-                                alert("A nova senha deve ter pelo menos 6 caracteres.");
-                                throw new Error("Senha muito curta");
-                            }
-                            updateData.password = formData.merchant_password;
+                    // Se não tiver owner_id, tenta buscar pelo email no profiles
+                    if (!userId) {
+                        console.log("owner_id ausente, buscando perfil pelo email:", formData.merchant_email);
+                        const { data: profile } = await supabase
+                            .from('profiles')
+                            .select('id')
+                            .eq('email', formData.merchant_email)
+                            .maybeSingle();
+
+                        if (profile) {
+                            userId = profile.id;
+                            // Aproveita e atualiza o owner_id na farmácia para futuras edições
+                            await supabase.from('pharmacies').update({ owner_id: userId }).eq('id', id);
                         }
+                    }
 
-                        const { error: updateAuthErr } = await supabase.functions.invoke('update-user-admin', {
-                            body: updateData,
-                            headers: {
-                                Authorization: `Bearer ${currentSession.access_token}`,
+                    if (userId) {
+                        console.log("Detectada alteração de credenciais para usuário:", userId);
+
+                        const { data: { session: currentSession } } = await supabase.auth.getSession();
+                        if (currentSession?.access_token) {
+                            const updateData: any = {
+                                userId: userId,
+                                metadata: {
+                                    full_name: formData.owner_name,
+                                    phone: formData.owner_phone
+                                }
+                            };
+
+                            if (formData.merchant_email) updateData.email = formData.merchant_email;
+                            if (formData.merchant_password) {
+                                if (formData.merchant_password.length < 6) {
+                                    alert("A nova senha deve ter pelo menos 6 caracteres.");
+                                    throw new Error("Senha muito curta");
+                                }
+                                updateData.password = formData.merchant_password;
                             }
-                        });
 
-                        if (updateAuthErr) {
-                            console.error("Erro ao atualizar credenciais:", updateAuthErr);
-                            alert("Dados da farmácia salvos, mas houve erro ao atualizar as credenciais de acesso.");
-                        } else {
-                            console.log("Credenciais atualizadas com sucesso");
+                            const { error: updateAuthErr } = await supabase.functions.invoke('update-user-admin', {
+                                body: updateData,
+                                headers: {
+                                    Authorization: `Bearer ${currentSession.access_token}`,
+                                }
+                            });
+
+                            if (updateAuthErr) {
+                                console.error("Erro ao atualizar credenciais:", updateAuthErr);
+                                alert("Dados da farmácia salvos, mas houve erro ao atualizar as credenciais de acesso.");
+                            } else {
+                                console.log("Credenciais atualizadas com sucesso");
+                                // Limpa a senha da memória após sucesso
+                                setFormData(prev => ({ ...prev, merchant_password: '' }));
+                                toast.success("Credenciais de acesso atualizadas!");
+                            }
                         }
+                    } else {
+                        console.warn("Não foi possível localizar um usuário Auth para atualizar credenciais.");
                     }
                 }
             } else {
