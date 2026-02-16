@@ -50,7 +50,7 @@ No Supabase Dashboard → Settings → Secrets, adicione:
 
 ```env
 ASAAS_API_KEY=seu_api_key_aqui
-ASAAS_BASE_URL=https://sandbox.asaas.com/api/v3  # Sandbox para testes
+ASAAS_BASE_URL=https://api-sandbox.asaas.com/v3  # Sandbox para testes
 ASAAS_WEBHOOK_TOKEN=seu_token_secreto_aqui
 ```
 

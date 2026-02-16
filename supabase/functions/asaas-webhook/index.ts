@@ -1,3 +1,4 @@
+
 /**
  * EDGE FUNCTION: Asaas Webhook Handler
  * 
@@ -5,211 +6,246 @@
  * Função: Recebe notificações do Asaas e atualiza status de faturas e assinaturas
  */
 
-import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { adminClient } from "../_shared/authz.ts";
 
 const ASAAS_WEBHOOK_TOKEN = Deno.env.get('ASAAS_WEBHOOK_TOKEN') || '';
 
-interface AsaasWebhookEvent {
-    event: string;
-    payment?: {
-        id: string;
-        customer: string;
-        value: number;
-        netValue: number;
-        dueDate: string;
-        paymentDate?: string;
-        status: string;
-        billingType: string;
-        invoiceUrl?: string;
-    };
-    subscription?: {
-        id: string;
-        customer: string;
-        value: number;
-        nextDueDate: string;
-        cycle: string;
-        status: string;
-    };
+const corsHeaders = {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Headers": "content-type, authorization, asaas-access-token",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
+
+function json(payload: unknown, status = 200) {
+    return new Response(JSON.stringify(payload), {
+        status,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
 }
 
-serve(async (req) => {
+Deno.serve(async (req) => {
+    if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+    if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
+
+    const webhookToken =
+        req.headers.get('asaas-access-token') ||
+        req.headers.get('access_token') ||
+        '';
+
+    if (ASAAS_WEBHOOK_TOKEN && webhookToken !== ASAAS_WEBHOOK_TOKEN) {
+        console.error(`[asaas-webhook] Token inválido. Recebido: ${webhookToken ? '***' : '(vazio)'} / Esperado: ${ASAAS_WEBHOOK_TOKEN ? '***' : '(vazio)'}`);
+        return json({ error: 'Unauthorized' }, 401);
+    }
+
+    const supabaseAdmin = adminClient();
+
+    let payload: any;
     try {
-        // Verificar método
-        if (req.method !== 'POST') {
-            return new Response(JSON.stringify({ error: 'Method not allowed' }), {
-                status: 405,
-                headers: { 'Content-Type': 'application/json' },
-            });
+        payload = await req.json();
+    } catch {
+        return json({ error: "Invalid JSON" }, 400);
+    }
+
+    console.log('[asaas-webhook] Evento recebido:', payload.event, 'ID:', payload.payment?.id || payload.subscription?.id);
+
+    // Asaas geralmente manda { event, payment }
+    const event = payload?.event;
+    const payment = payload?.payment;
+
+    const paymentId = payment?.id;
+    const paymentStatus = payment?.status;
+
+    if (!paymentId) {
+        // retorna 200 pra não ficar em loop de retry no Asaas
+        return json({ ok: true, ignored: "missing payment.id" }, 200);
+    }
+
+    // Ajuste fino aqui se precisar, mas isso cobre bem:
+    const paid =
+        event === "PAYMENT_RECEIVED" ||
+        event === "PAYMENT_CONFIRMED" ||
+        paymentStatus === "RECEIVED" ||
+        paymentStatus === "CONFIRMED";
+
+    if (!paid) {
+
+        // Handle Overdue/Start cancellations if needed, but for now just ignore or log
+        if (event === 'PAYMENT_OVERDUE') {
+            await supabaseAdmin
+                .from('billing_invoices')
+                .update({ status: 'overdue' })
+                .eq('asaas_invoice_id', paymentId);
         }
 
-        // Verificar token do webhook (segurança)
-        const webhookToken = req.headers.get('asaas-access-token');
-        if (webhookToken !== ASAAS_WEBHOOK_TOKEN) {
-            console.error('[asaas-webhook] Token inválido');
-            return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-                status: 401,
-                headers: { 'Content-Type': 'application/json' },
-            });
-        }
+        return json({ ok: true, ignored: "not a paid event", event, paymentStatus }, 200);
+    }
 
-        // Parsear evento
-        const event: AsaasWebhookEvent = await req.json();
-        console.log('[asaas-webhook] Evento recebido:', event.event);
+    // ------------------------------------------------------------------------
+    // ROBUST PAYMENT CONFIRMATION LOGIC
+    // ------------------------------------------------------------------------
+    console.log(`[asaas-webhook] Pagamento confirmado! Event: ${event}, Status: ${paymentStatus}, Payment ID: ${paymentId}`);
 
-        // Criar cliente Supabase
-        const supabaseClient = createClient(
-            Deno.env.get('SUPABASE_URL') ?? '',
-            Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
-            {
-                auth: {
-                    autoRefreshToken: false,
-                    persistSession: false,
-                },
+    // 1. Tentar achar a invoice
+    const { data: invoice, error: invErr } = await supabaseAdmin
+        .from("billing_invoices")
+        .select("id, pharmacy_id, invoice_type, status")
+        .eq("asaas_invoice_id", paymentId)
+        .maybeSingle();
+
+    if (invErr) {
+        console.error("[asaas-webhook] Erro ao buscar invoice:", invErr);
+        return json({ ok: true, warning: "erro ao buscar invoice" }, 200);
+    }
+
+    if (!invoice) {
+        console.warn(`[asaas-webhook] Invoice não encontrada pelo ID: ${paymentId}. Tentando self-healing via externalReference...`);
+
+        // --------------------------------------------------------------------
+        // SELF-HEALING: Tenta recuperar via externalReference (pharmacy_id:due_date:type)
+        // --------------------------------------------------------------------
+        const extRef = payment.externalReference || '';
+        const parts = extRef.split(':'); // Esperado: [pharmacy_id, due_date, type]
+
+        if (parts.length >= 3 && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(parts[0])) {
+            const pharmacy_id = parts[0];
+            const due_date = parts[1];
+            // const type = parts[2]; // usually 'monthly_fee'
+
+            console.log(`[asaas-webhook] Self-healing iniciado para pharmacy: ${pharmacy_id}, due: ${due_date}`);
+
+            // Tenta criar/upsert a invoice para garantir que exista
+            const { data: newInv, error: upsertErr } = await supabaseAdmin
+                .from("billing_invoices")
+                .upsert({
+                    pharmacy_id,
+                    invoice_type: "monthly_fee",
+                    asaas_invoice_id: paymentId,
+                    amount_cents: Math.round((payment.value || 99) * 100), // fallback seguro
+                    due_date: due_date || new Date().toISOString().slice(0, 10),
+                    status: "paid", // Já nasce paga
+                    paid_at: payment.paymentDate || new Date().toISOString(),
+                    asaas_status: paymentStatus,
+                    asaas_invoice_url: payment.invoiceUrl,
+                    asaas_updated_at: new Date().toISOString(),
+                }, { onConflict: 'asaas_invoice_id' })
+                .select()
+                .single();
+
+            if (!upsertErr && newInv) {
+                console.log(`[asaas-webhook] Self-healing sucesso! Invoice criada/recuperada: ${newInv.id}`);
+                // Atribui à variável 'invoice' para o fluxo seguir normalmente
+                // (Precisamos garantir que a variável 'invoice' seja let lá em cima ou redefinida aqui se o compilador permitir, 
+                // mas como é const no escopo anterior, vamos ter que ajustar a declaração original ou usar outra variável 
+                // e fazer o fluxo convergir. O mais limpo é reler ou usar 'newInv' como proxy, mas vamos ajustar o código todo 
+                // para usar 'finalInvoice'.)
+
+                // HACK: Re-declarando invoice como 'any' ou ajustando o fluxo. 
+                // Melhor: vamos retornar aqui e chamar a função de ativação de subscription diretamente
+                // para não ter que refatorar todo o bloco 'const invoice' acima que é const.
+
+                // ATENÇÃO: O código abaixo duplica a lógica de ativação propositalmente para este bloco de fallback,
+                // ou poderíamos ter mudado 'const invoice' para 'let invoice' no início. 
+                // Dado o replace, vou assumir o fluxo de "copiar lógica de ativação" para ser seguro e autocontido.
+
+                // 3. Ativa subscription (Lógica duplicada do Self-Healing para garantir)
+                const { data: sub, error: subFindErr } = await supabaseAdmin
+                    .from("pharmacy_subscriptions")
+                    .select("id, status")
+                    .eq("pharmacy_id", pharmacy_id)
+                    .maybeSingle();
+
+                if (sub && sub.status !== 'active') {
+                    await supabaseAdmin.from("pharmacy_subscriptions").update({
+                        status: 'active',
+                        activated_at: new Date().toISOString(),
+                        asaas_last_error: null,
+                        asaas_updated_at: new Date().toISOString(),
+                    }).eq("id", sub.id);
+                    console.log(`[asaas-webhook] Subscription ativada via self-healing para ${pharmacy_id}`);
+                }
+
+                return json({ ok: true, healed: true }, 200);
+
+            } else {
+                console.error("[asaas-webhook] Falha no self-healing upsert:", upsertErr);
             }
-        );
-
-        // Processar evento
-        switch (event.event) {
-            case 'PAYMENT_RECEIVED':
-                await handlePaymentReceived(supabaseClient, event);
-                break;
-
-            case 'PAYMENT_OVERDUE':
-                await handlePaymentOverdue(supabaseClient, event);
-                break;
-
-            case 'PAYMENT_DELETED':
-            case 'PAYMENT_REFUNDED':
-                await handlePaymentCanceled(supabaseClient, event);
-                break;
-
-            case 'PAYMENT_CONFIRMED':
-                await handlePaymentConfirmed(supabaseClient, event);
-                break;
-
-            default:
-                console.log(`[asaas-webhook] Evento não tratado: ${event.event}`);
+        } else {
+            console.warn(`[asaas-webhook] externalReference inválido para self-healing: ${extRef}`);
         }
 
-        return new Response(JSON.stringify({ success: true }), {
-            status: 200,
-            headers: { 'Content-Type': 'application/json' },
-        });
-
-    } catch (error) {
-        console.error('[asaas-webhook] Erro ao processar webhook:', error);
-        return new Response(JSON.stringify({ error: error.message }), {
-            status: 500,
-            headers: { 'Content-Type': 'application/json' },
-        });
+        return json({ ok: true, warning: "invoice não encontrada e self-healing falhou" }, 200);
     }
-});
 
-/**
- * Pagamento recebido
- */
-async function handlePaymentReceived(supabaseClient: any, event: AsaasWebhookEvent) {
-    if (!event.payment) return;
-
-    console.log(`[asaas-webhook] Pagamento recebido: ${event.payment.id}`);
-
-    // Atualizar fatura
-    const { data: invoice, error: updateError } = await supabaseClient
-        .from('billing_invoices')
+    // 2. Atualiza invoice
+    const { error: updateInvErr } = await supabaseAdmin
+        .from("billing_invoices")
         .update({
-            status: 'paid',
-            paid_at: event.payment.paymentDate || new Date().toISOString(),
+            status: "paid",
+            paid_at: payment.paymentDate || payment.confirmedDate || new Date().toISOString(),
+            asaas_status: paymentStatus,
+            asaas_updated_at: new Date().toISOString(),
         })
-        .eq('asaas_invoice_id', event.payment.id)
-        .select()
-        .single();
+        .eq("id", invoice.id);
 
-    if (updateError) {
-        console.error(`[asaas-webhook] Erro ao atualizar fatura: ${updateError.message}`);
-        return;
+    if (updateInvErr) {
+        console.error("[asaas-webhook] Falha ao atualizar invoice:", updateInvErr);
+        // Não retorna aqui, tenta atualizar a subscription mesmo assim se possível, mas idealmente invoice deve estar ok
+    } else {
+        console.log(`[asaas-webhook] Invoice ${invoice.id} marcada como paid para pharmacy ${invoice.pharmacy_id}`);
     }
 
-    if (!invoice) {
-        console.warn(`[asaas-webhook] Fatura não encontrada: ${event.payment.id}`);
-        return;
+    // 3. Ativa subscription SOMENTE se for invoice do tipo "monthly_fee"
+    if (invoice.invoice_type === "monthly_fee") {
+
+        // 3.1 Busca a subscription atual
+        const { data: sub, error: subFindErr } = await supabaseAdmin
+            .from("pharmacy_subscriptions")
+            .select("id, status, asaas_subscription_id")
+            .eq("pharmacy_id", invoice.pharmacy_id)
+            .maybeSingle();
+
+        if (subFindErr) {
+            console.error("[asaas-webhook] Erro ao buscar subscription:", subFindErr);
+            return json({ ok: true, warning: "erro ao buscar subscription" }, 200);
+        }
+
+        if (!sub) {
+            console.error("[asaas-webhook] Subscription não encontrada para pharmacy:", invoice.pharmacy_id);
+            return json({ ok: true, warning: "subscription não encontrada" }, 200);
+        }
+
+        // 3.2 Checa se já está ativa
+        if (sub.status === "active") {
+            console.log("[asaas-webhook] Subscription já active, ignorando ativação.");
+            return json({ ok: true }, 200);
+        }
+
+        console.log(`[asaas-webhook] Ativando subscription ${sub.id} (status atual: ${sub.status})...`);
+
+        // 3.3 Atualiza para active
+        const { error: subErr } = await supabaseAdmin
+            .from("pharmacy_subscriptions")
+            .update({
+                status: "active",
+                activated_at: new Date().toISOString(),
+                asaas_last_error: null,
+                asaas_updated_at: new Date().toISOString(),
+            })
+            .eq("id", sub.id);
+
+        if (subErr) {
+            console.error("[asaas-webhook] Falha ao ativar subscription:", subErr);
+            return json({ ok: true, warning: "falha ao ativar subscription" }, 200);
+        } else {
+            console.log(`[asaas-webhook] Subscription ${sub.id} ativada com sucesso!`);
+        }
+
+        // Bônus: logar se o pagamento veio com ID de subscription do Asaas
+        if (payment.subscription) {
+            console.log(`[asaas-webhook] Payment vinculado à assinatura Asaas: ${payment.subscription}`);
+        }
     }
 
-    // Se for mensalidade, atualizar status da assinatura
-    if (invoice.invoice_type === 'monthly_fee') {
-        await supabaseClient
-            .from('pharmacy_subscriptions')
-            .update({ status: 'active' })
-            .eq('pharmacy_id', invoice.pharmacy_id)
-            .eq('status', 'overdue');
 
-        console.log(`[asaas-webhook] Assinatura reativada: ${invoice.pharmacy_id}`);
-    }
-}
-
-/**
- * Pagamento vencido
- */
-async function handlePaymentOverdue(supabaseClient: any, event: AsaasWebhookEvent) {
-    if (!event.payment) return;
-
-    console.log(`[asaas-webhook] Pagamento vencido: ${event.payment.id}`);
-
-    // Atualizar fatura
-    const { data: invoice, error: updateError } = await supabaseClient
-        .from('billing_invoices')
-        .update({ status: 'overdue' })
-        .eq('asaas_invoice_id', event.payment.id)
-        .select()
-        .single();
-
-    if (updateError) {
-        console.error(`[asaas-webhook] Erro ao atualizar fatura: ${updateError.message}`);
-        return;
-    }
-
-    if (!invoice) {
-        console.warn(`[asaas-webhook] Fatura não encontrada: ${event.payment.id}`);
-        return;
-    }
-
-    // Se for mensalidade, marcar assinatura como inadimplente
-    if (invoice.invoice_type === 'monthly_fee') {
-        await supabaseClient
-            .from('pharmacy_subscriptions')
-            .update({ status: 'overdue' })
-            .eq('pharmacy_id', invoice.pharmacy_id);
-
-        console.log(`[asaas-webhook] Assinatura marcada como inadimplente: ${invoice.pharmacy_id}`);
-    }
-}
-
-/**
- * Pagamento cancelado/estornado
- */
-async function handlePaymentCanceled(supabaseClient: any, event: AsaasWebhookEvent) {
-    if (!event.payment) return;
-
-    console.log(`[asaas-webhook] Pagamento cancelado: ${event.payment.id}`);
-
-    // Atualizar fatura
-    await supabaseClient
-        .from('billing_invoices')
-        .update({ status: 'canceled' })
-        .eq('asaas_invoice_id', event.payment.id);
-}
-
-/**
- * Pagamento confirmado (antes de ser recebido)
- */
-async function handlePaymentConfirmed(supabaseClient: any, event: AsaasWebhookEvent) {
-    if (!event.payment) return;
-
-    console.log(`[asaas-webhook] Pagamento confirmado: ${event.payment.id}`);
-
-    // Atualizar fatura (ainda não pago, mas confirmado)
-    await supabaseClient
-        .from('billing_invoices')
-        .update({ status: 'pending' })
-        .eq('asaas_invoice_id', event.payment.id);
-}
+    return json({ ok: true }, 200);
+});

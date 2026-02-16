@@ -74,23 +74,24 @@ serve(async (req) => {
             // Modo Teste: Tenta pegar a primeira farmácia cadastrada ou usa um padrão
             const { data: firstPharmacy } = await supabaseClient
                 .from('pharmacies')
-                .select('name, phone')
+                .select('name, establishment_phone, owner_phone')
                 .limit(1)
                 .single();
 
-            pharmacy = firstPharmacy || { name: 'Farmácia de Teste', phone: '5511999999999' };
+            const fp = firstPharmacy;
+            pharmacy = fp ? { name: fp.name, phone: fp.establishment_phone || fp.owner_phone || '5511999999999' } : { name: 'Farmácia de Teste', phone: '5511999999999' };
         } else {
             const { data: realPharmacy, error: pharmacyError } = await supabaseClient
                 .from('pharmacies')
-                .select('name, phone')
+                .select('name, establishment_phone, owner_phone')
                 .eq('id', record.pharmacy_id)
                 .single();
 
             if (pharmacyError) {
                 console.error('Error fetching pharmacy:', pharmacyError);
-                // Don't fail completely, maybe log?
             }
-            pharmacy = realPharmacy;
+            const rp = realPharmacy;
+            pharmacy = rp ? { name: rp.name, phone: rp.establishment_phone || rp.owner_phone || '' } : null;
         }
 
         if (!pharmacy || !pharmacy.phone) {

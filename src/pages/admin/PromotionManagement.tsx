@@ -59,7 +59,7 @@ export const PromotionManagement = ({ profile }: { profile: any }) => {
             const { data: pharmacies } = await supabase
                 .from('pharmacies')
                 .select('id')
-                .eq('status', 'Aprovado');
+                .eq('status', 'approved');
 
             if (pharmacies && pharmacies.length > 0) {
                 const participants = pharmacies.map(p => ({

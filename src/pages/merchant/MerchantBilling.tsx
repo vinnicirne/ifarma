@@ -24,13 +24,32 @@ const MerchantBilling = () => {
     const [invoices, setInvoices] = useState<any[]>([]);
     const [availablePlans, setAvailablePlans] = useState<any[]>([]);
     const [pharmacyId, setPharmacyId] = useState<string | null>(null);
+    const [pixData, setPixData] = useState<{ qr_base64: string; copy_paste?: string; payment_id: string } | null>(null);
+    const [showPixModal, setShowPixModal] = useState(false);
 
     useEffect(() => {
         fetchBillingData();
-    }, []);
 
-    const fetchBillingData = async () => {
-        setLoading(true);
+        // Polling for status updates if pending
+        const interval = setInterval(() => {
+            if (showPixModal || subscription?.status === 'pending_asaas') {
+                fetchBillingData(true); // true = silent
+            }
+        }, 5000);
+
+        return () => clearInterval(interval);
+    }, [showPixModal, subscription?.status]);
+
+    // Close modal if subscription becomes active
+    useEffect(() => {
+        if (subscription?.status === 'active' && showPixModal) {
+            setShowPixModal(false);
+            toast.success("Pagamento confirmado! Plano ativado.");
+        }
+    }, [subscription?.status]);
+
+    const fetchBillingData = async (silent = false) => {
+        if (!silent) setLoading(true);
         try {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) return;
@@ -166,7 +185,21 @@ const MerchantBilling = () => {
 
             if (error) throw error;
 
-            toast.success(`Plano ${plan.name} ativado com sucesso!`);
+            // Se veio QR Code PIX, abre modal para pagamento
+            if ((data as any)?.pix?.qr_base64) {
+                const pix = (data as any).pix;
+                setPixData({
+                    qr_base64: pix.qr_base64,
+                    copy_paste: pix.copy_paste,
+                    payment_id: pix.payment_id,
+                });
+                setShowPixModal(true);
+                toast.success(`Pagamento do plano ${plan.name} gerado. Escaneie o QR Code para pagar.`);
+            } else {
+                toast.success(`Plano ${plan.name} ativado com sucesso!`);
+            }
+
+            // Recarrega dados de billing (vai mostrar pending_asaas até o Asaas confirmar)
             fetchBillingData();
         } catch (error: any) {
             console.error("Error migrating plan:", error);
@@ -188,6 +221,54 @@ const MerchantBilling = () => {
 
     return (
         <MerchantLayout activeTab="billing" title="Assinatura e Cobrança">
+            {/* Modal PIX Asaas */}
+            {showPixModal && pixData && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+                    <div className="bg-[#0a0f0d] rounded-3xl p-8 max-w-md w-full border border-white/10 shadow-2xl text-center space-y-4">
+                        <h2 className="text-lg font-black text-white uppercase tracking-widest">Pagamento via Pix</h2>
+                        <p className="text-xs text-slate-400 font-bold">
+                            Escaneie o QR Code abaixo no app do seu banco para pagar a primeira mensalidade.
+                            Assim que o Asaas confirmar o pagamento, o plano será liberado automaticamente.
+                        </p>
+                        <div className="bg-white rounded-2xl p-3 inline-block">
+                            <img
+                                src={`data:image/png;base64,${pixData.qr_base64}`}
+                                alt="QR Code Pix Asaas"
+                                className="w-64 h-64 object-contain"
+                            />
+                        </div>
+
+                        {pixData.copy_paste && (
+                            <div className="mt-4 space-y-2">
+                                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest text-left">Código Copia e Cola</p>
+                                <div className="flex gap-2">
+                                    <input
+                                        readOnly
+                                        value={pixData.copy_paste}
+                                        className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-[10px] text-slate-300 font-mono focus:outline-none"
+                                    />
+                                    <button
+                                        onClick={() => {
+                                            navigator.clipboard.writeText(pixData.copy_paste || '');
+                                            toast.success("Código copiado!");
+                                        }}
+                                        className="bg-primary/20 hover:bg-primary/30 text-primary px-4 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
+                                    >
+                                        Copiar
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+                        <button
+                            onClick={() => setShowPixModal(false)}
+                            className="mt-2 inline-flex items-center justify-center px-6 h-11 rounded-2xl bg-primary text-[#0a0f0d] text-xs font-black uppercase tracking-widest hover:brightness-110 transition-all"
+                        >
+                            Fechar
+                        </button>
+                    </div>
+                </div>
+            )}
+
             <div className="max-w-6xl mx-auto space-y-10 animate-fade-in">
 
                 {subscription?.status === 'pending_asaas' && (

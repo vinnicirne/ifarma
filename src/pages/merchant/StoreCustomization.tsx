@@ -274,8 +274,7 @@ const StoreCustomization = () => {
                 .from('pharmacies')
                 .update({
                     name,
-                    establishment_phone: phone, // Saving to establishment_phone primarily
-                    phone: phone, // Legacy sync
+                    establishment_phone: phone,
                     cnpj: cnpj || null,
                     is_open: isOpen,
                     logo_url: logoUrl,

@@ -283,14 +283,9 @@ const InventoryControl = () => {
                     image_url: formData.image_url,
                     sku: formData.sku,
                     ean: formData.ean,
-                    // New Fields
-                    dosage: formData.dosage,
-                    quantity_label: formData.quantity_label,
-                    principle_active: formData.principle_active ? formData.principle_active.split(',').map((s: string) => s.trim()) : [],
-                    tags: formData.tags ? formData.tags.split(',').map((s: string) => s.trim()) : [],
-                    synonyms: formData.synonyms ? formData.synonyms.split(',').map((s: string) => s.trim()) : [],
-                    control_level: formData.control_level,
-                    usage_instructions: formData.usage_instructions
+                    // Colunas do catálogo avançado removidas - não existem no schema products do Supabase
+                    // (executar migração 20240210000001_advanced_catalog.sql para habilitar)
+                    // dosage, quantity_label, principle_active, tags, synonyms, control_level, usage_instructions
                 };
 
                 console.log('📦 Payload:', payload);

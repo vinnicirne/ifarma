@@ -94,29 +94,48 @@ const PharmacyFinanceTab: React.FC<PharmacyFinanceTabProps> = ({ pharmacyId }) =
     const handleSelectPlan = async (planId: string) => {
         try {
             setLoading(true);
-            const { data: { session } } = await supabase.auth.getSession();
 
-            const { data, error } = await supabase.functions.invoke('activate-pharmacy-plan', {
-                body: {
-                    pharmacy_id: pharmacyId,
-                    plan_id: planId
-                },
-                headers: {
-                    Authorization: `Bearer ${session?.access_token}`
-                }
+            // 1) pegar sessão
+            const { data: sessionData, error: sessionErr } = await supabase.auth.getSession();
+            if (sessionErr) throw sessionErr;
+
+            const accessToken = sessionData.session?.access_token;
+
+            // 2) se não tiver token, você NÃO está autenticado nesse painel
+            if (!accessToken) {
+                toast.error("Você precisa estar logado como admin para ativar um plano. Faça login novamente.");
+                return;
+            }
+
+            // 3) chamar edge function com token válido
+            const { data, error } = await supabase.functions.invoke("activate-pharmacy-plan", {
+                body: { pharmacy_id: pharmacyId, plan_id: planId },
+                headers: { Authorization: `Bearer ${accessToken}` },
             });
 
-            if (error) throw error;
+            if (error) {
+                console.error("invoke error:", error);
+                throw error;
+            }
 
-            toast.success('Plano ativado com sucesso!');
+            toast.success("Plano ativado com sucesso!");
             setIsPlanModalOpen(false);
-            fetchFinanceData();
+            await fetchFinanceData();
         } catch (error: any) {
-            console.error('Erro ao ativar plano:', error);
-            toast.error(`Erro ao ativar plano: ${error.message}`);
+            console.error("Erro ao ativar plano:", error);
+            toast.error(`Erro ao ativar plano: ${error?.message ?? "Erro desconhecido"}`);
         } finally {
             setLoading(false);
         }
+    };
+
+    const openPlanModal = async () => {
+        const { data } = await supabase.auth.getSession();
+        if (!data.session?.access_token) {
+            toast.error("Faça login no painel antes de vincular um plano.");
+            return;
+        }
+        setIsPlanModalOpen(true);
     };
 
     if (loading) {
@@ -139,7 +158,7 @@ const PharmacyFinanceTab: React.FC<PharmacyFinanceTabProps> = ({ pharmacyId }) =
                     Esta farmácia ainda não foi vinculada a um modelo de cobrança.
                 </p>
                 <button
-                    onClick={() => setIsPlanModalOpen(true)}
+                    onClick={openPlanModal}
                     className="mt-8 bg-primary text-[#0a0f0d] px-8 py-4 rounded-2xl font-black italic text-xs tracking-widest hover:scale-105 active:scale-95 transition-all shadow-[0_0_20px_rgba(19,236,109,0.3)] flex items-center gap-2"
                 >
                     <PlusSquare size={16} />
@@ -157,7 +176,7 @@ const PharmacyFinanceTab: React.FC<PharmacyFinanceTabProps> = ({ pharmacyId }) =
     }
 
     // Calcular progresso do ciclo (MVP: Usando orders_count total ou do ciclo se disponível)
-    const freeLimit = contract?.override_free_orders ?? subscription.plan.free_orders_per_period;
+    const freeLimit = contract?.free_orders_per_period ?? subscription.plan.free_orders_per_period;
     const ordersUsed = currentCycle?.free_orders_used ?? 0;
     const progress = Math.min(100, (ordersUsed / (freeLimit || 1)) * 100);
 
@@ -294,9 +313,9 @@ const PharmacyFinanceTab: React.FC<PharmacyFinanceTabProps> = ({ pharmacyId }) =
                             <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest block mb-2">Mensalidade Base</span>
                             <div className="flex items-end justify-between">
                                 <p className="text-white font-[900] italic text-2xl leading-none">
-                                    {formatCurrency(contract?.override_monthly_fee_cents ?? subscription.plan.monthly_fee_cents)}
+                                    {formatCurrency(contract?.monthly_fee_cents ?? subscription.plan.monthly_fee_cents)}
                                 </p>
-                                {contract?.override_monthly_fee_cents && (
+                                {contract?.monthly_fee_cents && (
                                     <span className="text-[8px] font-black bg-blue-400/10 text-blue-400 px-2 py-0.5 rounded uppercase tracking-widest">Personalizado</span>
                                 )}
                             </div>
@@ -305,16 +324,16 @@ const PharmacyFinanceTab: React.FC<PharmacyFinanceTabProps> = ({ pharmacyId }) =
                         <div className="space-y-4">
                             <div className="flex justify-between pb-4 border-b border-white/5">
                                 <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Excedente (%)</span>
-                                <span className="text-white font-black italic text-xs">{formatPercentage(contract?.override_overage_percent_bp ?? subscription.plan.overage_percent_bp)}</span>
+                                <span className="text-white font-black italic text-xs">{formatPercentage(contract?.overage_percent_bp ?? subscription.plan.overage_percent_bp)}</span>
                             </div>
                             <div className="flex justify-between pb-4 border-b border-white/5">
                                 <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Excedente (Fixa)</span>
-                                <span className="text-white font-black italic text-xs">{formatCurrency(contract?.override_overage_fixed_fee_cents ?? subscription.plan.overage_fixed_fee_cents ?? 0)}</span>
+                                <span className="text-white font-black italic text-xs">{formatCurrency(contract?.overage_fixed_fee_cents ?? subscription.plan.overage_fixed_fee_cents ?? 0)}</span>
                             </div>
                             <div className="flex justify-between pb-4 border-b border-white/5">
                                 <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Bloqueio Auto</span>
-                                <span className={`font-black italic text-xs ${(contract?.override_block_after_limit ?? subscription.plan.block_after_free_limit) ? 'text-red-400' : 'text-primary'}`}>
-                                    {(contract?.override_block_after_limit ?? subscription.plan.block_after_free_limit) ? 'ATIVO' : 'DESLIGADO'}
+                                <span className={`font-black italic text-xs ${(contract?.block_after_free_limit ?? subscription.plan.block_after_free_limit) ? 'text-red-400' : 'text-primary'}`}>
+                                    {(contract?.block_after_free_limit ?? subscription.plan.block_after_free_limit) ? 'ATIVO' : 'DESLIGADO'}
                                 </span>
                             </div>
                         </div>

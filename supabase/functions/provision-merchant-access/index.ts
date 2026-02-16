@@ -1,5 +1,4 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { extractBearer, authorizeBillingAccess, adminClient } from "../_shared/authz.ts";
 
 const corsHeaders = {
@@ -22,93 +21,190 @@ function genPassword(len = 10) {
     return out;
 }
 
+function isUuid(v: string) {
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
+}
+
+function normalizeEmail(v: unknown) {
+    if (typeof v !== "string") return "";
+    return v.trim().toLowerCase();
+}
+
 serve(async (req: Request) => {
     if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
     try {
+        // Diagnostic: prove which project we are targeting
+        const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
+        console.log(`[provision-merchant-access] Target SUPABASE_URL=${supabaseUrl}`);
+
         const token = extractBearer(req);
         if (!token) return json({ error: "Unauthorized" }, 401);
 
-        const body = (await req.json());
-        if (!body?.pharmacy_id) return json({ error: "pharmacy_id required" }, 400);
+        let body: any;
+        try {
+            body = await req.json();
+        } catch {
+            return json({ error: "Invalid JSON body" }, 400);
+        }
 
-        // Authorization: Admin is required to provision access
-        const authz = await authorizeBillingAccess({ token, pharmacyId: body.pharmacy_id });
+        const pharmacy_id = body?.pharmacy_id;
+        if (!pharmacy_id || typeof pharmacy_id !== "string" || !isUuid(pharmacy_id)) {
+            return json({ error: "pharmacy_id inválido" }, 400);
+        }
+
+        // Admin-only
+        const authz = await authorizeBillingAccess({ token, pharmacyId: pharmacy_id });
         if (!authz.allowed || !authz.isAdmin) {
             return json({ error: "Forbidden", reason: "Somente administradores podem provisionar acesso." }, 403);
         }
 
         const sb = adminClient();
 
-        // Get pharmacy details to get the current email
+        // Fetch pharmacy (include owner_id + owner_email)
         const { data: pharmacy, error: pErr } = await sb
             .from("pharmacies")
-            .select("id, name, owner_email, owner_name, owner_phone")
-            .eq("id", body.pharmacy_id)
+            .select("id, name, owner_id, owner_email, owner_name, owner_phone")
+            .eq("id", pharmacy_id)
             .single();
 
-        if (pErr || !pharmacy) return json({ error: "Pharmacy not found" }, 404);
+        if (pErr) throw pErr;
+        if (!pharmacy) return json({ error: "Pharmacy not found" }, 404);
 
-        const email = pharmacy.owner_email;
-        if (!email) return json({ error: "A farmácia não possui um e-mail cadastrado." }, 400);
+        const email = normalizeEmail(pharmacy.owner_email);
+        console.log(`[provision-merchant-access] pharmacy=${pharmacy.id} owner_id=${pharmacy.owner_id ?? "null"} owner_email=${email || "EMPTY"}`);
+
+        if (!email) {
+            return json({ error: "A farmácia não possui um e-mail (owner_email) cadastrado." }, 400);
+        }
 
         const password = genPassword(10);
 
-        // Find existing user by email
-        const { data: list, error: lErr } = await sb.auth.admin.listUsers();
-        if (lErr) throw lErr;
-
-        const existing = list.users.find((u: any) => (u.email ?? "").toLowerCase() === email.toLowerCase());
-
-        let userId: string;
         const metadata = {
             full_name: pharmacy.owner_name || pharmacy.name,
-            role: 'merchant',
+            role: "merchant",
             pharmacy_id: pharmacy.id,
-            phone: pharmacy.owner_phone
+            phone: pharmacy.owner_phone,
         };
 
-        if (!existing) {
-            console.log(`[provision-merchant-access] Creating new user for: ${email}`);
-            const { data, error } = await sb.auth.admin.createUser({
+        let userId: string | null = null;
+
+        // Fast-path: if owner_id exists, reset password directly
+        if (pharmacy.owner_id && typeof pharmacy.owner_id === "string" && isUuid(pharmacy.owner_id)) {
+            userId = pharmacy.owner_id;
+            console.log(`[provision-merchant-access] Fast-path updateUserById user=${userId}`);
+
+            const { error: updateErr } = await sb.auth.admin.updateUserById(userId, {
+                password,
+                user_metadata: metadata,
+            });
+
+            if (updateErr) {
+                console.error("[provision-merchant-access] updateUserById error:", updateErr);
+                throw updateErr;
+            }
+        } else {
+            // Create-path
+            console.log(`[provision-merchant-access] createUser email=${email}`);
+            const { data: createData, error: createError } = await sb.auth.admin.createUser({
                 email,
                 password,
                 email_confirm: true,
-                user_metadata: metadata
+                user_metadata: metadata,
             });
-            if (error) throw error;
-            userId = data.user!.id;
-        } else {
-            console.log(`[provision-merchant-access] User already exists: ${email}. Resetting password.`);
-            const { data, error } = await sb.auth.admin.updateUserById(existing.id, {
-                password,
-                user_metadata: metadata
-            });
-            if (error) throw error;
-            userId = data.user!.id;
+
+            if (createError) {
+                console.error("[provision-merchant-access] createUser error:", createError);
+
+                const msg = (createError.message ?? "").toLowerCase();
+                const isAlready =
+                    msg.includes("already registered") ||
+                    msg.includes("already exists") ||
+                    msg.includes("user already registered");
+
+                if (!isAlready) {
+                    // Fail loudly with original error
+                    return json({ error: `createUser failed: ${createError.message}` }, 500);
+                }
+
+                // Fallback: locate user by email via listUsers (only as fallback)
+                console.log(`[provision-merchant-access] Existing user detected. Searching by email=${email}`);
+
+                let found: any = null;
+                let page = 1;
+
+                while (!found) {
+                    const { data, error: listErr } = await sb.auth.admin.listUsers({ page, perPage: 1000 });
+                    if (listErr) {
+                        console.error("[provision-merchant-access] listUsers error:", listErr);
+                        throw listErr;
+                    }
+
+                    const users = data?.users ?? [];
+                    if (users.length === 0) break;
+
+                    found = users.find((u: any) => normalizeEmail(u.email) === email);
+                    if (found) break;
+
+                    if (users.length < 1000) break;
+                    page++;
+                }
+
+                if (!found?.id) {
+                    return json({ error: `User exists but could not be located for email=${email}` }, 500);
+                }
+
+                userId = found.id;
+                console.log(`[provision-merchant-access] Found existing userId=${userId}. Resetting password...`);
+
+                const { error: updErr } = await sb.auth.admin.updateUserById(userId, {
+                    password,
+                    user_metadata: metadata,
+                });
+
+                if (updErr) {
+                    console.error("[provision-merchant-access] updateUserById (fallback) error:", updErr);
+                    throw updErr;
+                }
+            } else {
+                userId = createData.user?.id ?? null;
+                console.log(`[provision-merchant-access] Created userId=${userId}`);
+            }
         }
 
-        // Link User to Pharmacy in profiles and update owner_id
-        await sb.from("profiles").upsert({
+        if (!userId) return json({ error: "Falha ao determinar o ID do usuário." }, 500);
+
+        // Write profile (must succeed)
+        console.log(`[provision-merchant-access] Upserting profile id=${userId}`);
+        const { error: profErr } = await sb.from("profiles").upsert({
             id: userId,
             email,
             full_name: pharmacy.owner_name || pharmacy.name,
-            role: 'merchant',
+            role: "merchant",
             phone: pharmacy.owner_phone,
-            pharmacy_id: pharmacy.id
+            pharmacy_id: pharmacy.id,
         });
+        if (profErr) {
+            console.error("[provision-merchant-access] profiles upsert error:", profErr);
+            throw profErr;
+        }
 
-        await sb.from("pharmacies").update({ owner_id: userId }).eq('id', pharmacy.id);
+        // Link owner_id + normalize owner_email (must succeed)
+        console.log(`[provision-merchant-access] Updating pharmacies.owner_id=${userId} owner_email=${email}`);
+        const { error: ownErr } = await sb
+            .from("pharmacies")
+            .update({ owner_id: userId, owner_email: email })
+            .eq("id", pharmacy.id);
 
-        return json({
-            success: true,
-            email,
-            temporary_password: password,
-            user_id: userId
-        });
+        if (ownErr) {
+            console.error("[provision-merchant-access] pharmacies update error:", ownErr);
+            throw ownErr;
+        }
 
+        return json({ success: true, email, temporary_password: password, user_id: userId }, 200);
     } catch (e: any) {
-        console.error("[provision-merchant-access] Fatal Error:", e);
+        console.error("[provision-merchant-access] Fatal Error:", e?.message ?? e);
         return json({ error: e?.message ?? "Internal Server Error" }, 500);
     }
 });
+

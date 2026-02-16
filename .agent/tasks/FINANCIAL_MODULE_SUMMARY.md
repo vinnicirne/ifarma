@@ -160,7 +160,7 @@ supabase functions deploy activate-pharmacy-plan
 
 # 2. Configurar variáveis de ambiente (Supabase Dashboard)
 ASAAS_API_KEY=...
-ASAAS_BASE_URL=https://sandbox.asaas.com/api/v3
+ASAAS_BASE_URL=https://api-sandbox.asaas.com/v3
 ASAAS_WEBHOOK_TOKEN=...
 
 # 3. Configurar cron jobs (SQL no Dashboard)

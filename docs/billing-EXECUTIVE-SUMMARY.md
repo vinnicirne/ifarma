@@ -266,7 +266,7 @@ MVP completo quando:
 
 ### Asaas Sandbox vs Produção
 ```
-Sandbox: https://sandbox.asaas.com/api/v3
+Sandbox: https://api-sandbox.asaas.com/v3
 Produção: https://api.asaas.com/v3
 
 Trocar ASAAS_API_KEY quando for pra produção!

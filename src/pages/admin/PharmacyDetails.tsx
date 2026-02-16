@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { toast } from 'react-hot-toast';
 import { supabase } from '../../lib/supabase';
 import { MaterialIcon } from '../../components/Shared';
 import AdminMap from '../../components/admin/AdminMap';
@@ -146,6 +147,7 @@ const PharmacyDetailsContent = ({ googleKey }: { googleKey: string }) => {
         plan: 'FREE',
         status: 'pending', // Manter como string inicialmente para compatibilidade com UI
         cnpj: '',
+        owner_id: undefined as string | undefined,
         owner_name: '',
         owner_phone: '',
         owner_email: '',
@@ -308,7 +310,44 @@ const PharmacyDetailsContent = ({ googleKey }: { googleKey: string }) => {
             const { data: { session } } = await supabase.auth.getSession();
             if (!session?.access_token) {
                 alert('Sessão expirada. Faça login novamente.');
+                setLoading(false);
                 return;
+            }
+
+            // --- PASSO -1: Garantir que owner_email está preenchido com merchant_email antes de aprovar ---
+            const normalizedEmail = (formData.merchant_email || formData.owner_email || "").trim().toLowerCase();
+            if (!normalizedEmail) {
+                alert("Para aprovar, informe o Email de Acesso (Gestor).");
+                setLoading(false);
+                return;
+            }
+
+            console.log(`[Approve] Sincronizando owner_email: ${normalizedEmail}`);
+            const { error: emailSyncErr } = await supabase
+                .from("pharmacies")
+                .update({ owner_email: normalizedEmail })
+                .eq("id", id);
+
+            if (emailSyncErr) {
+                console.error("Falha ao sincronizar owner_email:", emailSyncErr);
+                alert("Não consegui salvar o email de acesso. Verifique permissões/RLS.");
+                setLoading(false);
+                return;
+            }
+
+            // --- PASSO 0: Garantir sincronização do e-mail (Salva antes de aprovar) ---
+            console.log(`[Approve] Passo 0: Sincronizando dados antes da aprovação...`);
+            const syncPayload = {
+                owner_name: formData.owner_name,
+                owner_email: formData.merchant_email, // Importante: Merchant email no form vira owner_email no banco
+                owner_phone: formData.owner_phone,
+                status: 'approved' // Já adianta o status
+            };
+
+            const { error: syncErr } = await supabase.from('pharmacies').update(syncPayload).eq('id', id);
+            if (syncErr) {
+                console.error("Erro ao sincronizar dados pré-aprovação:", syncErr);
+                throw new Error("Falha ao salvar dados da farmácia antes da aprovação.");
             }
 
             // --- PASSO 1: Ativar Plano ---
@@ -608,13 +647,12 @@ const PharmacyDetailsContent = ({ googleKey }: { googleKey: string }) => {
             address: `${formData.street}, ${formData.number} - ${formData.neighborhood}, ${formData.city} - ${formData.state}`,
             latitude: formData.latitude ? parseFloat(formData.latitude) : null,
             longitude: formData.longitude ? parseFloat(formData.longitude) : null,
-            // Contato
-            phone: formData.establishment_phone || formData.phone,
-            establishment_phone: formData.establishment_phone,
+            // Contato (apenas establishment_phone - coluna 'phone' não existe no schema pharmacies)
+            establishment_phone: formData.establishment_phone || formData.phone || null,
             is_open: formData.is_open,
             // status: REMOVED (Managed via separate flow)
             plan: planValue,
-            rating: parseFloat(formData.rating) || 5.0,
+            // rating: removido - coluna não existe no schema pharmacies do Supabase
 
             // Mídia
             logo_url: formData.logo_url,

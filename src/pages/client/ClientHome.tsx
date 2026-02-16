@@ -119,20 +119,24 @@ export const ClientHome = ({ userLocation, sortedPharmacies, session }: { userLo
         };
 
         const handleAdMob = async (feedData: any[], _settings: any) => {
-            if (!Capacitor.isNativePlatform()) return;
+            if (!Capacitor.isNativePlatform()) {
+                if (import.meta.env.DEV) console.log('📱 AdMob: Web detectado - anúncios só aparecem no app nativo (APK)');
+                return;
+            }
 
             try {
-                // Use centralized library for all AdMob logic
-                const { initializeAdMob, showBanner, hideBanner } = await import('../../lib/adMob');
+                const { initializeAdMob, showBanner, hideBanner, getAdMobStatus } = await import('../../lib/adMob');
                 await initializeAdMob();
 
                 const admobSection = feedData.find(s => s.type === 'admob.banner');
-                if (admobSection) {
+                if (admobSection && admobSection.is_active) {
                     const index = feedData.findIndex(s => s.type === 'admob.banner');
                     const position = index === 0 ? 'TOP_CENTER' : 'BOTTOM_CENTER';
                     await showBanner(position as 'TOP_CENTER' | 'BOTTOM_CENTER');
+                    if (import.meta.env.DEV) console.log('📺 AdMob: Banner solicitado', getAdMobStatus());
                 } else {
                     await hideBanner();
+                    if (import.meta.env.DEV && !admobSection) console.log('📺 AdMob: Seção admob.banner não encontrada no feed');
                 }
             } catch (e) {
                 console.error('AdMob Execution Error:', e);
@@ -249,7 +253,17 @@ export const ClientHome = ({ userLocation, sortedPharmacies, session }: { userLo
             case 'pharmacy_list.nearby':
                 return <NearbyPharmacies key={section.id} pharmacies={pharmaciesToUse} config={section.config || {}} title={section.title} />;
             case 'admob.banner':
-                return null; // Invisible in list, handled by effect
+                // No app nativo: banner overlay. No web: placeholder explicativo em DEV
+                if (import.meta.env.DEV && !Capacitor.isNativePlatform()) {
+                    return (
+                        <div key={section.id} className="mx-4 my-2 p-3 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-center">
+                            <p className="text-[10px] text-amber-600 dark:text-amber-400 font-bold uppercase tracking-widest">
+                                📱 Anúncios aparecem apenas no app (APK)
+                            </p>
+                        </div>
+                    );
+                }
+                return null;
             default:
                 return null;
         }

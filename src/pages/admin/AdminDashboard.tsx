@@ -88,7 +88,7 @@ const AdminDashboard = ({ profile }: { profile: any }) => {
             lat: Number(p.latitude || -22.9068),
             lng: Number(p.longitude || -43.1729),
             type: 'pharmacy',
-            phone: p.phone || p.establishment_phone || '550000000000'
+            phone: p.establishment_phone || p.owner_phone || '550000000000'
         })));
 
         setProfitabilityData(data.currentSales.map(o => {

@@ -136,7 +136,7 @@ const RealtimeMetrics = ({ orders = [], className = '', userRole = 'merchant' }:
                     const chunk = ids.slice(i, i + chunkSize);
                     const { data } = await supabase
                         .from('order_items')
-                        .select('quantity, unit_price, product_id, products(name, image_url)')
+                        .select('quantity, price, product_id, products(name, image_url)')
                         .in('order_id', chunk);
                     if (data) allItems = [...allItems, ...data];
                 }
@@ -158,7 +158,7 @@ const RealtimeMetrics = ({ orders = [], className = '', userRole = 'merchant' }:
                         };
                     }
                     acc[pid].quantity += item.quantity;
-                    acc[pid].total_value += (item.quantity * item.unit_price);
+                    acc[pid].total_value += (item.quantity * item.price);
                     return acc;
                 }, {});
 

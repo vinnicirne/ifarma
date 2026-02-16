@@ -7,20 +7,37 @@ let adMobInitialized = false;
 let adMobEnabled = false;
 let bannerUnitId = '';
 
+/** Diagnóstico: retorna o estado atual do AdMob para debug */
+export const getAdMobStatus = () => ({
+    isNative: Capacitor.isNativePlatform(),
+    initialized: adMobInitialized,
+    enabled: adMobEnabled,
+    bannerUnitId: bannerUnitId || '(não definido)'
+});
+
 /**
  * Centrally initializes AdMob by fetching settings from Supabase.
- * This should be called once, preferably at app start or home feed load.
+ * Só funciona em APK/iOS - no web (localhost) retorna imediatamente.
  */
 export const initializeAdMob = async () => {
-    if (!Capacitor.isNativePlatform()) return;
+    if (!Capacitor.isNativePlatform()) {
+        if (import.meta.env.DEV) console.log('📱 AdMob: Ignorado no web (apenas app nativo)');
+        return;
+    }
 
     try {
-        const { data: settingsData } = await supabase.from('system_settings').select('key, value');
-        const settings: any = {};
-        settingsData?.forEach((s: any) => settings[s.key] = s.value);
+        const { data: settingsData, error } = await supabase.from('system_settings').select('key, value');
+        if (error) {
+            console.warn('⚠️ AdMob: Erro ao carregar system_settings:', error.message);
+            adMobEnabled = false;
+            return;
+        }
+
+        const settings: Record<string, string> = {};
+        settingsData?.forEach((s: { key: string; value: string }) => { settings[s.key] = s.value; });
 
         if (settings['admob_enabled'] !== 'true') {
-            console.log('🚫 AdMob is disabled in system_settings.');
+            console.log('🚫 AdMob desativado em system_settings (admob_enabled !== "true")');
             adMobEnabled = false;
             return;
         }
@@ -35,19 +52,27 @@ export const initializeAdMob = async () => {
                 tagForUnderAgeOfConsent: false,
             });
             adMobInitialized = true;
-            console.log('✅ AdMob SDK Initialized');
+            console.log('✅ AdMob SDK Inicializado | Banner ID:', bannerUnitId.substring(0, 30) + '...');
         }
-
     } catch (error) {
-        console.error('💥 AdMob Initialization Error:', error);
+        console.error('💥 AdMob Init Error:', error);
+        adMobEnabled = false;
     }
 };
 
 /**
- * Shows the banner at a specific position.
+ * Mostra o banner na posição indicada. Só funciona em app nativo.
  */
 export const showBanner = async (position: 'TOP_CENTER' | 'BOTTOM_CENTER' = 'BOTTOM_CENTER') => {
-    if (!Capacitor.isNativePlatform() || !adMobEnabled) return;
+    if (!Capacitor.isNativePlatform()) return;
+    if (!adMobEnabled) {
+        console.warn('⚠️ AdMob showBanner ignorado: adMobEnabled=false (verifique admob_enabled e admob_banner_id_android)');
+        return;
+    }
+    if (!bannerUnitId) {
+        console.warn('⚠️ AdMob showBanner ignorado: bannerUnitId vazio');
+        return;
+    }
 
     try {
         const options: BannerAdOptions = {
@@ -55,12 +80,12 @@ export const showBanner = async (position: 'TOP_CENTER' | 'BOTTOM_CENTER' = 'BOT
             adSize: BannerAdSize.ADAPTIVE_BANNER,
             position: BannerAdPosition[position as keyof typeof BannerAdPosition] || BannerAdPosition.BOTTOM_CENTER,
             margin: 0,
-            isTesting: bannerUnitId.includes('3940256099942544') // Auto-detect test IDs
+            isTesting: bannerUnitId.includes('3940256099942544') // IDs de teste do Google
         };
         await AdMob.showBanner(options);
-        console.log(`📺 AdMob Banner Shown (${position})`);
+        console.log(`📺 AdMob Banner exibido (${position})`);
     } catch (error) {
-        console.error('Error showing AdMob banner:', error);
+        console.error('❌ AdMob showBanner error:', error);
     }
 };
 

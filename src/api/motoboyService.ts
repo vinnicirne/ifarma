@@ -5,7 +5,7 @@ export const motoboyService = {
     async getMotoboys(): Promise<Motoboy[]> {
         const { data: boys, error: boysError } = await supabase
             .from('profiles')
-            .select('id, full_name, phone, email, pharmacy_id, is_active, is_online, created_at')
+            .select('id, full_name, phone, email, pharmacy_id, is_active, is_online, created_at, vehicle_plate, vehicle_model, cnh_url')
             .eq('role', 'motoboy')
             .order('full_name');
 
@@ -27,7 +27,10 @@ export const motoboyService = {
             status: boy.is_online ? 'Disponível' : 'Offline',
             is_online: boy.is_online,
             is_active: boy.is_active,
-            created_at: boy.created_at
+            created_at: boy.created_at,
+            vehicle_plate: boy.vehicle_plate || 'N/A',
+            vehicle_model: boy.vehicle_model || 'N/A',
+            cnh_url: boy.cnh_url
         }));
     },
 
@@ -45,7 +48,8 @@ export const motoboyService = {
         const { data: { session } } = await supabase.auth.getSession();
         if (!session) throw new Error("Sessão expirada.");
 
-        const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-user-admin`, {
+        // USAR create-staff-user em vez de create-user-admin (mais robusto para motoboys)
+        const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-staff-user`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',

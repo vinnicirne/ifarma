@@ -10,35 +10,7 @@
 -- PARTE 1: DROPAR TUDO (ordem reversa de dependências)
 -- ============================================
 
--- Dropar políticas RLS primeiro
-DROP POLICY IF EXISTS "Admins podem gerenciar alertas" ON system_alerts;
-DROP POLICY IF EXISTS "Todos podem ver avaliações" ON delivery_ratings;
-DROP POLICY IF EXISTS "Clientes podem criar avaliações" ON delivery_ratings;
-DROP POLICY IF EXISTS "Lojistas podem gerenciar configurações" ON pharmacy_payment_settings;
-DROP POLICY IF EXISTS "Todos podem ver configurações de pagamento" ON pharmacy_payment_settings;
-DROP POLICY IF EXISTS "Participantes podem enviar mensagens" ON order_messages;
-DROP POLICY IF EXISTS "Participantes podem ver mensagens" ON order_messages;
-DROP POLICY IF EXISTS "Lojistas podem ver itens" ON order_items;
-DROP POLICY IF EXISTS "Participantes podem ver itens do pedido" ON order_items;
-DROP POLICY IF EXISTS "Admins podem ver todos os pedidos" ON orders;
-DROP POLICY IF EXISTS "Motoboys podem ver pedidos atribuídos" ON orders;
-DROP POLICY IF EXISTS "Farmácias podem atualizar pedidos da sua loja" ON orders;
-DROP POLICY IF EXISTS "Farmácias podem ver pedidos da sua loja" ON orders;
-DROP POLICY IF EXISTS "Clientes podem criar pedidos" ON orders;
-DROP POLICY IF EXISTS "Clientes podem ver seus próprios pedidos" ON orders;
-DROP POLICY IF EXISTS "Usuários podem deletar do carrinho" ON cart_items;
-DROP POLICY IF EXISTS "Usuários podem atualizar seu carrinho" ON cart_items;
-DROP POLICY IF EXISTS "Usuários podem adicionar ao carrinho" ON cart_items;
-DROP POLICY IF EXISTS "Usuários podem ver seu próprio carrinho" ON cart_items;
-DROP POLICY IF EXISTS "Lojistas podem gerenciar produtos" ON products;
-DROP POLICY IF EXISTS "Todos podem ver produtos ativos" ON products;
-DROP POLICY IF EXISTS "Lojistas podem atualizar sua farmácia" ON pharmacies;
-DROP POLICY IF EXISTS "Todos podem ver farmácias aprovadas" ON pharmacies;
-DROP POLICY IF EXISTS "Admins podem ver todos os perfis" ON profiles;
-DROP POLICY IF EXISTS "Usuários podem atualizar seu próprio perfil" ON profiles;
-DROP POLICY IF EXISTS "Usuários podem ver seu próprio perfil" ON profiles;
-
--- Dropar tabelas (ordem reversa de dependências)
+-- Dropar tabelas primeiro (CASCADE já elimina políticas, triggers, fks)
 DROP TABLE IF EXISTS delivery_ratings CASCADE;
 DROP TABLE IF EXISTS route_history CASCADE;
 DROP TABLE IF EXISTS device_tokens CASCADE;
@@ -71,10 +43,12 @@ CREATE TABLE profiles (
     phone TEXT,
     avatar_url TEXT,
     address TEXT,
-    role TEXT DEFAULT 'customer' CHECK (role IN ('customer', 'merchant', 'motoboy', 'admin')),
+    role TEXT DEFAULT 'customer' CHECK (role IN ('customer', 'merchant', 'motoboy', 'admin', 'operator', 'staff')),
     is_active BOOLEAN DEFAULT true,
     is_online BOOLEAN DEFAULT false,
     
+    pharmacy_id UUID, -- Link para farmácia (merchant/staff)
+
     -- Campos para rastreamento de motoboy
     last_lat DOUBLE PRECISION,
     last_lng DOUBLE PRECISION,
@@ -88,7 +62,7 @@ CREATE TABLE profiles (
 CREATE TABLE pharmacies (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     name TEXT NOT NULL,
-    status TEXT DEFAULT 'Pendente' CHECK (status IN ('Pendente', 'Aprovado', 'Rejeitado')),
+    status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected', 'suspended', 'Aprovado', 'Pendente', 'Rejeitado', 'Suspenso')),
     address TEXT NOT NULL,
     latitude DOUBLE PRECISION NOT NULL,
     longitude DOUBLE PRECISION NOT NULL,
@@ -96,7 +70,15 @@ CREATE TABLE pharmacies (
     email TEXT,
     opening_hours TEXT,
     is_open BOOLEAN DEFAULT true,
+    auto_open_status BOOLEAN DEFAULT false,
+    
     owner_id UUID REFERENCES profiles(id),
+    owner_name TEXT,
+    owner_phone TEXT,
+    owner_email TEXT,
+    cnpj TEXT UNIQUE,
+    plan TEXT DEFAULT 'FREE' CHECK (plan in ('admin', 'basic', 'pro', 'premium', 'enterprise', 'FREE', 'PROFESSIONAL', 'PREMIUM')),
+
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
 );
 
@@ -105,11 +87,16 @@ CREATE TABLE products (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     pharmacy_id UUID REFERENCES pharmacies(id) ON DELETE CASCADE,
     name TEXT NOT NULL,
+    brand TEXT,
     description TEXT,
     price DECIMAL(10, 2) NOT NULL,
+    original_price DECIMAL(10, 2),
+    promo_price DECIMAL(10, 2),
     stock INTEGER DEFAULT 0,
     category TEXT,
     image_url TEXT,
+    sku TEXT,
+    ean TEXT,
     requires_prescription BOOLEAN DEFAULT false,
     is_active BOOLEAN DEFAULT true,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
@@ -273,6 +260,39 @@ CREATE TRIGGER update_pharmacy_payment_settings_updated_at BEFORE UPDATE ON phar
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- ============================================
+-- TRIGGER: CRIAR PERFIL AO REGISTRAR USUÁRIO
+-- ============================================
+
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS TRIGGER AS $$
+BEGIN
+  INSERT INTO public.profiles (id, email, full_name, role, pharmacy_id, phone, is_active)
+  VALUES (
+    NEW.id,
+    NEW.email,
+    COALESCE(NEW.raw_user_meta_data->>'full_name', ''),
+    COALESCE(NEW.raw_user_meta_data->>'role', 'customer'),
+    NULLIF(NEW.raw_user_meta_data->>'pharmacy_id', '')::uuid,
+    COALESCE(NEW.raw_user_meta_data->>'phone', ''),
+    true
+  )
+  ON CONFLICT (id) DO UPDATE SET
+    full_name = EXCLUDED.full_name,
+    role = EXCLUDED.role,
+    pharmacy_id = EXCLUDED.pharmacy_id,
+    phone = EXCLUDED.phone;
+  
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Garantir que o trigger exista
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
+-- ============================================
 -- HABILITAR ROW LEVEL SECURITY
 -- ============================================
 
@@ -290,19 +310,28 @@ ALTER TABLE route_history ENABLE ROW LEVEL SECURITY;
 ALTER TABLE delivery_ratings ENABLE ROW LEVEL SECURITY;
 
 -- ============================================
+-- FUNÇÕES AUXILIARES (SECURITY DEFINER para evitar recursão)
+-- ============================================
+
+CREATE OR REPLACE FUNCTION public.check_is_admin()
+RETURNS BOOLEAN AS $$
+BEGIN
+    RETURN EXISTS (
+        SELECT 1 FROM profiles 
+        WHERE id = auth.uid() AND role = 'admin'
+    );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- ============================================
 -- POLÍTICAS RLS - PROFILES
 -- ============================================
 
 CREATE POLICY "Usuários podem ver seu próprio perfil" ON profiles
-    FOR SELECT USING (auth.uid() = id);
+    FOR SELECT USING (auth.uid() = id OR public.check_is_admin());
 
 CREATE POLICY "Usuários podem atualizar seu próprio perfil" ON profiles
-    FOR UPDATE USING (auth.uid() = id);
-
-CREATE POLICY "Admins podem ver todos os perfis" ON profiles
-    FOR SELECT USING (
-        EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
-    );
+    FOR UPDATE USING (auth.uid() = id OR public.check_is_admin());
 
 -- ============================================
 -- POLÍTICAS RLS - PHARMACIES

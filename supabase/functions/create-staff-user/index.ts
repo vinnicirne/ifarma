@@ -140,9 +140,13 @@ serve(async (req) => {
             role: requestedRole,
             full_name: metadata.full_name || email.split("@")[0],
         };
-        if (pharmacy_id) profilePayload.pharmacy_id = pharmacy_id;
-
-        const { error: upsertErr } = await supabaseAdmin.from("profiles").upsert(profilePayload);
+        const { error: upsertErr } = await supabaseAdmin.from("profiles").upsert({
+            ...profilePayload,
+            pharmacy_id: pharmacy_id || null, // Explicitly include pharmacy_id
+            vehicle_plate: metadata.vehicle_plate || null,
+            vehicle_model: metadata.vehicle_model || null,
+            cnh_url: metadata.cnh_url || null,
+        });
         if (upsertErr) {
             return json(500, { error: "Profile upsert failed", detail: upsertErr.message });
         }

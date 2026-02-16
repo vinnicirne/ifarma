@@ -907,7 +907,7 @@ const MerchantOrderManagement = () => {
                         order={selectedOrderToPrint}
                         pharmacyName={pharmacy?.name}
                         pharmacyAddress={pharmacy?.address}
-                        pharmacyPhone={pharmacy?.phone}
+                        pharmacyPhone={pharmacy?.establishment_phone || pharmacy?.owner_phone || pharmacy?.phone}
                     />
                 </div>,
                 document.body

@@ -342,12 +342,12 @@ export const SpecialHighlights = ({ config, title, pharmacies }: { pharmacies: a
                     id, 
                     name, 
                     price, 
-                    promotional_price, 
+                    promo_price,
                     image_url, 
                     pharmacy_id,
                     pharmacies!inner(name, plan, status)
                 `)
-                .eq('pharmacies.status', 'Aprovado')
+                .eq('pharmacies.status', 'approved')
                 .limit(config?.limit || 10);
 
             if ((!data || data.length === 0)) {
@@ -358,12 +358,12 @@ export const SpecialHighlights = ({ config, title, pharmacies }: { pharmacies: a
                         id, 
                         name, 
                         price, 
-                        promotional_price, 
+                        promo_price,
                         image_url, 
                         pharmacy_id,
                         pharmacies!inner(name, plan, status)
                     `)
-                    .eq('pharmacies.status', 'Aprovado')
+                    .eq('pharmacies.status', 'approved')
                     .limit(10);
 
                 data = fallbackData;
@@ -412,9 +412,9 @@ export const SpecialHighlights = ({ config, title, pharmacies }: { pharmacies: a
                                 ) : (
                                     <MaterialIcon name="medication" className="text-3xl text-primary/20" />
                                 )}
-                                {(item.promotional_price || isFallback) && (
-                                    <div className={`absolute top-1 right-1 ${item.promotional_price ? 'bg-red-500' : 'bg-blue-600'} text-white text-[8px] font-black px-1.5 py-0.5 rounded-full shadow-md`}>
-                                        {item.promotional_price ? 'OFERTA' : 'POPULAR'}
+                                {((item.promo_price ?? item.promotional_price) || isFallback) && (
+                                    <div className={`absolute top-1 right-1 ${(item.promo_price ?? item.promotional_price) ? 'bg-red-500' : 'bg-blue-600'} text-white text-[8px] font-black px-1.5 py-0.5 rounded-full shadow-md`}>
+                                        {(item.promo_price ?? item.promotional_price) ? 'OFERTA' : 'POPULAR'}
                                     </div>
                                 )}
                             </div>
@@ -422,8 +422,8 @@ export const SpecialHighlights = ({ config, title, pharmacies }: { pharmacies: a
                                 <h4 className="font-bold text-slate-800 dark:text-white text-[11px] truncate leading-tight italic">{item.name}</h4>
                                 <p className="text-[8px] text-slate-400 truncate mb-1 uppercase font-bold">{item.pharmacies.name}</p>
                                 <div className="flex items-baseline gap-1">
-                                    <span className="text-primary font-black text-base italic tracking-tighter">R$ {(item.promotional_price || item.price).toFixed(2)}</span>
-                                    {item.promotional_price && (
+                                    <span className="text-primary font-black text-base italic tracking-tighter">R$ {((item.promo_price ?? item.promotional_price) || item.price).toFixed(2)}</span>
+                                    {(item.promo_price ?? item.promotional_price) && (
                                         <span className="text-[8px] text-slate-400 line-through">R$ {item.price.toFixed(2)}</span>
                                     )}
                                 </div>

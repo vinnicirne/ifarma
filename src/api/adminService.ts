@@ -71,7 +71,7 @@ export const adminService = {
         ]);
 
         // 3. Ranking Farmácias
-        const { data: pharmNames } = await supabase.from('pharmacies').select('id, name, latitude, longitude, phone, establishment_phone');
+        const { data: pharmNames } = await supabase.from('pharmacies').select('id, name, latitude, longitude, establishment_phone, owner_phone');
         const pharmaNameMap = (pharmNames || []).reduce((acc: any, p) => ({ ...acc, [p.id]: p.name }), {});
 
         const pharmaRankingMap: { [key: string]: { name: string, total: number } } = {};

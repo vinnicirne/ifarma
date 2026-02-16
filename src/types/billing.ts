@@ -66,11 +66,11 @@ export interface PharmacySubscription {
 export interface PharmacyContract {
     id: string;
     pharmacy_id: string;
-    override_monthly_fee_cents: number | null;
-    override_free_orders: number | null;
-    override_overage_percent_bp: number | null;
-    override_overage_fixed_fee_cents: number | null;
-    override_block_after_limit: boolean | null;
+    monthly_fee_cents: number | null;
+    free_orders_per_period: number | null;
+    overage_percent_bp: number | null;
+    overage_fixed_fee_cents: number | null;
+    block_after_free_limit: boolean | null;
     valid_from: string;
     valid_until: string | null;
     notes: string | null;
@@ -164,11 +164,11 @@ export interface UpdateBillingPlanInput extends Partial<CreateBillingPlanInput> 
 
 export interface CreatePharmacyContractInput {
     pharmacy_id: string;
-    override_monthly_fee_cents?: number;
-    override_free_orders?: number;
-    override_overage_percent_bp?: number;
-    override_overage_fixed_fee_cents?: number;
-    override_block_after_limit?: boolean;
+    monthly_fee_cents?: number;
+    free_orders_per_period?: number;
+    overage_percent_bp?: number;
+    overage_fixed_fee_cents?: number;
+    block_after_free_limit?: boolean;
     valid_from: string;
     valid_until?: string;
     notes?: string;
@@ -341,8 +341,8 @@ export const validatePharmacyContract = (input: CreatePharmacyContractInput): st
         errors.push('Data de término deve ser posterior à data de início');
     }
 
-    if (input.override_overage_percent_bp !== undefined) {
-        if (input.override_overage_percent_bp < 0 || input.override_overage_percent_bp > 10000) {
+    if (input.overage_percent_bp !== undefined) {
+        if (input.overage_percent_bp < 0 || input.overage_percent_bp > 10000) {
             errors.push('Percentual de excedente deve estar entre 0% e 100%');
         }
     }
