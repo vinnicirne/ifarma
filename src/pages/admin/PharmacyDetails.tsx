@@ -235,7 +235,8 @@ const PharmacyDetailsContent = ({ googleKey }: { googleKey: string }) => {
                     delivery_free_min_km: pharmaData.delivery_free_min_km || 0,
                     delivery_free_min_value: pharmaData.delivery_free_min_value || 0,
                     delivery_max_km: pharmaData.delivery_max_km || 15,
-                    status: pharmaData.status || 'pending'
+                    status: pharmaData.status || 'pending',
+                    merchant_email: pharmaData.owner_email || ''
                 }));
             }
 
@@ -626,8 +627,44 @@ const PharmacyDetailsContent = ({ googleKey }: { googleKey: string }) => {
                 const { error } = await supabase.from('pharmacies').update(payload).eq('id', id);
                 if (error) throw error;
 
-                // Se houver alteração de senha/email do merchant, isso deve ser tratado separadamente ou aqui
-                // Mas por enquanto foca nos dados da farmácia
+                // Se houver alteração de senha/email do merchant para farmácia existente
+                if (formData.owner_id && (formData.merchant_password || (formData.merchant_email && formData.merchant_email !== formData.owner_email))) {
+                    console.log("Detectada alteração de credenciais para usuário:", formData.owner_id);
+
+                    const { data: { session: currentSession } } = await supabase.auth.getSession();
+                    if (currentSession?.access_token) {
+                        const updateData: any = {
+                            userId: formData.owner_id,
+                            metadata: {
+                                full_name: formData.owner_name,
+                                phone: formData.owner_phone
+                            }
+                        };
+
+                        if (formData.merchant_email) updateData.email = formData.merchant_email;
+                        if (formData.merchant_password) {
+                            if (formData.merchant_password.length < 6) {
+                                alert("A nova senha deve ter pelo menos 6 caracteres.");
+                                throw new Error("Senha muito curta");
+                            }
+                            updateData.password = formData.merchant_password;
+                        }
+
+                        const { error: updateAuthErr } = await supabase.functions.invoke('update-user-admin', {
+                            body: updateData,
+                            headers: {
+                                Authorization: `Bearer ${currentSession.access_token}`,
+                            }
+                        });
+
+                        if (updateAuthErr) {
+                            console.error("Erro ao atualizar credenciais:", updateAuthErr);
+                            alert("Dados da farmácia salvos, mas houve erro ao atualizar as credenciais de acesso.");
+                        } else {
+                            console.log("Credenciais atualizadas com sucesso");
+                        }
+                    }
+                }
             } else {
                 // --- CRIAÇÃO ---
                 console.log("Criando nova farmácia:", payload);
@@ -964,24 +1001,22 @@ const PharmacyDetailsContent = ({ googleKey }: { googleKey: string }) => {
                                     </div>
                                 </section>
 
-                                {isNew && (
-                                    <section className="bg-white dark:bg-[#1a2e23] p-8 rounded-[40px] border border-slate-200 dark:border-white/5 shadow-xl">
-                                        <h3 className="text-lg font-black italic text-slate-900 dark:text-white mb-6 flex items-center gap-2">
-                                            <MaterialIcon name="badge" className="text-primary" />
-                                            Credenciais de Acesso (Gestor)
-                                        </h3>
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                            <div className="flex flex-col gap-2">
-                                                <label className="text-[10px] font-black uppercase tracking-widest text-[#92c9a9] px-1">Email de Acesso *</label>
-                                                <input type="email" value={formData.merchant_email} onChange={e => setFormData({ ...formData, merchant_email: e.target.value })} className="h-14 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-2xl px-4 text-slate-900 dark:text-white font-bold outline-none focus:border-primary/50 transition-colors" placeholder="Login do gestor" />
-                                            </div>
-                                            <div className="flex flex-col gap-2">
-                                                <label className="text-[10px] font-black uppercase tracking-widest text-[#92c9a9] px-1">Senha Inicial *</label>
-                                                <input type="password" value={formData.merchant_password} onChange={e => setFormData({ ...formData, merchant_password: e.target.value })} className="h-14 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-2xl px-4 text-slate-900 dark:text-white font-bold outline-none focus:border-primary/50 transition-colors" placeholder="Mínimo 6 caracteres" />
-                                            </div>
+                                <section className="bg-white dark:bg-[#1a2e23] p-8 rounded-[40px] border border-slate-200 dark:border-white/5 shadow-xl">
+                                    <h3 className="text-lg font-black italic text-slate-900 dark:text-white mb-6 flex items-center gap-2">
+                                        <MaterialIcon name="badge" className="text-primary" />
+                                        Credenciais de Acesso (Gestor)
+                                    </h3>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        <div className="flex flex-col gap-2">
+                                            <label className="text-[10px] font-black uppercase tracking-widest text-[#92c9a9] px-1">Email de Acesso *</label>
+                                            <input type="email" value={formData.merchant_email} onChange={e => setFormData({ ...formData, merchant_email: e.target.value })} className="h-14 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-2xl px-4 text-slate-900 dark:text-white font-bold outline-none focus:border-primary/50 transition-colors" placeholder="Login do gestor" />
                                         </div>
-                                    </section>
-                                )}
+                                        <div className="flex flex-col gap-2">
+                                            <label className="text-[10px] font-black uppercase tracking-widest text-[#92c9a9] px-1">{isNew ? 'Senha Inicial *' : 'Nova Senha (opcional)'}</label>
+                                            <input type="password" value={formData.merchant_password} onChange={e => setFormData({ ...formData, merchant_password: e.target.value })} className="h-14 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-2xl px-4 text-slate-900 dark:text-white font-bold outline-none focus:border-primary/50 transition-colors" placeholder={isNew ? "Mínimo 6 caracteres" : "Deixe em branco para manter"} />
+                                        </div>
+                                    </div>
+                                </section>
 
                                 <section className="bg-white dark:bg-[#1a2e23] p-8 rounded-[40px] border border-slate-200 dark:border-white/5 shadow-xl">
                                     <h3 className="text-lg font-black italic text-slate-900 dark:text-white mb-6 flex items-center gap-2">

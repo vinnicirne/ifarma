@@ -84,7 +84,7 @@ serve(async (req) => {
             .from("pharmacy_subscriptions")
             .select("id, plan_id, status, asaas_subscription_id, started_at, created_at")
             .eq("pharmacy_id", pharmacy_id)
-            .in("status", ["active", "pending_asaas"])
+            .in("status", ["active", "pending_asaas", "trialing"])
             .order("started_at", { ascending: false, nullsFirst: false })
             .order("created_at", { ascending: false });
 
@@ -169,7 +169,7 @@ serve(async (req) => {
                     ended_at: new Date().toISOString(),
                 })
                 .eq("pharmacy_id", pharmacy_id)
-                .in("status", ["active", "pending_asaas"]);
+                .in("status", ["active", "pending_asaas", "trialing"]);
 
             if (cancelErr) throw cancelErr;
         }
@@ -216,7 +216,7 @@ serve(async (req) => {
 
         const { data: sub, error: insErr } = await supabaseAdmin
             .from("pharmacy_subscriptions")
-            .insert(subPayload)
+            .upsert(subPayload, { onConflict: 'pharmacy_id' })
             .select()
             .single();
 

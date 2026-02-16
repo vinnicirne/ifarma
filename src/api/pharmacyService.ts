@@ -78,6 +78,9 @@ export const pharmacyService = {
                     role: 'merchant',
                     pharmacy_id: id // Redundant but safe
                 }
+            },
+            headers: {
+                Authorization: `Bearer ${session.access_token}`
             }
         });
 
