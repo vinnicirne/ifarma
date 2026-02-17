@@ -112,10 +112,85 @@ export const ProductPage = ({ session }: { session: any }) => {
                 </div>
 
                 <div className="mt-8">
-                    <h3 className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2 font-display">Descrição Detalhada</h3>
-                    <p className="text-slate-600 dark:text-slate-400 text-sm leading-relaxed font-medium">
-                        {product.description || 'Nenhuma descrição disponível para este produto.'}
-                    </p>
+                    <h3 className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-4 font-display">Informações do Produto</h3>
+                    
+                    <div className="space-y-3">
+                        {product.brand && (
+                            <div className="flex justify-between items-center py-2 border-b border-slate-100 dark:border-white/5">
+                                <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Marca</span>
+                                <span className="text-sm font-bold text-slate-800 dark:text-white">{product.brand}</span>
+                            </div>
+                        )}
+                        
+                        {product.dosage && (
+                            <div className="flex justify-between items-center py-2 border-b border-slate-100 dark:border-white/5">
+                                <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Dosagem</span>
+                                <span className="text-sm font-bold text-slate-800 dark:text-white">{product.dosage}</span>
+                            </div>
+                        )}
+                        
+                        {product.quantity_label && (
+                            <div className="flex justify-between items-center py-2 border-b border-slate-100 dark:border-white/5">
+                                <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Embalagem</span>
+                                <span className="text-sm font-bold text-slate-800 dark:text-white">{product.quantity_label}</span>
+                            </div>
+                        )}
+                        
+                        {product.principle_active && product.principle_active.length > 0 && (
+                            <div className="py-2 border-b border-slate-100 dark:border-white/5">
+                                <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-2">Princípio Ativo</span>
+                                <span className="text-sm font-bold text-slate-800 dark:text-white">
+                                    {Array.isArray(product.principle_active) ? product.principle_active.join(', ') : product.principle_active}
+                                </span>
+                            </div>
+                        )}
+                        
+                        {product.control_level && product.control_level !== 'none' && (
+                            <div className="py-2 border-b border-slate-100 dark:border-white/5">
+                                <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-2">Controle Especial</span>
+                                <span className="text-sm font-bold text-amber-600 dark:text-amber-400">
+                                    {product.control_level === 'controlled_yellow' ? 'Receita Amarela (Portaria 344/98 - Lista A)' : 
+                                     product.control_level === 'controlled_blue' ? 'Receita Azul (Portaria 344/98 - Lista B)' : 
+                                     product.control_level === 'prescription_only' ? 'Venda sob Prescrição Médica' : 'Controle Especial'}
+                                </span>
+                            </div>
+                        )}
+                        
+                        {product.usage_instructions && (
+                            <div className="py-2 border-b border-slate-100 dark:border-white/5">
+                                <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-2">Modo de Usar</span>
+                                <p className="text-sm font-medium text-slate-600 dark:text-slate-400 leading-relaxed">
+                                    {product.usage_instructions}
+                                </p>
+                            </div>
+                        )}
+                        
+                        {product.stock !== undefined && (
+                            <div className="flex justify-between items-center py-2 border-b border-slate-100 dark:border-white/5">
+                                <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Estoque</span>
+                                <span className={`text-sm font-bold ${product.stock > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
+                                    {product.stock > 0 ? `${product.stock} unidades disponíveis` : 'Fora de estoque'}
+                                </span>
+                            </div>
+                        )}
+                        
+                        {product.tags && product.tags.length > 0 && (
+                            <div className="py-2">
+                                <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-2">Tags</span>
+                                <div className="flex flex-wrap gap-2">
+                                    {Array.isArray(product.tags) ? product.tags.map((tag: string, index: number) => (
+                                        <span key={index} className="text-xs bg-primary/10 text-primary px-2 py-1 rounded-full font-black">
+                                            {tag}
+                                        </span>
+                                    )) : product.tags.split(',').map((tag: string, index: number) => (
+                                        <span key={index} className="text-xs bg-primary/10 text-primary px-2 py-1 rounded-full font-black">
+                                            {tag.trim()}
+                                        </span>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </div>
                 </div>
 
                 <div className="mt-10 flex items-center justify-between bg-slate-50 dark:bg-white/5 p-4 rounded-[32px] border border-slate-100 dark:border-white/5">

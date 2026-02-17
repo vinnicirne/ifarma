@@ -307,11 +307,6 @@ export const PharmacyPage = ({ session }: { session: any }) => {
                                             <MaterialIcon name="medication" className="text-slate-200 dark:text-zinc-700 text-4xl" />
                                         </div>
                                     )}
-                                    {prod.is_generic && (
-                                        <div className="absolute top-2 left-2 bg-amber-500 text-white text-[8px] font-black px-2 py-0.5 rounded-full shadow-lg z-10 animate-pulse">
-                                            GENÉRICO
-                                        </div>
-                                    )}
                                     {/* Quick Add Button */}
                                     <button
                                         onClick={(e) => {
@@ -328,6 +323,16 @@ export const PharmacyPage = ({ session }: { session: any }) => {
                                     <Link to={`/product/${prod.id}`} className="text-xs font-bold line-clamp-2 text-slate-800 dark:text-white leading-tight h-8">
                                         {prod.name}
                                     </Link>
+                                    
+                                    {/* Tag Genérico */}
+                                    {prod.is_generic && (
+                                        <div className="inline-block">
+                                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-black uppercase bg-orange-500 text-white shadow-sm animate-pulse">
+                                                GENÉRICO
+                                            </span>
+                                        </div>
+                                    )}
+                                    
                                     <div className="flex items-center justify-between">
                                         <p className="font-black text-sm italic text-slate-900 dark:text-white">R$ {parseFloat(prod.price || '0').toFixed(2)}</p>
                                     </div>
