@@ -388,7 +388,11 @@ const PharmacyDetailsContent = ({ googleKey }: { googleKey: string }) => {
 
             const { email, temporary_password } = accessData;
 
-            alert(`Farmácia aprovada com sucesso!\n\nCREDENCIAIS DE ACESSO:\nE-mail: ${email}\nSenha: ${temporary_password}\n\nEnvie estes dados ao lojista.`);
+            if (temporary_password) {
+                alert(`Farmácia aprovada com sucesso!\n\nCREDENCIAIS DE ACESSO:\nE-mail: ${email}\nSenha: ${temporary_password}\n\nEnvie estes dados ao lojista.`);
+            } else {
+                alert(`Farmácia aprovada com sucesso!\n\nO usuário de acesso já existia.\nE-mail de acesso: ${email}\nA senha atual foi mantida (apenas dados de perfil foram atualizados).`);
+            }
 
             // Atualiza o status na farmácia localmente para 'approved' 
             // (a Edge Function provision-merchant-access não atualiza status, 

@@ -477,6 +477,12 @@ export const NearbyPharmacies = ({ pharmacies, config, title }: { pharmacies?: a
                                         <MaterialIcon name="star" className="text-[10px] text-yellow-500" />
                                         <span className="text-xs font-black text-yellow-500">{pharma.rating || '5.0'}</span>
                                     </div>
+                                    {(pharma.delivery_time_min && pharma.delivery_time_max) && (
+                                        <div className="flex items-center gap-1 text-[10px] font-black text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded-full">
+                                            <MaterialIcon name="schedule" className="text-[12px]" />
+                                            <span>{pharma.delivery_time_min}-{pharma.delivery_time_max} min</span>
+                                        </div>
+                                    )}
                                     <div className="flex items-center gap-1">
                                         <MaterialIcon name="place" className="text-[10px] text-primary" />
                                         <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">

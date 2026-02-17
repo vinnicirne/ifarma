@@ -182,7 +182,25 @@ function App() {
     };
 
     const timer = setTimeout(loadPharmacies, 500);
-    return () => clearTimeout(timer);
+
+    // Realtime listener for pharmacy updates (Settings sync)
+    const channel = supabase
+      .channel('pharmacy_settings_sync')
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'pharmacies'
+      }, async (payload) => {
+        console.log('🔄 App: Pharmacy updated in realtime:', payload.new.id);
+        // We could selectively update the state, but re-fetching ensures all ranking dependencies are fresh
+        loadPharmacies();
+      })
+      .subscribe();
+
+    return () => {
+      clearTimeout(timer);
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   // Realtime Order Listener for Client (DEFERRED - Priority 4)

@@ -44,6 +44,11 @@ export const PharmacyCard = ({ pharmacy, className = "" }: PharmacyCardProps) =>
     const isOpen = isPharmacyOpen(pharmacy);
     const name = pharmacy.name || 'Farmácia';
     const rating = pharmacy.rating || '5.0';
+    const etaMin = Number(pharmacy.delivery_time_min);
+    const etaMax = Number(pharmacy.delivery_time_max);
+    const etaLabel = (!isNaN(etaMin) && !isNaN(etaMax) && etaMin > 0 && etaMax >= etaMin)
+        ? `${etaMin}-${etaMax} min`
+        : null;
     const distanceFormatted = typeof pharmacy.distance === 'number' && pharmacy.distance !== Infinity
         ? `${pharmacy.distance.toFixed(1)}km`
         : '';
@@ -86,11 +91,19 @@ export const PharmacyCard = ({ pharmacy, className = "" }: PharmacyCardProps) =>
                             {name}
                         </p>
                         <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-1">
-                                <MaterialIcon name="star" className="text-[8px] text-yellow-500" />
-                                <span className="text-[9px] font-black text-yellow-500">{rating}</span>
+                            <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-1">
+                                    <MaterialIcon name="star" className="text-[8px] text-yellow-500" />
+                                    <span className="text-[9px] font-black text-yellow-500">{rating}</span>
+                                </div>
+                                {etaLabel && (
+                                    <div className="flex items-center gap-1 text-[8px] font-black text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded-full">
+                                        <MaterialIcon name="schedule" className="text-[10px]" />
+                                        <span>{etaLabel}</span>
+                                    </div>
+                                )}
                             </div>
-                            <span className="text-[7px] text-slate-500 ml-1">
+                            <span className="text-[7px] text-slate-400 ml-1">
                                 {distanceFormatted}
                             </span>
                         </div>

@@ -78,7 +78,9 @@ serve(async (req: Request) => {
             return json({ error: "A farmácia não possui um e-mail (owner_email) cadastrado." }, 400);
         }
 
-        const password = genPassword(10);
+        // Password só será gerado quando realmente criarmos um novo usuário.
+        // Para usuários já existentes, mantemos a senha atual (evita resets inesperados).
+        let password: string | null = null;
 
         const metadata = {
             full_name: pharmacy.owner_name || pharmacy.name,
@@ -89,13 +91,13 @@ serve(async (req: Request) => {
 
         let userId: string | null = null;
 
-        // Fast-path: if owner_id exists, reset password directly
+        // Fast-path: if owner_id exists, apenas atualiza metadata e garante vínculo,
+        // sem trocar a senha existente (mais seguro e previsível).
         if (pharmacy.owner_id && typeof pharmacy.owner_id === "string" && isUuid(pharmacy.owner_id)) {
             userId = pharmacy.owner_id;
             console.log(`[provision-merchant-access] Fast-path updateUserById user=${userId}`);
 
             const { error: updateErr } = await sb.auth.admin.updateUserById(userId, {
-                password,
                 user_metadata: metadata,
             });
 
@@ -106,6 +108,7 @@ serve(async (req: Request) => {
         } else {
             // Create-path
             console.log(`[provision-merchant-access] createUser email=${email}`);
+            password = genPassword(10);
             const { data: createData, error: createError } = await sb.auth.admin.createUser({
                 email,
                 password,
@@ -155,15 +158,15 @@ serve(async (req: Request) => {
                 }
 
                 userId = found.id;
-                console.log(`[provision-merchant-access] Found existing userId=${userId}. Resetting password...`);
+                console.log(`[provision-merchant-access] Found existing userId=${userId}. Keeping existing password, updating metadata only.`);
 
+                // Atualiza apenas metadata; NÃO troca senha silenciosamente.
                 const { error: updErr } = await sb.auth.admin.updateUserById(userId, {
-                    password,
                     user_metadata: metadata,
                 });
 
                 if (updErr) {
-                    console.error("[provision-merchant-access] updateUserById (fallback) error:", updErr);
+                    console.error("[provision-merchant-access] updateUserById (fallback metadata only) error:", updErr);
                     throw updErr;
                 }
             } else {
@@ -201,7 +204,13 @@ serve(async (req: Request) => {
             throw ownErr;
         }
 
-        return json({ success: true, email, temporary_password: password, user_id: userId }, 200);
+        return json({
+            success: true,
+            email,
+            // Se password for null, significa que o usuário já existia e a senha foi mantida.
+            temporary_password: password,
+            user_id: userId,
+        }, 200);
     } catch (e: any) {
         console.error("[provision-merchant-access] Fatal Error:", e?.message ?? e);
         return json({ error: e?.message ?? "Internal Server Error" }, 500);

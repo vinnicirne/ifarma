@@ -270,7 +270,7 @@ export const ClientHome = ({ userLocation, sortedPharmacies, session }: { userLo
     };
 
     return (
-        <div className="relative flex h-auto min-h-screen w-full flex-col group/design-root overflow-x-hidden max-w-[480px] mx-auto shadow-xl bg-white dark:bg-background-dark">
+        <div className="relative flex h-auto min-h-screen w-full flex-col group/design-root overflow-x-hidden max-w-[480px] mx-auto shadow-xl bg-[#0d161b]">
             <TopAppBar
                 onSearch={setSearchQuery}
                 userLocation={userLocation}

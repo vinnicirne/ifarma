@@ -41,6 +41,8 @@ const StoreCustomization = () => {
     const [deliveryFreeMinKm, setDeliveryFreeMinKm] = useState(0);
     const [deliveryFreeMinValue, setDeliveryFreeMinValue] = useState(0);
     const [deliveryMaxKm, setDeliveryMaxKm] = useState(15);
+    const [deliveryTimeMin, setDeliveryTimeMin] = useState(20);
+    const [deliveryTimeMax, setDeliveryTimeMax] = useState(40);
 
     // Address States
     const [cep, setCep] = useState('');
@@ -175,9 +177,10 @@ const StoreCustomization = () => {
 
                 const rawRanges = data.delivery_ranges;
                 setDeliveryRanges(Array.isArray(rawRanges) ? rawRanges : []);
-                setDeliveryFreeMinKm(data.delivery_free_min_km || 0);
                 setDeliveryFreeMinValue(data.delivery_free_min_value || 0);
                 setDeliveryMaxKm(data.delivery_max_km || 15);
+                setDeliveryTimeMin(data.delivery_time_min || 20);
+                setDeliveryTimeMax(data.delivery_time_max || 40);
             }
         } catch (error) {
             console.error("Error fetching pharmacy:", error);
@@ -259,12 +262,29 @@ const StoreCustomization = () => {
     };
 
     const handleSave = async () => {
-        if (!pharmacy) {
-            console.error("handleSave: Objeto pharmacy é null ou undefined - impossível salvar.");
+        console.log("handleSave: Iniciando salvamento das configurações para pharmacy ID:", pharmacy.id);
+
+        // Validation for Delivery Fee & Distance
+        if (!deliveryMaxKm || deliveryMaxKm <= 0) {
+            alert("A Distância Máxima de Atendimento é obrigatória.");
+            setSaving(false);
             return;
         }
 
-        console.log("handleSave: Iniciando salvamento das configurações para pharmacy ID:", pharmacy.id);
+        // Validation for Delivery Time
+        if (!deliveryTimeMin || !deliveryTimeMax) {
+            alert("O tempo de entrega (Mínimo e Máximo) é obrigatório.");
+            setSaving(false);
+            return;
+        }
+
+        if (Number(deliveryTimeMin) > Number(deliveryTimeMax)) {
+            alert("O tempo de entrega mínimo não pode ser maior que o máximo.");
+            setSaving(false);
+            return;
+        }
+
+        setSaving(false); // Reset saving state before real save start (it was set true at beginning of fn)
         setSaving(true);
 
         const fullAddress = `${street}, ${number} - ${neighborhood}, ${city} - ${state}`;
@@ -307,6 +327,8 @@ const StoreCustomization = () => {
                     delivery_free_min_km: deliveryFreeMinKm,
                     delivery_free_min_value: deliveryFreeMinValue,
                     delivery_max_km: deliveryMaxKm,
+                    delivery_time_min: deliveryTimeMin,
+                    delivery_time_max: deliveryTimeMax,
                     updated_at: new Date()
                 })
                 .eq('id', pharmacy.id);
@@ -728,7 +750,10 @@ const StoreCustomization = () => {
                             <div className="md:col-span-2 pt-4 mt-2 border-t border-slate-200 dark:border-white/5">
                                 <label className="flex flex-col gap-2">
                                     <div className="flex justify-between items-center">
-                                        <span className="text-[10px] font-black uppercase text-slate-500 tracking-wider">Distância Máxima de Atendimento</span>
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-[10px] font-black uppercase text-slate-500 tracking-wider">Distância Máxima de Atendimento</span>
+                                            <span className="text-[8px] text-red-500 font-black uppercase">* Obrigatório</span>
+                                        </div>
                                         <span className="text-xs font-black text-primary italic">{deliveryMaxKm} KM</span>
                                     </div>
                                     <input
@@ -743,6 +768,32 @@ const StoreCustomization = () => {
                                         <span>1 KM</span>
                                         <span>50 KM</span>
                                     </div>
+                                </label>
+                            </div>
+
+                            <div className="md:col-span-2 pt-4 mt-2 border-t border-slate-200 dark:border-white/5 grid grid-cols-2 gap-4">
+                                <label className="flex flex-col gap-2 group/field">
+                                    <span className="text-[10px] font-black uppercase text-slate-500 tracking-wider">Tempo Mínimo (Min)</span>
+                                    <input
+                                        type="number"
+                                        required
+                                        value={deliveryTimeMin}
+                                        onChange={e => setDeliveryTimeMin(parseInt(e.target.value))}
+                                        className="h-14 px-4 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-white/10 rounded-2xl outline-none font-bold text-slate-900 dark:text-white focus:border-primary focus:ring-4 focus:ring-primary/5 transition-all"
+                                    />
+                                    <span className="text-[8px] text-red-500 font-black uppercase">* Obrigatório</span>
+                                </label>
+
+                                <label className="flex flex-col gap-2 group/field">
+                                    <span className="text-[10px] font-black uppercase text-slate-500 tracking-wider">Tempo Máximo (Min)</span>
+                                    <input
+                                        type="number"
+                                        required
+                                        value={deliveryTimeMax}
+                                        onChange={e => setDeliveryTimeMax(parseInt(e.target.value))}
+                                        className="h-14 px-4 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-white/10 rounded-2xl outline-none font-bold text-slate-900 dark:text-white focus:border-primary focus:ring-4 focus:ring-primary/5 transition-all"
+                                    />
+                                    <span className="text-[8px] text-red-500 font-black uppercase">* Obrigatório</span>
                                 </label>
                             </div>
                         </div>
