@@ -3,6 +3,7 @@ import MerchantLayout from './MerchantLayout';
 import { supabase } from '../../lib/supabase';
 import { isUuid } from '../../lib/uuidUtils';
 import { Toast } from '../../components/Toast';
+import { formatCurrency } from '../../types/billing';
 import {
     Wallet,
     Banknote,
@@ -11,7 +12,11 @@ import {
     Smartphone,
     Info,
     Save,
-    Lock
+    Lock,
+    Calendar,
+    Filter,
+    Download,
+    FileText
 } from 'lucide-react';
 
 const Toggle = ({ check, onChange, label, disabled = false }: any) => (
@@ -39,6 +44,12 @@ const MerchantFinancial = () => {
     const [pharmacyId, setPharmacyId] = useState<string | null>(null);
     const [toast, setToast] = useState<{ message: string, type: 'success' | 'error' | 'info' | 'warning' } | null>(null);
 
+    // Estados para faturas
+    const [invoices, setInvoices] = useState<any[]>([]);
+    const [selectedMonth, setSelectedMonth] = useState<string>('');
+    const [selectedYear, setSelectedYear] = useState<string>('');
+    const [selectedStatus, setSelectedStatus] = useState<string>('all');
+
     const showToast = (message: string, type: 'success' | 'error' | 'info' | 'warning' = 'info') => {
         setToast({ message, type });
         setTimeout(() => setToast(null), 3000);
@@ -46,7 +57,49 @@ const MerchantFinancial = () => {
 
     useEffect(() => {
         fetchSettings();
+        fetchInvoices();
     }, []);
+
+    const fetchInvoices = async () => {
+        if (!pharmacyId) return;
+
+        try {
+            setLoading(true);
+
+            // Construir query com filtros
+            let query = supabase
+                .from('billing_invoices')
+                .select('*')
+                .eq('pharmacy_id', pharmacyId);
+
+            // Aplicar filtros de mês e ano se selecionados
+            if (selectedMonth || selectedYear) {
+                const startDate = new Date(`${selectedYear}-${selectedMonth}-01`);
+                const endDate = new Date(selectedYear, parseInt(selectedMonth) + 1, 0); // Último dia do mês
+
+                query = query
+                    .gte('due_date', startDate.toISOString())
+                    .lt('due_date', endDate.toISOString());
+            }
+
+            // Aplicar filtro de status se selecionado
+            if (selectedStatus !== 'all') {
+                query = query.eq('status', selectedStatus);
+            }
+
+            const { data, error } = await query
+                .order('due_date', { ascending: false })
+                .limit(50);
+
+            if (error) throw error;
+            setInvoices(data || []);
+        } catch (error) {
+            console.error('Error fetching invoices:', error);
+            showToast('Erro ao carregar faturas.', 'error');
+        } finally {
+            setLoading(false);
+        }
+    };
 
     const fetchSettings = async () => {
         try {
@@ -228,17 +281,45 @@ const MerchantFinancial = () => {
                     </div>
                 )}
 
-                {/* Floating Save Button */}
-                <div className="fixed bottom-10 right-10 z-20">
+                {/* Faturas Section */}
+                <div className="flex flex-col gap-4">
+                    {invoices.length === 0 ? (
+                        <div className="p-12 text-center bg-white/5 rounded-[32px] border border-dashed border-white/10">
+                            <FileText className="mx-auto text-slate-600 mb-3 opacity-20" size={40} />
+                            <p className="text-slate-500 font-bold text-xs uppercase tracking-widest">Nenhuma fatura encontrada</p>
+                        </div>
+                    ) : (
+                        invoices.map((invoice) => (
+                            <div key={invoice.id} className="bg-white/5 border border-white/5 p-5 rounded-2xl flex items-center justify-between hover:bg-white/[0.07] transition-all group">
+                                <div className="flex items-center gap-4">
+                                    <div className={`size-10 rounded-xl flex items-center justify-center ${invoice.status === 'paid' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400'}`}>
+                                        <Banknote size={20} />
+                                    </div>
+                                    <div>
+                                        <p className="text-white font-black text-sm uppercase tracking-tight">Fatura {new Date(invoice.due_date).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}</p>
+                                        <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest mt-1">Vence em: {new Date(invoice.due_date).toLocaleDateString()}</p>
+                                    </div>
+                                </div>
+                                <div className="text-right">
+                                    <p className="text-white font-[900] text-lg italic tracking-tighter">{formatCurrency(invoice.amount)}</p>
+                                    <span className={`text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-widest mt-1 inline-block ${invoice.status === 'paid' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400'}`}>
+                                        {invoice.status === 'paid' ? 'Pago' : 'Pendente'}
+                                    </span>
+                                </div>
+                            </div>
+                        ))
+                    )}
+                </div>
+
+                <div className="mt-12 flex justify-end">
                     <button
                         onClick={handleSave}
-                        className="bg-primary hover:bg-primary/90 text-[#0a0f0d] h-16 px-10 rounded-[28px] flex items-center gap-4 font-[900] uppercase tracking-[0.1em] italic transition-all hover:scale-105 active:scale-95 shadow-2xl shadow-primary/30"
+                        className="h-16 px-12 bg-primary text-white font-black uppercase tracking-[0.2em] rounded-2xl shadow-xl shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center gap-4"
                     >
                         <Save size={20} />
                         Salvar Configurações
                     </button>
                 </div>
-
             </div>
             {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
         </MerchantLayout >

@@ -51,7 +51,8 @@ const ProductRegistration = () => {
         tags: '',
         synonyms: '',
         control_level: 'none',
-        usage_instructions: ''
+        usage_instructions: '',
+        is_generic: false
     } as Record<string, any>);
 
     useEffect(() => {
@@ -104,7 +105,8 @@ const ProductRegistration = () => {
                 tags: Array.isArray(data.tags) ? data.tags.join(', ') : '',
                 synonyms: Array.isArray(data.synonyms) ? data.synonyms.join(', ') : '',
                 control_level: data.control_level || 'none',
-                usage_instructions: data.usage_instructions || ''
+                usage_instructions: data.usage_instructions || '',
+                is_generic: data.is_generic || false
             });
         }
         setLoading(false);
@@ -215,6 +217,7 @@ const ProductRegistration = () => {
                     promo_price: formData.promo_price ? parseFloat(formData.promo_price.toString().replace(',', '.')) : null,
                     stock: parseInt(formData.stock.toString()),
                     requires_prescription: formData.requires_prescription,
+                    is_generic: formData.is_generic,
                     image_url: formData.image_url,
                     sku: formData.sku,
                     ean: formData.ean,
@@ -433,6 +436,24 @@ const ProductRegistration = () => {
                                         }}
                                         className="w-full h-12 px-4 rounded-xl bg-slate-50 dark:bg-black/20 border-none text-sm font-bold shadow-inner text-primary"
                                     />
+                                </div>
+
+                                <div className="col-span-2 space-y-4">
+                                    {formData.is_generic && (
+                                        <div className="bg-amber-500 text-[10px] font-black uppercase tracking-[0.2em] text-white py-1 px-4 rounded-full flex items-center justify-center animate-bounce shadow-lg shadow-amber-500/20">
+                                            PRODUTO GENÉRICO
+                                        </div>
+                                    )}
+
+                                    <div className="flex items-center gap-4 p-4 bg-amber-500/5 border border-amber-500/10 rounded-2xl cursor-pointer hover:bg-amber-500/10 transition-all" onClick={() => setFormData({ ...formData, is_generic: !formData.is_generic })}>
+                                        <div className={`size-6 rounded-lg flex items-center justify-center transition-all ${formData.is_generic ? 'bg-amber-500 text-white shadow-lg' : 'bg-slate-100 dark:bg-black/20 text-transparent'}`}>
+                                            <MaterialIcon name="check" className="!text-xs" />
+                                        </div>
+                                        <div>
+                                            <p className="text-[10px] font-black uppercase tracking-widest text-slate-900 dark:text-white">Produto Genérico</p>
+                                            <p className="text-[9px] font-bold text-slate-400">Marque se este produto for um medicamento genérico.</p>
+                                        </div>
+                                    </div>
                                 </div>
 
                                 <div className="col-span-2 grid grid-cols-2 gap-4 border-t border-slate-100 dark:border-white/5 pt-4">

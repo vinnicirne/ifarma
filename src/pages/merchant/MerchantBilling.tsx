@@ -21,7 +21,6 @@ const MerchantBilling = () => {
     const [loading, setLoading] = useState(true);
     const [subscription, setSubscription] = useState<any>(null);
     const [currentCycle, setCurrentCycle] = useState<any>(null);
-    const [invoices, setInvoices] = useState<any[]>([]);
     const [availablePlans, setAvailablePlans] = useState<any[]>([]);
     const [pharmacyId, setPharmacyId] = useState<string | null>(null);
     const [pixData, setPixData] = useState<{ qr_base64: string; copy_paste?: string; payment_id: string; invoice_url?: string } | null>(null);
@@ -113,16 +112,7 @@ const MerchantBilling = () => {
                 .maybeSingle();
             setCurrentCycle(cycle);
 
-            // 3. Fetch Invoices
-            const { data: invs } = await supabase
-                .from('billing_invoices')
-                .select('*')
-                .eq('pharmacy_id', pId)
-                .order('created_at', { ascending: false })
-                .limit(5);
-            setInvoices(invs || []);
-
-            // 4. Fetch Available Plans (for upgrade/selection)
+            // 3. Fetch Available Plans (for upgrade/selection)
             // Apenas planos ativos
             const { data: plans, error: plansError } = await supabase
                 .from('billing_plans')
@@ -148,66 +138,6 @@ const MerchantBilling = () => {
         const limit = subscription.plan.free_orders_per_period;
         if (limit === 0) return 0;
         return Math.min(100, Math.round((currentCycle.free_orders_used / limit) * 100));
-    };
-
-    const handleMigratePlan = async (plan: any) => {
-        if (!pharmacyId) return;
-
-        // Validate Pharmacy ID UUID
-        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-        if (!uuidRegex.test(pharmacyId)) {
-            toast.error("ID da farmácia inválido. Recarregue a página.");
-            return;
-        }
-
-        const confirmMessage = subscription
-            ? `Deseja migrar seu plano atual para o "${plan.name}"?`
-            : `Deseja assinar o plano "${plan.name}"?`;
-
-        if (!window.confirm(confirmMessage)) return;
-
-        setLoading(true);
-        try {
-            const { data: { session } } = await supabase.auth.getSession();
-            if (!session?.access_token) throw new Error("Sessão expirada. Faça login novamente.");
-
-            console.log("Activando plano...", { pharmacyId, planId: plan.id });
-
-            const { data, error } = await supabase.functions.invoke('activate-pharmacy-plan', {
-                body: {
-                    pharmacy_id: pharmacyId,
-                    plan_id: plan.id
-                },
-                headers: {
-                    Authorization: `Bearer ${session.access_token}`,
-                    "Content-Type": "application/json",
-                }
-            });
-
-            if (error) throw error;
-
-            // Se veio QR Code PIX, abre modal para pagamento
-            if ((data as any)?.pix?.qr_base64) {
-                const pix = (data as any).pix;
-                setPixData({
-                    qr_base64: pix.qr_base64,
-                    copy_paste: pix.copy_paste,
-                    payment_id: pix.payment_id,
-                    invoice_url: pix.invoice_url,
-                });
-                setShowPixModal(true);
-                toast.success(`Pagamento do plano ${plan.name} gerado. Escolha Pix ou Cartão para concluir o pagamento.`);
-            } else {
-                toast.success(`Plano ${plan.name} ativado com sucesso!`);
-            }
-
-            // Recarrega dados de billing (vai mostrar pending_asaas até o Asaas confirmar)
-            fetchBillingData();
-        } catch (error: any) {
-            console.error("Error migrating plan:", error);
-            toast.error(`Erro ao migrar plano: ${error.message}`);
-            setLoading(false);
-        }
     };
 
     if (loading) {
@@ -391,65 +321,10 @@ const MerchantBilling = () => {
                     </div>
                 </div>
 
-                {/* Sub-grid: Invoices & Plans */}
+                {/* Sub-grid: Plans Only */}
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
-
-                    {/* Recent Invoices */}
-                    <div className="lg:col-span-4 space-y-6">
-                        <div className="flex items-center justify-between">
-                            <h3 className="text-lg font-[900] italic text-white uppercase tracking-tight flex items-center gap-3">
-                                <FileText size={20} className="text-primary" />
-                                Últimas Faturas
-                            </h3>
-                        </div>
-
-                        <div className="bg-[#111a16] border border-white/5 rounded-[32px] overflow-hidden">
-                            {invoices.length > 0 ? (
-                                <div className="divide-y divide-white/5">
-                                    {invoices.map((inv) => (
-                                        <div key={inv.id} className="p-6 hover:bg-white/[0.02] transition-colors flex items-center justify-between group">
-                                            <div className="flex items-center gap-4">
-                                                <div className={`size-10 rounded-xl flex items-center justify-center border ${inv.status === 'paid' ? 'bg-primary/10 border-primary/20 text-primary' : 'bg-amber-500/10 border-amber-500/20 text-amber-500'
-                                                    }`}>
-                                                    <CreditCard size={18} />
-                                                </div>
-                                                <div>
-                                                    <p className="text-xs font-black text-white italic uppercase">{new Date(inv.created_at).toLocaleDateString()}</p>
-                                                    <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest mt-1">
-                                                        {inv.invoice_type === 'monthly_fee' ? 'Mensalidade' : 'Excedentes'}
-                                                    </p>
-                                                </div>
-                                            </div>
-                                            <div className="text-right">
-                                                <p className="text-sm font-[900] italic text-white">{formatCurrency(inv.amount_cents)}</p>
-                                                <a
-                                                    href={inv.asaas_invoice_url}
-                                                    target="_blank"
-                                                    rel="noopener noreferrer"
-                                                    className="text-[8px] font-black text-primary uppercase tracking-widest hover:underline mt-1 flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                                                >
-                                                    Ver no Asaas <ExternalLink size={8} />
-                                                </a>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            ) : (
-                                <div className="p-12 text-center space-y-4">
-                                    <div className="size-12 bg-white/5 rounded-2xl flex items-center justify-center mx-auto">
-                                        <FileText size={20} className="text-slate-700" />
-                                    </div>
-                                    <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Nenhuma fatura encontrada.</p>
-                                </div>
-                            )}
-                            <button className="w-full p-4 bg-white/5 hover:bg-white/10 text-[9px] font-black text-slate-400 uppercase tracking-widest transition-all">
-                                Ver Todo Histórico
-                            </button>
-                        </div>
-                    </div>
-
                     {/* Plan Selection / Options */}
-                    <div className="lg:col-span-8 space-y-6">
+                    <div className="lg:col-span-12 space-y-6">
                         <div className="flex items-center justify-between">
                             <h3 className="text-lg font-[900] italic text-white uppercase tracking-tight flex items-center gap-3">
                                 <Zap size={20} className="text-primary" />
