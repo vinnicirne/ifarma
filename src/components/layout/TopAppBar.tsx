@@ -22,35 +22,48 @@ export const TopAppBar = ({ onSearch, userLocation, session }: { onSearch: (quer
             }
 
             try {
+                // Primeiro tentar buscar do banco
                 const { data: settings } = await supabase
                     .from('system_settings')
                     .select('value')
                     .eq('key', 'google_maps_api_key')
                     .single();
 
+                let apiKey = null;
+                
                 if (settings?.value) {
-                    console.log("🔑 TopAppBar: API Key encontrada (fim: ..." + settings.value.slice(-4) + ")");
-                    const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${userLocation.lat},${userLocation.lng}&key=${settings.value}`;
-
-                    const response = await fetch(url);
-                    const data = await response.json();
-
-                    if (data.status !== "OK") {
-                        console.error("❌ TopAppBar: Google Maps retornou erro:", data.status, data.error_message);
-                        setAddress(`Erro Maps: ${data.status}`);
+                    apiKey = settings.value;
+                    console.log("🔑 TopAppBar: API Key encontrada no banco (fim: ..." + apiKey.slice(-4) + ")");
+                } else {
+                    // Fallback: usar do ambiente
+                    apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+                    if (apiKey) {
+                        console.log("🔑 TopAppBar: API Key encontrada no ambiente (fim: ..." + apiKey.slice(-4) + ")");
+                    } else {
+                        console.error("❌ TopAppBar: Google Maps API Key não encontrada nem no banco nem no ambiente");
+                        setAddress("API Key não configurada");
                         return;
                     }
+                }
 
-                    if (data.results && data.results[0]) {
-                        const fullAddress = data.results[0].formatted_address;
-                        const shortAddress = fullAddress.split(',').slice(0, 2).join(',');
-                        console.log("✅ TopAppBar: Endereço obtido:", shortAddress);
-                        setAddress(shortAddress);
-                    } else {
-                        console.warn("⚠️ TopAppBar: Nenhum resultado de endereço");
-                    }
+                const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${userLocation.lat},${userLocation.lng}&key=${apiKey}`;
+
+                const response = await fetch(url);
+                const data = await response.json();
+
+                if (data.status !== "OK") {
+                    console.error("❌ TopAppBar: Google Maps retornou erro:", data.status, data.error_message);
+                    setAddress(`Erro Maps: ${data.status}`);
+                    return;
+                }
+
+                if (data.results && data.results[0]) {
+                    const fullAddress = data.results[0].formatted_address;
+                    const shortAddress = fullAddress.split(',').slice(0, 2).join(',');
+                    console.log("✅ TopAppBar: Endereço obtido:", shortAddress);
+                    setAddress(shortAddress);
                 } else {
-                    console.error("❌ TopAppBar: Google Maps API Key não encontrada nas configurações");
+                    console.warn("⚠️ TopAppBar: Nenhum resultado de endereço");
                 }
             } catch (error) {
                 console.error("❌ TopAppBar: Erro na geocodificação reversa:", error);

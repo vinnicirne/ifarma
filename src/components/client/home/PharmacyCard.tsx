@@ -44,11 +44,13 @@ export const PharmacyCard = ({ pharmacy, className = "" }: PharmacyCardProps) =>
     const isOpen = isPharmacyOpen(pharmacy);
     const name = pharmacy.name || 'Farmácia';
     const rating = pharmacy.rating || '5.0';
-    const etaMin = Number(pharmacy.delivery_time_min);
-    const etaMax = Number(pharmacy.delivery_time_max);
-    const etaLabel = (!isNaN(etaMin) && !isNaN(etaMax) && etaMin > 0 && etaMax >= etaMin)
-        ? `${etaMin}-${etaMax} min`
+    
+    // Lógica simplificada - apenas verificar se os valores existem
+    const hasDeliveryTime = pharmacy.delivery_time_min && pharmacy.delivery_time_max;
+    const etaLabel = hasDeliveryTime 
+        ? `${pharmacy.delivery_time_min}-${pharmacy.delivery_time_max} min`
         : null;
+        
     const distanceFormatted = typeof pharmacy.distance === 'number' && pharmacy.distance !== Infinity
         ? `${pharmacy.distance.toFixed(1)}km`
         : '';
@@ -59,7 +61,7 @@ export const PharmacyCard = ({ pharmacy, className = "" }: PharmacyCardProps) =>
             className={`block group ${className}`}
         >
             <div className="relative">
-                {/* Card Body */}
+                {/* Card Body - Estilo original */}
                 <div className={`flex flex-col gap-2 p-2.5 w-full h-[180px] rounded-[24px] bg-[#1a2e23] transition-transform active:scale-95 border-b-4 border-yellow-400 shadow-[0_10px_16px_-6px_rgba(250,204,21,0.5)] ${!isOpen ? 'grayscale opacity-60' : ''}`}>
 
                     {/* Image Container with Fixed Aspect Ratio & Skeleton */}

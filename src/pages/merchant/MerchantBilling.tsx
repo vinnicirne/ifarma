@@ -123,10 +123,11 @@ const MerchantBilling = () => {
             setInvoices(invs || []);
 
             // 4. Fetch Available Plans (for upgrade/selection)
-            // Removed is_active filter for debugging
+            // Apenas planos ativos
             const { data: plans, error: plansError } = await supabase
                 .from('billing_plans')
                 .select('*')
+                .eq('is_active', true)
                 .order('monthly_fee_cents', { ascending: true });
 
             if (plansError) console.error("Error fetching plans:", plansError);
@@ -346,7 +347,9 @@ const MerchantBilling = () => {
                                 </div>
                                 <div className="hidden md:block">
                                     <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Forma de Pagamento</p>
-                                    <p className="text-sm font-bold text-slate-300">Cartão Final **** 4421</p>
+                                    <p className="text-sm font-bold text-slate-300">
+                                        {subscription?.asaas_subscription_id ? 'PIX' : 'CARTÃO DE CRÉDITO OU CARTÃO DE DÉBITO'}
+                                    </p>
                                 </div>
                             </div>
                         </div>

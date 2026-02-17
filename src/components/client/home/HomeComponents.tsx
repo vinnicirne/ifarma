@@ -270,35 +270,34 @@ export const CategoryGrid = ({ config, title }: { config?: any, title?: string }
 };
 
 // --- FEATURED PHARMACIES ---
-export const FeaturedPharmacies = ({ pharmacies, config, title }: { pharmacies: any[], config?: any, title?: string }) => {
-    // Garante array
-    const checkIsFeatured = (p: any) => p?.is_featured === true || p?.is_featured === 'true' || p?.is_featured === 1;
-    const sourceList = Array.isArray(pharmacies) ? pharmacies : [];
+export const FeaturedPharmacies = ({ config, pharmacies }: { pharmacies: any[], config?: any }) => {
+    const [displayList, setDisplayList] = useState<any[]>([]);
 
-    // Filtra featured
-    let displayList = sourceList.filter(checkIsFeatured);
+    useEffect(() => {
+        if (!pharmacies || pharmacies.length === 0) {
+            setDisplayList([]);
+            return;
+        }
 
-    // Fallback agressivo
-    if ((!displayList || displayList.length === 0) && sourceList.length > 0) {
-        displayList = sourceList.slice(0, 5);
-    }
+        // Seção de farmácias patrocinadas (is_featured=true OU plan=paid)
+        const sponsored = pharmacies.filter(p => p.is_featured || p.plan === 'paid');
+        
+        // Se não tiver patrocinadas, mostra as melhores ranqueadas (fallback)
+        const display = sponsored.length > 0 
+            ? sponsored.slice(0, config?.limit || 10)
+            : pharmacies.slice(0, config?.limit || 10);
 
-    // Limite
-    displayList = displayList.slice(0, config?.limit || 10);
+        setDisplayList(display);
+    }, [pharmacies, config?.limit]);
 
     if (displayList.length === 0) return null;
 
     return (
-        <div className="w-full py-4 min-h-[240px]">
-            <div className="px-8 mb-4 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                    <div className="size-10 rounded-full bg-yellow-500/10 flex items-center justify-center border border-yellow-500/20">
-                        <MaterialIcon name="verified" className="text-yellow-500 text-xl" />
-                    </div>
-                    <div className="flex flex-col gap-0.5">
-                        <p className="text-[10px] font-black text-white uppercase tracking-[0.15em] italic leading-tight">PATROCINADO</p>
-                        <p className="text-[9px] font-black text-primary uppercase tracking-widest">Destaque por publicidade</p>
-                    </div>
+        <div className="w-full">
+            <div className="px-8 pt-6 pb-2 flex justify-between items-center">
+                <div>
+                    <h3 className="text-[#0d161b] dark:text-white text-lg font-bold leading-tight tracking-[-0.015em]">{config?.title || 'Patrocinado'}</h3>
+                    <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">{config?.description || 'Farmácias em destaque na sua região'}</p>
                 </div>
                 {displayList.length > 3 && (
                     <Link to="/pharmacies" className="text-[10px] font-bold text-primary hover:text-white transition-colors uppercase tracking-wider flex items-center gap-1">
