@@ -49,6 +49,12 @@ export const ProductPage = ({ session }: { session: any }) => {
                 navigate('/');
                 return;
             }
+            
+            // Debug para verificar os dados do produto
+            console.log("Product data:", data);
+            console.log("Product price:", data?.price);
+            console.log("Product promo_price:", data?.promo_price);
+            
             setProduct(data);
             setLoading(false);
         };
@@ -91,7 +97,7 @@ export const ProductPage = ({ session }: { session: any }) => {
                 <div className="absolute inset-0 bg-gradient-to-b from-transparent to-white dark:to-background-dark/20 opacity-40"></div>
             </div>
 
-            <div className="px-6 -mt-6 relative z-10">
+            <div className="px-6 -mt-6 relative z-10 pb-40">
                 <div className="flex flex-col gap-2">
                     {product.requires_prescription && (
                         <span className="text-[10px] font-black bg-red-500 text-white px-3 py-1 rounded-full self-start flex items-center gap-1 shadow-sm">
@@ -195,13 +201,16 @@ export const ProductPage = ({ session }: { session: any }) => {
 
                 <div className="mt-10 flex items-center justify-between bg-slate-50 dark:bg-white/5 p-4 rounded-[32px] border border-slate-100 dark:border-white/5">
                     <div className="flex flex-col">
-                        {product.promo_price ? (
-                            <>
-                                <span className="text-slate-400 text-[10px] line-through font-bold">R$ {parseFloat(product.price).toFixed(2)}</span>
-                                <span className="text-3xl font-black text-primary italic tracking-tighter">R$ {parseFloat(product.promo_price).toFixed(2)}</span>
-                            </>
-                        ) : (
-                            <span className="text-3xl font-black text-slate-800 dark:text-white italic tracking-tighter">R$ {parseFloat(product.price).toFixed(2)}</span>
+                        {/* Preço sempre visível - lógica simplificada */}
+                        <span className="text-3xl font-black text-slate-800 dark:text-white italic tracking-tighter">
+                            R$ {product.price ? parseFloat(product.price).toFixed(2) : '0,00'}
+                        </span>
+                        
+                        {/* Preço promocional se existir */}
+                        {product.promo_price && parseFloat(product.promo_price) > 0 && (
+                            <span className="text-sm text-primary font-black mt-1">
+                                PROMO: R$ {parseFloat(product.promo_price).toFixed(2)}
+                            </span>
                         )}
                     </div>
                     <div className="flex items-center gap-4 bg-white dark:bg-slate-800 p-1.5 rounded-2xl border border-slate-100 dark:border-zinc-700 shadow-sm">
