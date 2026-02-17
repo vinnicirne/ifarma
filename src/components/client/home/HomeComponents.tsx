@@ -270,7 +270,7 @@ export const CategoryGrid = ({ config, title }: { config?: any, title?: string }
 };
 
 // --- FEATURED PHARMACIES ---
-export const FeaturedPharmacies = ({ config, pharmacies }: { pharmacies: any[], config?: any }) => {
+export const FeaturedPharmacies = ({ config, pharmacies, title }: { pharmacies: any[], config?: any, title?: string }) => {
     const [displayList, setDisplayList] = useState<any[]>([]);
 
     useEffect(() => {
@@ -281,9 +281,9 @@ export const FeaturedPharmacies = ({ config, pharmacies }: { pharmacies: any[], 
 
         // Seção de farmácias patrocinadas (is_featured=true OU plan=paid)
         const sponsored = pharmacies.filter(p => p.is_featured || p.plan === 'paid');
-        
+
         // Se não tiver patrocinadas, mostra as melhores ranqueadas (fallback)
-        const display = sponsored.length > 0 
+        const display = sponsored.length > 0
             ? sponsored.slice(0, config?.limit || 10)
             : pharmacies.slice(0, config?.limit || 10);
 
@@ -296,7 +296,7 @@ export const FeaturedPharmacies = ({ config, pharmacies }: { pharmacies: any[], 
         <div className="w-full">
             <div className="px-8 pt-6 pb-2 flex justify-between items-center">
                 <div>
-                    <h3 className="text-[#0d161b] dark:text-white text-lg font-bold leading-tight tracking-[-0.015em]">{config?.title || 'Patrocinado'}</h3>
+                    <h3 className="text-[#0d161b] dark:text-white text-lg font-bold leading-tight tracking-[-0.015em]">{title || config?.title || 'Patrocinado'}</h3>
                     <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">{config?.description || 'Farmácias em destaque na sua região'}</p>
                 </div>
                 {displayList.length > 3 && (
@@ -338,6 +338,7 @@ export const SpecialHighlights = ({ config, title, pharmacies }: { pharmacies: a
                     promo_price,
                     image_url, 
                     pharmacy_id,
+                    is_generic,
                     pharmacies!inner(name, plan, status)
                 `)
                 .eq('pharmacies.status', 'approved')
@@ -354,6 +355,7 @@ export const SpecialHighlights = ({ config, title, pharmacies }: { pharmacies: a
                         promo_price,
                         image_url, 
                         pharmacy_id,
+                        is_generic,
                         pharmacies!inner(name, plan, status)
                     `)
                     .eq('pharmacies.status', 'approved')
@@ -406,8 +408,13 @@ export const SpecialHighlights = ({ config, title, pharmacies }: { pharmacies: a
                                     <MaterialIcon name="medication" className="text-3xl text-primary/20" />
                                 )}
                                 {((item.promo_price ?? item.promotional_price) || isFallback) && (
-                                    <div className={`absolute top-1 right-1 ${(item.promo_price ?? item.promotional_price) ? 'bg-red-500' : 'bg-blue-600'} text-white text-[8px] font-black px-1.5 py-0.5 rounded-full shadow-md`}>
+                                    <div className={`absolute top-1 right-1 ${(item.promo_price ?? item.promotional_price) ? 'bg-red-500' : 'bg-blue-600'} text-white text-[8px] font-black px-1.5 py-0.5 rounded-full shadow-md z-10`}>
                                         {(item.promo_price ?? item.promotional_price) ? 'OFERTA' : 'POPULAR'}
+                                    </div>
+                                )}
+                                {item.is_generic && (
+                                    <div className="absolute top-1 left-1 bg-amber-500 text-white text-[7px] font-black px-1.5 py-0.5 rounded-full shadow-md z-10 animate-pulse">
+                                        GENÉRICO
                                     </div>
                                 )}
                             </div>

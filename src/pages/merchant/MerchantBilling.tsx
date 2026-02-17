@@ -133,6 +133,48 @@ const MerchantBilling = () => {
         }
     };
 
+    const handleMigratePlan = async (plan: any) => {
+        if (!pharmacyId) return;
+
+        try {
+            setLoading(true);
+            const { data: sessionData } = await supabase.auth.getSession();
+            const token = sessionData.session?.access_token;
+
+            if (!token) {
+                toast.error("Sessão expirada. Faça login novamente.");
+                return;
+            }
+
+            const { data, error } = await supabase.functions.invoke('activate-pharmacy-plan', {
+                body: {
+                    pharmacy_id: pharmacyId,
+                    plan_id: plan.id
+                },
+                headers: {
+                    Authorization: `Bearer ${token}`
+                }
+            });
+
+            if (error) throw error;
+
+            if (data?.pix_data) {
+                setPixData(data.pix_data);
+                setShowPixModal(true);
+                toast.success("Pagamento gerado! Finalize para ativar.");
+            } else {
+                toast.success("Plano atualizado com sucesso!");
+                fetchBillingData();
+            }
+
+        } catch (error: any) {
+            console.error("Error migrating plan:", error);
+            toast.error(error.message || "Erro ao migrar plano.");
+        } finally {
+            setLoading(false);
+        }
+    };
+
     const calculatePercentage = () => {
         if (!subscription?.plan || !currentCycle) return 0;
         const limit = subscription.plan.free_orders_per_period;

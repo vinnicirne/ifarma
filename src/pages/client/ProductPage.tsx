@@ -98,6 +98,11 @@ export const ProductPage = ({ session }: { session: any }) => {
                             <MaterialIcon name="description" className="text-[12px]" /> EXIGE RECEITA MÉDICA
                         </span>
                     )}
+                    {product.is_generic && (
+                        <span className="text-[10px] font-black bg-amber-500 text-white px-3 py-1 rounded-full self-start flex items-center gap-1 shadow-sm animate-pulse">
+                            <MaterialIcon name="verified" className="text-[12px]" /> MEDICAMENTO GENÉRICO
+                        </span>
+                    )}
                     <h1 className="text-2xl font-black text-slate-800 dark:text-white mt-2 font-display italic leading-tight">{product.name}</h1>
                     <div className="flex items-center gap-2 mt-1">
                         <span className="text-slate-400 font-bold text-xs uppercase tracking-widest">{product.category || 'Geral'}</span>

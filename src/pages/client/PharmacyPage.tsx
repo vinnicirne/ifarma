@@ -307,6 +307,11 @@ export const PharmacyPage = ({ session }: { session: any }) => {
                                             <MaterialIcon name="medication" className="text-slate-200 dark:text-zinc-700 text-4xl" />
                                         </div>
                                     )}
+                                    {prod.is_generic && (
+                                        <div className="absolute top-2 left-2 bg-amber-500 text-white text-[8px] font-black px-2 py-0.5 rounded-full shadow-lg z-10 animate-pulse">
+                                            GENÉRICO
+                                        </div>
+                                    )}
                                     {/* Quick Add Button */}
                                     <button
                                         onClick={(e) => {

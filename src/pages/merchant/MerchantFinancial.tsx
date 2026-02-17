@@ -75,7 +75,7 @@ const MerchantFinancial = () => {
             // Aplicar filtros de mês e ano se selecionados
             if (selectedMonth || selectedYear) {
                 const startDate = new Date(`${selectedYear}-${selectedMonth}-01`);
-                const endDate = new Date(selectedYear, parseInt(selectedMonth) + 1, 0); // Último dia do mês
+                const endDate = new Date(parseInt(selectedYear), parseInt(selectedMonth) + 1, 0); // Último dia do mês
 
                 query = query
                     .gte('due_date', startDate.toISOString())

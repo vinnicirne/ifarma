@@ -197,6 +197,17 @@ export const ClientHome = ({ userLocation, sortedPharmacies, session }: { userLo
           category,
           image_url,
           pharmacy_id,
+          is_generic,
+          dosage,
+          quantity_label,
+          principle_active,
+          tags,
+          synonyms,
+          control_level,
+          usage_instructions,
+          brand,
+          stock,
+          requires_prescription,
           pharmacy:pharmacies!inner(name, latitude, longitude)
         `)
                 .ilike('name', `%${searchQuery}%`)
@@ -309,6 +320,11 @@ export const ClientHome = ({ userLocation, sortedPharmacies, session }: { userLo
                                             ) : (
                                                 <MaterialIcon name="medication" className="text-4xl text-primary/20" />
                                             )}
+                                            {item.is_generic && (
+                                                <div className="absolute top-1 left-1 bg-amber-500 text-white text-[7px] font-black px-1.5 py-0.5 rounded-full shadow-lg z-10 animate-pulse">
+                                                    GENÉRICO
+                                                </div>
+                                            )}
                                         </div>
                                         <div className="flex-1 flex flex-col justify-between">
                                             <div>
@@ -317,6 +333,36 @@ export const ClientHome = ({ userLocation, sortedPharmacies, session }: { userLo
                                                     <span className="text-primary font-black text-lg italic tracking-tighter">R$ {parseFloat(item.price).toFixed(2)}</span>
                                                 </div>
                                                 <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">{item.product.category}</p>
+                                                
+                                                {/* Informações adicionais do produto */}
+                                                {item.brand && (
+                                                    <p className="text-[9px] text-slate-500 font-medium mt-1">Marca: {item.brand}</p>
+                                                )}
+                                                {item.dosage && (
+                                                    <p className="text-[9px] text-slate-500 font-medium">Dosagem: {item.dosage}</p>
+                                                )}
+                                                {item.quantity_label && (
+                                                    <p className="text-[9px] text-slate-500 font-medium">Embalagem: {item.quantity_label}</p>
+                                                )}
+                                                {item.principle_active && item.principle_active.length > 0 && (
+                                                    <p className="text-[9px] text-slate-500 font-medium">Princípio Ativo: {Array.isArray(item.principle_active) ? item.principle_active.join(', ') : item.principle_active}</p>
+                                                )}
+                                                {item.requires_prescription && (
+                                                    <div className="inline-flex items-center gap-1 mt-2">
+                                                        <MaterialIcon name="medical_services" className="text-red-500 text-xs" />
+                                                        <span className="text-[9px] text-red-500 font-black uppercase tracking-widest">Receita Obrigatória</span>
+                                                    </div>
+                                                )}
+                                                {item.control_level && item.control_level !== 'none' && (
+                                                    <div className="inline-flex items-center gap-1 mt-1">
+                                                        <MaterialIcon name="warning" className="text-amber-500 text-xs" />
+                                                        <span className="text-[9px] text-amber-500 font-black uppercase tracking-widest">
+                                                            {item.control_level === 'controlled_yellow' ? 'Receita Amarela' : 
+                                                             item.control_level === 'controlled_blue' ? 'Receita Azul' : 
+                                                             item.control_level === 'prescription_only' ? 'Venda sob Prescrição' : 'Controle Especial'}
+                                                        </span>
+                                                    </div>
+                                                )}
                                             </div>
 
                                             <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-50 dark:border-white/5">

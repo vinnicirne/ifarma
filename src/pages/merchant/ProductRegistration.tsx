@@ -221,6 +221,14 @@ const ProductRegistration = () => {
                     image_url: formData.image_url,
                     sku: formData.sku,
                     ean: formData.ean,
+                    // Campos de descrição adicionados
+                    dosage: formData.dosage,
+                    quantity_label: formData.quantity_label,
+                    principle_active: formData.principle_active ? formData.principle_active.split(',').map(s => s.trim()).filter(s => s) : [],
+                    tags: formData.tags ? formData.tags.split(',').map(s => s.trim()).filter(s => s) : [],
+                    synonyms: formData.synonyms ? formData.synonyms.split(',').map(s => s.trim()).filter(s => s) : [],
+                    control_level: formData.control_level,
+                    usage_instructions: formData.usage_instructions
                 };
 
                 let error;
