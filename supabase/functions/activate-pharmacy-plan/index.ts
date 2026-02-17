@@ -249,6 +249,7 @@ Deno.serve(async (req) => {
         let createdNewPix = false;
         let pixQrBase64: string | null = null;
         let pixCopyPaste: string | null = null;
+        let pixInvoiceUrl: string | null = existingInvoice?.asaas_invoice_url ?? null;
 
         // 9. Check if valid PIX still useful (FIX for "invalid_action")
         if (pixPaymentId) {
@@ -313,6 +314,7 @@ Deno.serve(async (req) => {
 
             pixPaymentId = pixRes.data.id;
             createdNewPix = true;
+            pixInvoiceUrl = pixRes.data.invoiceUrl ?? null;
 
             const { error: invErr } = await supabaseAdmin.from("billing_invoices").insert({
                 pharmacy_id,
@@ -404,6 +406,7 @@ Deno.serve(async (req) => {
                 qr_base64: pixQrBase64,
                 copy_paste: pixCopyPaste,
                 payment_id: pixPaymentId,
+                invoice_url: pixInvoiceUrl,
             } : null,
         }, asaasError ? 400 : 200);
 

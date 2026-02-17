@@ -17,8 +17,31 @@ const MerchantLayout = ({ children, activeTab, title }: { children: React.ReactN
     const [userId, setUserId] = React.useState<string | null>(null);
 
     React.useEffect(() => {
-        supabase.auth.getSession().then(({ data: { session } }) => {
-            if (session) setUserId(session.user.id);
+        supabase.auth.getSession().then(async ({ data: { session } }) => {
+            if (!session) return;
+            const uid = session.user.id;
+            setUserId(uid);
+
+            // Safety: se o usuário logado NÃO for staff/admin, não deve herdar impersonação de outra sessão
+            try {
+                const { data: profile } = await supabase
+                    .from('profiles')
+                    .select('role')
+                    .eq('id', uid)
+                    .single();
+
+                const role = profile?.role;
+                const isStaffOrAdmin = role && ['admin', 'support', 'operator'].includes(role);
+
+                if (!isStaffOrAdmin) {
+                    // Remove qualquer farmácia impersonada remanescente no navegador
+                    localStorage.removeItem('impersonatedPharmacyId');
+                }
+            } catch (err) {
+                console.error('Erro ao verificar role do usuário no MerchantLayout:', err);
+                // Em caso de erro, é mais seguro limpar a impersonação
+                localStorage.removeItem('impersonatedPharmacyId');
+            }
         });
     }, []);
 

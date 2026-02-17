@@ -24,7 +24,7 @@ const MerchantBilling = () => {
     const [invoices, setInvoices] = useState<any[]>([]);
     const [availablePlans, setAvailablePlans] = useState<any[]>([]);
     const [pharmacyId, setPharmacyId] = useState<string | null>(null);
-    const [pixData, setPixData] = useState<{ qr_base64: string; copy_paste?: string; payment_id: string } | null>(null);
+    const [pixData, setPixData] = useState<{ qr_base64: string; copy_paste?: string; payment_id: string; invoice_url?: string } | null>(null);
     const [showPixModal, setShowPixModal] = useState(false);
 
     useEffect(() => {
@@ -192,9 +192,10 @@ const MerchantBilling = () => {
                     qr_base64: pix.qr_base64,
                     copy_paste: pix.copy_paste,
                     payment_id: pix.payment_id,
+                    invoice_url: pix.invoice_url,
                 });
                 setShowPixModal(true);
-                toast.success(`Pagamento do plano ${plan.name} gerado. Escaneie o QR Code para pagar.`);
+                toast.success(`Pagamento do plano ${plan.name} gerado. Escolha Pix ou Cartão para concluir o pagamento.`);
             } else {
                 toast.success(`Plano ${plan.name} ativado com sucesso!`);
             }
@@ -227,7 +228,8 @@ const MerchantBilling = () => {
                     <div className="bg-[#0a0f0d] rounded-3xl p-8 max-w-md w-full border border-white/10 shadow-2xl text-center space-y-4">
                         <h2 className="text-lg font-black text-white uppercase tracking-widest">Pagamento via Pix</h2>
                         <p className="text-xs text-slate-400 font-bold">
-                            Escaneie o QR Code abaixo no app do seu banco para pagar a primeira mensalidade.
+                            Escaneie o QR Code abaixo no app do seu banco para pagar a primeira mensalidade
+                            ou, se preferir, finalize com cartão de crédito na página de pagamento do Asaas.
                             Assim que o Asaas confirmar o pagamento, o plano será liberado automaticamente.
                         </p>
                         <div className="bg-white rounded-2xl p-3 inline-block">
@@ -257,6 +259,18 @@ const MerchantBilling = () => {
                                         Copiar
                                     </button>
                                 </div>
+                            </div>
+                        )}
+                        {pixData.invoice_url && (
+                            <div className="mt-4 space-y-2">
+                                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest text-left">Pagamento com Cartão</p>
+                                <button
+                                    onClick={() => window.open(pixData.invoice_url!, '_blank')}
+                                    className="w-full inline-flex items-center justify-center px-6 h-11 rounded-2xl bg-white text-[#0a0f0d] text-xs font-black uppercase tracking-widest hover:bg-primary transition-all gap-2"
+                                >
+                                    Pagar com Cartão de Crédito
+                                    <ExternalLink size={14} />
+                                </button>
                             </div>
                         )}
                         <button
