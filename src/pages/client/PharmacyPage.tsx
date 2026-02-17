@@ -269,7 +269,13 @@ export const PharmacyPage = ({ session }: { session: any }) => {
                     {categories.map((cat) => (
                         <button
                             key={cat}
-                            onClick={() => setActiveCategory(cat)}
+                            onClick={() => {
+                                if (cat === 'Todos') {
+                                    setActiveCategory('Todos');
+                                } else {
+                                    navigate(`/pharmacy/${id}/category/${encodeURIComponent(cat)}`);
+                                }
+                            }}
                             className={`whitespace-nowrap px-4 py-2 rounded-full text-xs font-bold transition-all border ${activeCategory === cat ? 'bg-primary border-primary text-black shadow-lg shadow-primary/20' : 'bg-white dark:bg-zinc-900 border-slate-200 dark:border-zinc-800 text-slate-600 dark:text-slate-400'}`}
                         >
                             {cat}

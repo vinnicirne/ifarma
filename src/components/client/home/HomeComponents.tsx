@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '../../../lib/supabase';
 import { MaterialIcon } from '../../MaterialIcon';
 import { PharmacyCard, isPharmacyOpen } from './PharmacyCard'; // Importando o novo componente e helper
@@ -19,6 +19,7 @@ const getValidImageUrl = (url: string) => {
 // --- PROMO CAROUSEL (TOP HEADLINES) ---
 // --- PROMO CAROUSEL (TOP HEADLINES) ---
 export const PromoCarousel = ({ config }: { config?: any }) => {
+    const navigate = useNavigate();
     const [promotions, setPromotions] = useState<any[]>([]);
 
     useEffect(() => {
@@ -37,7 +38,8 @@ export const PromoCarousel = ({ config }: { config?: any }) => {
             if (config?.images && config.images.length > 0) {
                 setPromotions(config.images.map((url: string, idx: number) => ({
                     id: `cfg-${idx}`,
-                    image_url: url
+                    image_url: url,
+                    link: null
                 })));
                 return;
             }
@@ -65,17 +67,30 @@ export const PromoCarousel = ({ config }: { config?: any }) => {
         loadBanners();
     }, [config]);
 
+    const handleBannerClick = (promo: any) => {
+        if (promo.link) {
+            if (promo.link.startsWith('http')) {
+                window.open(promo.link, '_blank');
+            } else {
+                navigate(promo.link);
+            }
+        }
+    };
+
     if (promotions.length === 0) return null;
 
     return (
         <div className="w-full overflow-x-auto hide-scrollbar scroll-smooth snap-x snap-mandatory scroll-pl-8">
             <div className="flex px-8 pr-8 py-3 gap-3 min-w-max">
                 {promotions.map((promo: any) => {
-                    const isExternal = promo.link && (promo.link.startsWith('http') || promo.link.startsWith('www'));
-                    const containerClasses = "relative w-[300px] h-[135px] rounded-[32px] overflow-hidden shadow-xl border border-white/5 shrink-0 snap-start transition-transform active:scale-[0.98]";
+                    const containerClasses = "relative w-[300px] h-[135px] rounded-[32px] overflow-hidden shadow-xl border border-white/5 shrink-0 snap-start transition-transform active:scale-[0.98] cursor-pointer";
 
-                    const CardContent = () => (
-                        <>
+                    return (
+                        <div
+                            key={promo.id}
+                            onClick={() => handleBannerClick(promo)}
+                            className={containerClasses}
+                        >
                             <div className="absolute inset-0 z-0"
                                 style={{
                                     background: promo.image_url ? `url(${promo.image_url}) center/cover no-repeat` : `linear-gradient(135deg, ${promo.color1 || '#132218'} 0%, ${promo.color2 || '#13ec6d'} 100%)`
@@ -97,28 +112,6 @@ export const PromoCarousel = ({ config }: { config?: any }) => {
                                     </div>
                                 </div>
                             )}
-                        </>
-                    );
-
-                    if (promo.link) {
-                        if (isExternal) {
-                            return (
-                                <a key={promo.id} href={promo.link} target="_blank" rel="noreferrer" className={containerClasses}>
-                                    <CardContent />
-                                </a>
-                            );
-                        } else {
-                            return (
-                                <Link key={promo.id} to={promo.link} className={containerClasses}>
-                                    <CardContent />
-                                </Link>
-                            );
-                        }
-                    }
-
-                    return (
-                        <div key={promo.id} className={containerClasses}>
-                            <CardContent />
                         </div>
                     );
                 })}
@@ -129,6 +122,7 @@ export const PromoCarousel = ({ config }: { config?: any }) => {
 
 // --- INTERNAL AD CAROUSEL (AD SERVER NATIVO) ---
 export const InternalAdCarousel = ({ region = 'global' }: { region?: string }) => {
+    const navigate = useNavigate();
     const [ads, setAds] = useState<any[]>([]);
 
     useEffect(() => {
@@ -164,7 +158,7 @@ export const InternalAdCarousel = ({ region = 'global' }: { region?: string }) =
             case 'product': path = `/product/${ad.destination_id}`; break;
             case 'external': window.open(ad.destination_id, '_blank'); return;
         }
-        window.location.href = path;
+        navigate(path);
     };
 
     if (ads.length === 0) return null;
@@ -185,7 +179,6 @@ export const InternalAdCarousel = ({ region = 'global' }: { region?: string }) =
                             className="relative w-[300px] h-[180px] rounded-[28px] overflow-hidden shadow-xl border border-white/5 shrink-0 cursor-pointer active:scale-95 transition-all"
                         >
                             <img src={ad.image_url} alt={ad.title} className="w-full h-full object-cover" />
-                            {/* Overlay removido para não poluir o criativo conforme solicitado */}
                         </div>
                     ))}
                 </div>
@@ -196,6 +189,7 @@ export const InternalAdCarousel = ({ region = 'global' }: { region?: string }) =
 
 // --- CATEGORY GRID ---
 export const CategoryGrid = ({ config, title }: { config?: any, title?: string }) => {
+    const navigate = useNavigate();
     const [categories, setCategories] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
 
@@ -228,10 +222,10 @@ export const CategoryGrid = ({ config, title }: { config?: any, title?: string }
             <div className="w-full overflow-x-auto hide-scrollbar scroll-smooth snap-x snap-mandatory pb-2 scroll-pl-8">
                 <div className="flex gap-3 px-8 pr-8 min-w-max">
                     {categories.map((cat) => (
-                        <Link
-                            to={cat.banner_link || `/category/${cat.id}`}
+                        <div
                             key={cat.id}
-                            className="relative min-w-[125px] h-[170px] rounded-[32px] overflow-hidden shadow-2xl shrink-0 snap-start active:scale-95 transition-transform bg-[#1a2e23] border border-white/5"
+                            onClick={() => navigate(cat.banner_link || `/category/${cat.id}`)}
+                            className="relative min-w-[125px] h-[170px] rounded-[32px] overflow-hidden shadow-2xl shrink-0 snap-start active:scale-95 transition-transform bg-[#1a2e23] border border-white/5 cursor-pointer"
                         >
                             <div className="absolute inset-0 w-full h-full">
                                 {cat.image_url ? (
@@ -267,7 +261,7 @@ export const CategoryGrid = ({ config, title }: { config?: any, title?: string }
                                     </div>
                                 )}
                             </div>
-                        </Link>
+                        </div>
                     ))}
                 </div>
             </div>

@@ -167,6 +167,8 @@ const PharmacyDetailsContent = ({ googleKey }: { googleKey: string }) => {
         delivery_free_min_km: 0,
         delivery_free_min_value: 0,
         delivery_max_km: 15,
+        delivery_time_min: 20,
+        delivery_time_max: 30,
         min_order_value: 0,
         allows_pickup: true,
     });
@@ -239,6 +241,8 @@ const PharmacyDetailsContent = ({ googleKey }: { googleKey: string }) => {
                     delivery_free_min_km: pharmaData.delivery_free_min_km || 0,
                     delivery_free_min_value: pharmaData.delivery_free_min_value || 0,
                     delivery_max_km: pharmaData.delivery_max_km || 15,
+                    delivery_time_min: pharmaData.delivery_time_min || 20,
+                    delivery_time_max: pharmaData.delivery_time_max || 30,
                     status: pharmaData.status || 'pending',
                     merchant_email: pharmaData.owner_email || ''
                 }));
@@ -673,6 +677,8 @@ const PharmacyDetailsContent = ({ googleKey }: { googleKey: string }) => {
             delivery_free_min_value: formData.delivery_free_min_value,
             delivery_max_km: formData.delivery_max_km,
             delivery_radius_km: formData.delivery_max_km,
+            delivery_time_min: formData.delivery_time_min,
+            delivery_time_max: formData.delivery_time_max,
             min_order_value: formData.min_order_value,
             allows_pickup: formData.allows_pickup,
             complement: formData.complement
@@ -1368,6 +1374,18 @@ const PharmacyDetailsContent = ({ googleKey }: { googleKey: string }) => {
                                         </div>
 
                                         <div className="space-y-4">
+                                            {/* TEMPO DE ENTREGA */}
+                                            <div className="flex gap-4">
+                                                <div className="flex-1 flex flex-col gap-2">
+                                                    <label className="text-[10px] font-black uppercase tracking-widest text-[#92c9a9] px-1">Tempo Mín (min)</label>
+                                                    <input type="number" value={formData.delivery_time_min} onChange={e => setFormData({ ...formData, delivery_time_min: parseInt(e.target.value) })} className="h-14 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-2xl px-4 text-slate-900 dark:text-white font-bold outline-none focus:border-primary/50" />
+                                                </div>
+                                                <div className="flex-1 flex flex-col gap-2">
+                                                    <label className="text-[10px] font-black uppercase tracking-widest text-[#92c9a9] px-1">Tempo Máx (min)</label>
+                                                    <input type="number" value={formData.delivery_time_max} onChange={e => setFormData({ ...formData, delivery_time_max: parseInt(e.target.value) })} className="h-14 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-2xl px-4 text-slate-900 dark:text-white font-bold outline-none focus:border-primary/50" />
+                                                </div>
+                                            </div>
+
                                             <div className="flex items-center gap-3 bg-slate-50 dark:bg-black/20 p-4 rounded-2xl border border-slate-200 dark:border-white/10 mb-4">
                                                 <input type="checkbox" checked={formData.allows_pickup} onChange={e => setFormData({ ...formData, allows_pickup: e.target.checked })} className="size-5 accent-primary cursor-pointer" />
                                                 <label className="text-[10px] font-black uppercase tracking-widest text-[#92c9a9] cursor-pointer">Permite Retirada no Local?</label>

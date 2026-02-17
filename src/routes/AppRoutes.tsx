@@ -19,6 +19,8 @@ import { Auth } from '../components/auth/Auth';
 
 // Pages - Client (lazy load - non-critical)
 const PharmacyPage = lazy(() => import('../pages/client/PharmacyPage').then(m => ({ default: m.PharmacyPage })));
+const PharmacyCategoryPage = lazy(() => import('../pages/client/PharmacyCategoryPage').then(m => ({ default: m.PharmacyCategoryPage })));
+const GlobalCategoryPage = lazy(() => import('../pages/client/GlobalCategoryPage').then(m => ({ default: m.GlobalCategoryPage })));
 const ProductPage = lazy(() => import('../pages/client/ProductPage').then(m => ({ default: m.ProductPage })));
 const Cart = lazy(() => import('../pages/client/Cart').then(m => ({ default: m.Cart })));
 const Checkout = lazy(() => import('../pages/client/Checkout'));
@@ -65,6 +67,7 @@ const MerchantDashboard = lazy(() => import('../pages/merchant/MerchantDashboard
 const MerchantOrderManagement = lazy(() => import('../pages/merchant/MerchantOrderManagement'));
 const InventoryControl = lazy(() => import('../pages/merchant/InventoryControl'));
 const MerchantFinancial = lazy(() => import('../pages/merchant/MerchantFinancial'));
+const ProductRegistration = lazy(() => import('../pages/merchant/ProductRegistration'));
 
 const StoreCustomization = lazy(() => import('../pages/merchant/StoreCustomization'));
 const TeamManagement = lazy(() => import('../pages/merchant/TeamManagement'));
@@ -105,6 +108,8 @@ export const AppRoutes = ({ session, profile, userLocation, sortedPharmacies, re
             <Route path="/" element={<RootRedirect userLocation={userLocation} sortedPharmacies={sortedPharmacies} session={session} />} />
             <Route path="/pharmacies" element={<PharmacyList pharmacies={sortedPharmacies} session={session} />} />
             <Route path="/pharmacy/:id" element={<Suspense fallback={<LoadingScreen />}><PharmacyPage session={session} /></Suspense>} />
+            <Route path="/pharmacy/:id/category/:categoryName" element={<Suspense fallback={<LoadingScreen />}><PharmacyCategoryPage session={session} /></Suspense>} />
+            <Route path="/category/:id" element={<Suspense fallback={<LoadingScreen />}><GlobalCategoryPage session={session} userLocation={userLocation} /></Suspense>} />
             <Route path="/product/:id" element={<Suspense fallback={<LoadingScreen />}><ProductPage session={session} /></Suspense>} />
             <Route path="/privacy" element={<Suspense fallback={<LoadingScreen />}><PrivacyData /></Suspense>} />
             <Route path="/help" element={<Suspense fallback={<LoadingScreen />}><HelpSupport /></Suspense>} />
@@ -160,6 +165,8 @@ export const AppRoutes = ({ session, profile, userLocation, sortedPharmacies, re
             <Route path="/gestor" element={<GestorRoute session={session} profile={profile}><Suspense fallback={<LoadingScreen />}><MerchantDashboard /></Suspense></GestorRoute>} />
             <Route path="/gestor/orders" element={<GestorRoute session={session} profile={profile}><Suspense fallback={<LoadingScreen />}><MerchantOrderManagement /></Suspense></GestorRoute>} />
             <Route path="/gestor/products" element={<GestorRoute session={session} profile={profile}><Suspense fallback={<LoadingScreen />}><InventoryControl /></Suspense></GestorRoute>} />
+            <Route path="/gestor/products/new" element={<GestorRoute session={session} profile={profile}><Suspense fallback={<LoadingScreen />}><ProductRegistration /></Suspense></GestorRoute>} />
+            <Route path="/gestor/products/edit/:id" element={<GestorRoute session={session} profile={profile}><Suspense fallback={<LoadingScreen />}><ProductRegistration /></Suspense></GestorRoute>} />
             <Route path="/gestor/financial" element={<GestorRoute session={session} profile={profile}><Suspense fallback={<LoadingScreen />}><MerchantFinancial /></Suspense></GestorRoute>} />
             <Route path="/gestor/settings" element={<GestorRoute session={session} profile={profile}><Suspense fallback={<LoadingScreen />}><StoreCustomization /></Suspense></GestorRoute>} />
             <Route path="/gestor/equipe" element={<GestorRoute session={session} profile={profile}><Suspense fallback={<LoadingScreen />}><TeamManagement /></Suspense></GestorRoute>} />
