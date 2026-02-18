@@ -31,7 +31,7 @@
     "@capacitor/network": "^8.0.0",
     "@capacitor/push-notifications": "^8.0.0",
     "@react-google-maps/api": "^2.20.8",
-    "@supabase/supabase-js": "^2.91.1",
+    "@supabase/supabase-js": "^2.96.0",
     "@types/react-router-dom": "^5.3.3",
     "dotenv": "^17.3.1",
     "firebase": "^12.8.0",

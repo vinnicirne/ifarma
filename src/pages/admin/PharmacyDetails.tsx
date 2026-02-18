@@ -438,9 +438,18 @@ const PharmacyDetailsContent = ({ googleKey }: { googleKey: string }) => {
                     }
                 }
             )
-            .subscribe();
+            .subscribe((status, err) => {
+                console.log(`[Realtime PharmacyDetails] Status do canal pharmacy-orders-${id}:`, status, err || '');
+                if (status === 'CLOSED' || status === 'CHANNEL_ERROR' || err) {
+                    console.warn('[Realtime PharmacyDetails] Canal fechado, tentando reconectar...', err);
+                    setTimeout(() => {
+                        console.log('[Realtime PharmacyDetails] Tentando reconectar...');
+                    }, 3000);
+                }
+            });
 
         return () => {
+            console.log(`[Realtime PharmacyDetails] Limpando canal: pharmacy-orders-${id}`);
             supabase.removeChannel(channel);
         };
     }, [id]);
@@ -639,6 +648,16 @@ const PharmacyDetailsContent = ({ googleKey }: { googleKey: string }) => {
         const safeFixed = Number.isFinite(formData.delivery_fee_fixed) ? formData.delivery_fee_fixed : 0;
         const safePerKm = Number.isFinite(formData.delivery_fee_per_km) ? formData.delivery_fee_per_km : 0;
 
+        const parsedLatitude = formData.latitude ? parseFloat(formData.latitude) : NaN;
+        const parsedLongitude = formData.longitude ? parseFloat(formData.longitude) : NaN;
+        const hasValidCoords = Number.isFinite(parsedLatitude) && Number.isFinite(parsedLongitude);
+
+        if (isNew && !hasValidCoords) {
+            alert('Informe uma localização válida (latitude e longitude) antes de salvar.');
+            setLoading(false);
+            return;
+        }
+
         // Mapeamento correto dos campos do formulário para o banco de dados
         // address e establishment_phone são campos legados/redundantes mas mantidos por compatibilidade
         // Sincroniza o email de exibição com o campo oficial do banco
@@ -653,8 +672,8 @@ const PharmacyDetailsContent = ({ googleKey }: { googleKey: string }) => {
             city: formData.city,
             state: formData.state,
             address: `${formData.street}, ${formData.number} - ${formData.neighborhood}, ${formData.city} - ${formData.state}`,
-            latitude: formData.latitude ? parseFloat(formData.latitude) : null,
-            longitude: formData.longitude ? parseFloat(formData.longitude) : null,
+            latitude: hasValidCoords ? parsedLatitude : undefined,
+            longitude: hasValidCoords ? parsedLongitude : undefined,
             // Contato (apenas establishment_phone - coluna 'phone' não existe no schema pharmacies)
             establishment_phone: formData.establishment_phone || formData.phone || null,
             is_open: formData.is_open,
@@ -694,6 +713,11 @@ const PharmacyDetailsContent = ({ googleKey }: { googleKey: string }) => {
         delete cleanPayload.created_at;
         delete cleanPayload.merchant_email;
         delete cleanPayload.merchant_password;
+
+        if (!hasValidCoords) {
+            delete cleanPayload.latitude;
+            delete cleanPayload.longitude;
+        }
 
         try {
             let pharmacyId = id;

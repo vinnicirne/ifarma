@@ -150,7 +150,15 @@ const MerchantLayout = ({ children, activeTab, title }: { children: React.ReactN
                         }
                     }
                 )
-                .subscribe();
+                .subscribe((status, err) => {
+                    console.log(`[Realtime MerchantLayout] Status do canal pharmacy_sync_${pid}:`, status, err || '');
+                    if (status === 'CLOSED' || status === 'CHANNEL_ERROR' || err) {
+                        console.warn('[Realtime MerchantLayout] Canal fechado, tentando reconectar...', err);
+                        setTimeout(() => {
+                            console.log('[Realtime MerchantLayout] Tentando reconectar...');
+                        }, 3000);
+                    }
+                });
         };
 
         syncStatus();

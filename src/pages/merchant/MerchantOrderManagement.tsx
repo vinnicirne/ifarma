@@ -755,15 +755,76 @@ const MerchantOrderManagement = () => {
 
     const updateStatus = async (orderId: string, newStatus: string, reason?: string) => {
         try {
-            const updateData: any = { status: newStatus };
-            if (reason) updateData.cancellation_reason = reason;
+            if (!pharmacy?.id) {
+                throw new Error('Farmácia não identificada. Recarregue a página e tente novamente.');
+            }
 
-            const { error } = await supabase
+            console.log('=== INICIANDO UPDATE STATUS ===');
+            console.log('Order ID:', orderId);
+            console.log('Pharmacy ID:', pharmacy.id);
+            console.log('New Status:', newStatus);
+            console.log('Reason:', reason);
+
+            // Payload mínimo - apenas status obrigatório
+            const updateData: any = { status: newStatus };
+            
+            // Adicionar cancellation_reason apenas se for cancelamento
+            if (newStatus === 'cancelado' && reason) {
+                updateData.cancellation_reason = reason;
+            }
+
+            console.log('Update payload:', updateData);
+
+            // PRIMEIRA TENTATIVA: Com cancellation_reason (se aplicável)
+            let { data, error } = await supabase
                 .from('orders')
                 .update(updateData)
-                .eq('id', orderId);
+                .eq('id', orderId)
+                .eq('pharmacy_id', pharmacy.id)
+                .select('id, status, cancellation_reason')
+                .maybeSingle();
 
-            if (error) throw error;
+            if (error) {
+                console.error('Erro na primeira tentativa:', error);
+                
+                // SEGUNDA TENTATIVA: Apenas com status (se erro for coluna não existente)
+                if (error.message?.includes('column') && error.message?.includes('cancellation_reason')) {
+                    console.log('Tentando fallback sem cancellation_reason...');
+                    const fallbackData = { status: newStatus };
+                    
+                    const result = await supabase
+                        .from('orders')
+                        .update(fallbackData)
+                        .eq('id', orderId)
+                        .eq('pharmacy_id', pharmacy.id)
+                        .select('id, status')
+                        .maybeSingle();
+                    
+                    // CORREÇÃO: Tipar corretamente o resultado do fallback
+                    const fallbackDataResult = result.data as any;
+                    const fallbackError = result.error;
+                    
+                    if (fallbackDataResult && !fallbackError) {
+                        // Adicionar cancellation_reason localmente para consistência
+                        fallbackDataResult.cancellation_reason = reason;
+                        data = fallbackDataResult;
+                    } else {
+                        data = null;
+                        error = fallbackError;
+                    }
+                }
+                
+                if (error) {
+                    console.error('Erro mesmo com fallback:', error);
+                    throw error;
+                }
+            }
+
+            if (!data) {
+                throw new Error('Não foi possível atualizar o pedido (sem permissão ou pedido não encontrado). Verifique se você é o dono da farmácia.');
+            }
+
+            console.log('✅ Update successful:', data);
 
             // Enviar Mensagem Automática se necessário
             if (newStatus === 'preparando') {
@@ -793,7 +854,7 @@ const MerchantOrderManagement = () => {
             });
         } catch (err) {
             console.error('Error updating status:', err);
-            alert('Erro ao atualizar status');
+            alert(`Erro ao atualizar status: ${err instanceof Error ? err.message : String(err)}`);
         }
     };
 

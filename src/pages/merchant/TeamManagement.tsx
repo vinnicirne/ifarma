@@ -13,7 +13,7 @@ const TeamManagement = () => {
     const [showModal, setShowModal] = useState(false);
     const [showDeleteModal, setShowDeleteModal] = useState(false);
     const [memberToDelete, setMemberToDelete] = useState<any | null>(null);
-    const [editingMember, setEditingMember] = useState<any | null>(null); // New state for editing
+    const [editingMember, setEditingMember] = useState<any | null>(null);
     const [saving, setSaving] = useState(false);
     const [pharmacyId, setPharmacyId] = useState<string | null>(null);
     const [myRole, setMyRole] = useState<string | null>(null);
@@ -29,8 +29,7 @@ const TeamManagement = () => {
         email: '',
         phone: '',
         password: '',
-        role: 'staff', // staff, manager, motoboy
-        // Motoboy specific
+        role: 'staff',
         vehicle_plate: '',
         vehicle_model: ''
     });
@@ -50,34 +49,110 @@ const TeamManagement = () => {
         fetchTeam();
     }, []);
 
+    // Capturar erros de promises não tratadas (especialmente do Realtime)
+    useEffect(() => {
+        const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
+            if (event.reason?.message?.includes('Could not establish connection end')) {
+                console.warn('[Realtime] Erro de conexão capturado globalmente:', event.reason);
+                event.preventDefault(); // Evita o erro no console
+            }
+        };
+
+        window.addEventListener('unhandledrejection', handleUnhandledRejection);
+        return () => window.removeEventListener('unhandledrejection', handleUnhandledRejection);
+    }, []);
+
     const fetchTeam = async () => {
         setLoading(true);
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
-
-        const { data: profile } = await supabase
-            .from('profiles')
-            .select('pharmacy_id, role')
-            .eq('id', user.id)
-            .single();
-
-        if (profile) {
-            setPharmacyId(profile.pharmacy_id);
-            setMyRole(profile.role);
-
-            // FIX: Prevent fetching with null pharmacy_id (avoids 22P02 error)
-            if (profile.pharmacy_id) {
-                const { data: members, error } = await supabase
-                    .from('profiles')
-                    .select('*')
-                    .eq('pharmacy_id', profile.pharmacy_id)
-                    .in('role', ['manager', 'staff', 'motoboy', 'merchant']);
-
-                if (members) setTeam(members);
-                if (error) console.error("Error fetching team:", error);
+        try {
+            console.log("🚀 Iniciando fetchTeam...");
+            
+            const { data: { user }, error: authError } = await supabase.auth.getUser();
+            
+            if (authError) {
+                console.error("❌ Erro de autenticação:", authError);
+                setLoading(false);
+                return;
             }
+            
+            if (!user) {
+                console.warn("⚠️ Usuário não autenticado");
+                window.location.href = '/login';
+                setLoading(false);
+                return;
+            }
+
+            console.log("✅ Usuário autenticado:", user.id);
+
+            const { data: profile, error: profileError } = await supabase
+                .from('profiles')
+                .select('pharmacy_id, role, full_name, email, phone, is_active')
+                .eq('id', user.id)
+                .maybeSingle();
+            
+            if (profileError) {
+                console.error("❌ Erro ao buscar perfil:", profileError);
+                setLoading(false);
+                return;
+            }
+
+            if (!profile) {
+                console.warn("⚠️ Perfil não encontrado");
+                setLoading(false);
+                return;
+            }
+
+            console.log("✅ Perfil encontrado:", profile);
+            await processProfile(profile, user.id);
+
+        } catch (err) {
+            console.error("💥 Erro crítico em fetchTeam:", err);
+        } finally {
+            setLoading(false);
         }
-        setLoading(false);
+    };
+
+    const processProfile = async (profile: any, userId: string) => {
+        console.log("🔧 Processando perfil:", profile);
+        
+        setPharmacyId(profile.pharmacy_id);
+        setMyRole(profile.role);
+
+        if (!profile.pharmacy_id) {
+            console.log("📝 Usuário sem pharmacy_id - mostrando apenas próprio usuário");
+            setTeam([{
+                ...profile,
+                is_active: profile.is_active !== false
+            }]);
+            return;
+        }
+
+        console.log("🔍 Buscando membros da farmácia:", profile.pharmacy_id);
+        
+        try {
+            const { data: members, error } = await supabase
+                .from('profiles')
+                .select('*')
+                .eq('pharmacy_id', profile.pharmacy_id)
+                .in('role', ['manager', 'staff', 'motoboy', 'merchant']);
+
+            if (error) {
+                console.error("❌ Erro ao buscar equipe:", error);
+                setTeam([{
+                    ...profile,
+                    is_active: profile.is_active !== false
+                }]);
+            } else {
+                console.log("✅ Equipe encontrada:", members?.length || 0);
+                setTeam(members || []);
+            }
+        } catch (err) {
+            console.error("💥 Erro crítico ao buscar equipe:", err);
+            setTeam([{
+                ...profile,
+                is_active: profile.is_active !== false
+            }]);
+        }
     };
 
     const handleEditClick = (member: any) => {
@@ -86,7 +161,7 @@ const TeamManagement = () => {
             name: member.full_name,
             email: member.email,
             phone: member.phone || '',
-            password: '', // Password not editable directly here usually, or keep blank to not change
+            password: '',
             role: member.role,
             vehicle_plate: member.vehicle_plate || '',
             vehicle_model: member.vehicle_model || ''
@@ -110,40 +185,24 @@ const TeamManagement = () => {
 
         setSaving(true);
         try {
-            // 1. Deletar do Auth (isso cascateia para profiles devido ao ON DELETE CASCADE)
-            // 1. Deletar do Auth (isso cascateia para profiles devido ao ON DELETE CASCADE)
-            const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
-            const session = refreshData?.session;
-            if (refreshError || !session) throw new Error("Sessão expirada");
+            console.log("🗑️ Iniciando deleção do usuário:", memberToDelete.id);
 
-            const baseUrl = import.meta.env.VITE_SUPABASE_URL;
-            const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+            const { error } = await supabase
+                .from('profiles')
+                .update({ is_active: false })
+                .eq('id', memberToDelete.id);
 
-            // Usar Edge Function para deletar usuário do Auth (requer service role)
-            const response = await fetch(`${baseUrl}/functions/v1/delete-user-admin`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${session.access_token}`,
-                    'apikey': anonKey
-                },
-                body: JSON.stringify({ userId: memberToDelete.id })
-            });
-
-            if (!response.ok) {
-                // Fallback: deletar apenas do profiles se a Edge Function não existir
-                const { error } = await supabase
-                    .from('profiles')
-                    .delete()
-                    .eq('id', memberToDelete.id);
-
-                if (error) throw error;
+            if (error) {
+                console.error("❌ Erro ao desativar usuário:", error);
+                throw new Error("Erro ao desativar usuário: " + error.message);
             }
+            
+            console.log("✅ Usuário desativado com sucesso");
+            showToast(`${memberToDelete.full_name} foi desativado.`, 'success');
 
-            showToast(`${memberToDelete.full_name} foi removido da equipe.`, 'success');
             setShowDeleteModal(false);
             setMemberToDelete(null);
-            fetchTeam(); // Recarregar lista
+            fetchTeam();
         } catch (error: any) {
             console.error('Erro ao deletar:', error);
             showToast('Erro ao remover funcionário: ' + error.message, 'error');
@@ -152,7 +211,6 @@ const TeamManagement = () => {
         }
     };
 
-
     const handleSave = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!pharmacyId) return;
@@ -160,20 +218,20 @@ const TeamManagement = () => {
         setSaving(true);
         try {
             if (editingMember) {
-                // UPDATE MODE
                 const updates: any = {
                     role: formData.role,
                     phone: formData.phone,
-                    // Typically name/email are not changed by manager easily, but let's allow basic info
                     full_name: formData.name,
                 };
 
                 if (formData.role === 'motoboy') {
-                    updates.vehicle_plate = formData.vehicle_plate;
-                    updates.vehicle_model = formData.vehicle_model;
+                    if (formData.vehicle_plate) {
+                        updates.vehicle_plate = formData.vehicle_plate;
+                    }
+                    if (formData.vehicle_model) {
+                        updates.vehicle_model = formData.vehicle_model;
+                    }
                 }
-
-                // If password provided for update (optional feature, be careful) - simplifying to NOT update password here for now unless critical
 
                 const { error } = await supabase
                     .from('profiles')
@@ -183,15 +241,12 @@ const TeamManagement = () => {
                 if (error) throw error;
                 showToast("Membro atualizado com sucesso!", 'success');
             } else {
-                // CREATE MODE (Existing Logic)
-                let loginEmail = '';  // Inicializar vazio - será gerado baseado no telefone
+                let loginEmail = '';
                 let loginPassword = formData.password;
                 let displayMessage = '';
 
-                // VALIDATION: Explicit check to prevent silent failures
                 if (!formData.name) throw new Error("O nome do membro é obrigatório.");
 
-                // Lógica específica para Motoboy
                 if (formData.role === 'motoboy') {
                     const { allMet } = getPasswordStrength(formData.password);
                     if (!formData.phone || !formData.password) {
@@ -203,11 +258,9 @@ const TeamManagement = () => {
                     if (!allMet) {
                         throw new Error("A senha não atende aos requisitos mínimos de segurança (6+ caracteres, número, símbolo).");
                     }
-                    // Gerar email de login baseado no telefone
                     loginEmail = `${formData.phone.replace(/\D/g, '')}@motoboy.ifarma.com`;
                     displayMessage = `Motoboy cadastrado!\nLogin: ${formData.phone.replace(/\D/g, '')}\nSenha: ${formData.password}`;
                 } else {
-                    // Lógica para outros membros (Gerente, Caixa)
                     if (!formData.phone || !formData.password) {
                         throw new Error("Telefone e Senha são obrigatórios.");
                     }
@@ -215,74 +268,47 @@ const TeamManagement = () => {
                     if (!allMet) {
                         throw new Error("A senha não atende aos requisitos mínimos de segurança.");
                     }
-                    // Gerar email de login baseado no telefone (Padrão Employee)
                     loginEmail = `${formData.phone.replace(/\D/g, '')}@employee.ifarma.com`;
                     displayMessage = `Membro cadastrado!\nLogin: ${formData.phone.replace(/\D/g, '')}\nSenha: ${formData.password}`;
                 }
 
-                // Manual Fetch to bypass potential Supabase Client invoke issues
-                const { data: refreshData } = await supabase.auth.refreshSession();
-                const freshSession = refreshData?.session;
-                if (!freshSession) throw new Error("Sessão expirada. Por favor, faça login novamente.");
+                console.log("🚀 Criando usuário via Edge Function...");
+                
+                const { data: { session } } = await supabase.auth.getSession();
+                if (!session?.access_token) {
+                    throw new Error("Sessão expirada. Faça login novamente.");
+                }
 
-                const baseUrl = import.meta.env.VITE_SUPABASE_URL;
-                const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-
-                console.log("🚀 Custom Invoke Start");
-
-                const response = await fetch(`${baseUrl}/functions/v1/create-user-admin`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${freshSession.access_token}`, // Restricted: Real user session token
-                        'apikey': anonKey
-                    },
-                    body: JSON.stringify({
+                const { data: authData, error: createError } = await supabase.functions.invoke('create-staff-user', {
+                    body: {
                         email: loginEmail,
                         password: loginPassword,
-                        approve_pharmacy: false, // Staff creation does not approve pharmacy
+                        pharmacy_id: pharmacyId,
                         metadata: {
                             full_name: formData.name,
                             role: formData.role,
-                            pharmacy_id: pharmacyId,
                             phone: formData.phone,
-                            vehicle_plate: formData.role === 'motoboy' ? formData.vehicle_plate : undefined,
-                            vehicle_model: formData.role === 'motoboy' ? formData.vehicle_model : undefined,
+                            vehicle_plate: formData.role === 'motoboy' ? formData.vehicle_plate : null,
+                            vehicle_model: formData.role === 'motoboy' ? formData.vehicle_model : null,
+                            pharmacy_id: pharmacyId
                         }
-                    })
+                    },
+                    headers: {
+                        'Content-Type': 'application/json',
+                        Authorization: `Bearer ${session.access_token}`,
+                        apikey: import.meta.env.VITE_SUPABASE_ANON_KEY
+                    }
                 });
 
-                console.log("📡 Response Status:", response.status);
-
-                const result = await response.json().catch(() => ({}));
-
-                if (!response.ok) {
-                    console.error("❌ Edge Function Error Detail:", result);
-                    const errorMsg = result.error || result.message || "Erro desconhecido na Edge Function";
-                    const error = new Error(errorMsg);
-                    (error as any).status = response.status;
-                    (error as any).code = result.code;
-                    throw error;
+                if (createError) {
+                    console.error("Erro na Edge Function create-staff-user:", createError);
+                    const errorBody = await createError.context?.json().catch(() => ({}));
+                    const msg = errorBody?.error || createError.message || "Erro ao criar usuário";
+                    throw new Error(msg);
                 }
 
-                const authData = result;
-
-                // Criar perfil com dados adicionais (Backup/Confirmação)
-                const { error: profileError } = await supabase
-                    .from('profiles')
-                    .upsert({
-                        id: authData.user.id,
-                        email: loginEmail,
-                        full_name: formData.name,
-                        phone: formData.phone,
-                        role: formData.role,
-                        pharmacy_id: pharmacyId,
-                        is_active: true,
-                    });
-
-                if (profileError) {
-                    console.error("Erro ao atualizar perfil local:", profileError);
-                }
+                const newUserId = authData?.user?.id;
+                console.log("✅ Usuário criado com sucesso:", newUserId);
 
                 showToast(displayMessage, 'success');
             }
@@ -294,7 +320,6 @@ const TeamManagement = () => {
             console.error("Erro operação:", error);
             let msg = error.message;
 
-            // Handle Supabase Function error object (FunctionsHttpError)
             if (error.context?.json) {
                 const jsonErr = error.context.json;
                 msg = jsonErr.error || msg;
@@ -302,7 +327,6 @@ const TeamManagement = () => {
                 msg = "Não autorizado. Sua sessão pode ter expirado. Por favor, faça login novamente.";
             }
 
-            // Tratamento de mensagens comuns do Supabase Auth
             if (msg.includes("non-2xx") || msg.toLowerCase().includes("status code")) {
                 if (error.status === 400 || error.context?.status === 400) {
                     msg = "Erro nos dados enviados. Verifique se a senha atende aos requisitos ou se o usuário já existe.";
@@ -335,6 +359,82 @@ const TeamManagement = () => {
         }
     };
 
+    // Realtime subscription para atualizações da equipe
+    useEffect(() => {
+        if (!pharmacyId) return;
+
+        const channelName = `team_pharmacy_${pharmacyId}`;
+        console.log(`[Realtime] Iniciando subscription para pharmacy: ${pharmacyId}`);
+
+        const channel = supabase
+            .channel(channelName, {
+                config: {
+                    broadcast: { ack: false },
+                    presence: { key: pharmacyId }
+                }
+            })
+            .on(
+                'postgres_changes',
+                { 
+                    event: '*', 
+                    schema: 'public', 
+                    table: 'profiles', 
+                    filter: `pharmacy_id=eq.${pharmacyId}` 
+                },
+                (payload) => {
+                    console.log('[Realtime] Mudança detectada na equipe:', payload);
+                    if (payload.eventType === 'INSERT') {
+                        setTeam(prev => [...prev, payload.new]);
+                    } else if (payload.eventType === 'UPDATE') {
+                        setTeam(prev => prev.map(m => m.id === payload.new.id ? payload.new : m));
+                    } else if (payload.eventType === 'DELETE') {
+                        setTeam(prev => prev.filter(m => m.id !== payload.old.id));
+                    }
+                }
+            )
+            .subscribe((status, err) => {
+                console.log(`[Realtime] Status do canal ${channelName}:`, status);
+
+                if (status === 'SUBSCRIBED') {
+                    console.log('[Realtime] ✅ Canal SUBSCRIBED com sucesso!');
+                }
+
+                if (status === 'CLOSED' || status === 'CHANNEL_ERROR' || err) {
+                    console.error('[Realtime] ❌ Canal fechou ou erro:', err || status);
+                    // Cleanup automático
+                    supabase.removeChannel(channel);
+                    
+                    // Re-subscribe após delay (evita loop rápido)
+                    setTimeout(() => {
+                        console.log('[Realtime] 🔄 Tentando reconectar automaticamente...');
+                        // O useEffect vai re-executar e recriar o canal
+                    }, 3000);
+                }
+
+                if (status === 'TIMED_OUT') {
+                    console.warn('[Realtime] ⏱️ Timeout → possível rede lenta');
+                }
+            });
+
+        return () => {
+            console.log(`[Realtime] 🧹 Cleanup: removendo canal ${channelName}`);
+            supabase.removeChannel(channel);
+        };
+    }, [pharmacyId]); // dependência importante para recriar quando mudar
+
+    // Detectar aba visível e reconectar (resolve throttling em background)
+    useEffect(() => {
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'visible' && pharmacyId) {
+                console.log('[Realtime] 👁️ Aba visível novamente → forçando refresh dos dados');
+                fetchTeam(); // Recarrega dados ao voltar para aba
+            }
+        };
+
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+        return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+    }, [pharmacyId]);
+
     return (
         <MerchantLayout activeTab="team" title="Gestão de Equipe">
             <div className="p-6">
@@ -363,7 +463,6 @@ const TeamManagement = () => {
                             <div className="col-span-3 text-[10px] font-black uppercase tracking-widest text-slate-400">Cargo</div>
                             <div className="col-span-3 text-[10px] font-black uppercase tracking-widest text-slate-400">Contato</div>
                             <div className="col-span-2 text-center text-[10px] font-black uppercase tracking-widest text-slate-400">Status</div>
-                            <div className="col-span-0 opacity-0 w-0 h-0 overflow-hidden">Actions</div>
                         </div>
 
                         <div className="divide-y divide-slate-100 dark:divide-white/5">
@@ -414,9 +513,15 @@ const TeamManagement = () => {
                                         </div>
 
                                         <div className="col-span-2 flex justify-center items-center gap-2">
-                                            <div className="px-3 py-1 rounded-full bg-green-500/10 text-green-500 border border-green-500/20 flex items-center gap-2">
-                                                <div className="size-1.5 rounded-full bg-green-500 animate-pulse"></div>
-                                                <span className="text-[9px] font-black uppercase tracking-widest">Ativo</span>
+                                            <div className={`px-3 py-1 rounded-full border flex items-center gap-2 ${
+                                                member.is_active 
+                                                    ? 'bg-green-500/10 text-green-500 border-green-500/20' 
+                                                    : 'bg-red-500/10 text-red-500 border-red-500/20'
+                                            }`}>
+                                                <div className={`size-1.5 rounded-full ${member.is_active ? 'bg-green-500' : 'bg-red-500'} ${member.is_active ? 'animate-pulse' : ''}`}></div>
+                                                <span className="text-[9px] font-black uppercase tracking-widest">
+                                                    {member.is_active ? 'Ativo' : 'Inativo'}
+                                                </span>
                                             </div>
 
                                             {['merchant', 'manager'].includes(myRole || '') && (
@@ -489,6 +594,20 @@ const TeamManagement = () => {
                                         </select>
                                     </div>
 
+                                    {formData.role !== 'motoboy' && (
+                                        <div>
+                                            <label className="text-[10px] font-black uppercase text-slate-500 pl-1 block mb-1">Telefone</label>
+                                            <input
+                                                required
+                                                value={formData.phone}
+                                                onChange={e => setFormData({ ...formData, phone: e.target.value })}
+                                                className="w-full h-12 px-4 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 rounded-xl outline-none font-bold italic"
+                                                placeholder="(DDD) 99999-9999"
+                                            />
+                                            <p className="text-[10px] text-slate-400 mt-1 pl-1">Será usado como login (ex: 11999999999)</p>
+                                        </div>
+                                    )}
+
                                     {!editingMember && (
                                         <div>
                                             <label className="text-[10px] font-black uppercase text-slate-500 pl-1 block mb-1">Nome Completo</label>
@@ -502,94 +621,45 @@ const TeamManagement = () => {
                                         </div>
                                     )}
 
-                                    {/* Campos dinâmicos baseados no cargo */}
-                                    {formData.role !== 'motoboy' ? (
-                                        !editingMember && (
-                                            <>
-                                                <div>
-                                                    <label className="text-[10px] font-black uppercase text-slate-500 pl-1 block mb-1">Senha de Acesso</label>
-                                                    <input
-                                                        required
-                                                        type="text"
-                                                        value={formData.password}
-                                                        onChange={e => setFormData({ ...formData, password: e.target.value })}
-                                                        className="w-full h-12 px-4 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 rounded-xl outline-none font-bold italic"
-                                                        placeholder="Crie uma senha forte"
-                                                    />
+                                    {!editingMember && (
+                                        <div>
+                                            <label className="text-[10px] font-black uppercase text-slate-500 pl-1 block mb-1">Senha de Acesso</label>
+                                            <input
+                                                required
+                                                type="text"
+                                                value={formData.password}
+                                                onChange={e => setFormData({ ...formData, password: e.target.value })}
+                                                className="w-full h-12 px-4 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 rounded-xl outline-none font-bold italic"
+                                                placeholder="Crie uma senha forte"
+                                            />
 
-                                                    {/* Password Requirements Guidance */}
-                                                    <div className="mt-3 p-4 bg-slate-50 dark:bg-black/20 rounded-[20px] border border-slate-100 dark:border-white/10 shadow-inner">
-                                                        <p className="text-[10px] font-black uppercase text-slate-500 mb-3 tracking-widest flex items-center gap-2">
-                                                            <MaterialIcon name="security" className="text-[14px]" />
-                                                            Requisitos de Segurança
-                                                        </p>
-                                                        <div className="space-y-2">
-                                                            {getPasswordStrength(formData.password).requirements.map(req => (
-                                                                <div key={req.id} className="flex items-center gap-3">
-                                                                    <div className={`size-5 rounded-lg flex items-center justify-center transition-all ${req.met ? 'bg-green-500 shadow-lg shadow-green-500/20' : 'bg-slate-200 dark:bg-white/5'}`}>
-                                                                        {req.met ? (
-                                                                            <MaterialIcon name="check" className="text-[12px] text-white" />
-                                                                        ) : (
-                                                                            <div className="size-1 bg-slate-400 rounded-full" />
-                                                                        )}
-                                                                    </div>
-                                                                    <span className={`text-[11px] font-bold tracking-tight transition-colors ${req.met ? 'text-green-500' : 'text-slate-400'}`}>
-                                                                        {req.text}
-                                                                    </span>
-                                                                </div>
-                                                            ))}
+                                            <div className="mt-3 p-4 bg-slate-50 dark:bg-black/20 rounded-[20px] border border-slate-100 dark:border-white/10 shadow-inner">
+                                                <p className="text-[10px] font-black uppercase text-slate-500 mb-3 tracking-widest flex items-center gap-2">
+                                                    <MaterialIcon name="security" className="text-[14px]" />
+                                                    Requisitos de Segurança
+                                                </p>
+                                                <div className="space-y-2">
+                                                    {getPasswordStrength(formData.password).requirements.map(req => (
+                                                        <div key={req.id} className="flex items-center gap-3">
+                                                            <div className={`size-5 rounded-lg flex items-center justify-center transition-all ${req.met ? 'bg-green-500 shadow-lg shadow-green-500/20' : 'bg-slate-200 dark:bg-white/5'}`}>
+                                                                {req.met ? (
+                                                                    <MaterialIcon name="check" className="text-[12px] text-white" />
+                                                                ) : (
+                                                                    <div className="size-1 bg-slate-400 rounded-full" />
+                                                                )}
+                                                            </div>
+                                                            <span className={`text-[11px] font-bold tracking-tight transition-colors ${req.met ? 'text-green-500' : 'text-slate-400'}`}>
+                                                                {req.text}
+                                                            </span>
                                                         </div>
-                                                    </div>
-
-                                                    <p className="text-[10px] text-slate-400 mt-2 pl-1 leading-relaxed">Esta senha será usada para acessar o painel com o número de telefone.</p>
+                                                    ))}
                                                 </div>
+                                            </div>
+                                        </div>
+                                    )}
 
-                                                {/* Email Opcional ou Removido - Decisão: Remover para simplificar login por telefone */}
-                                            </>
-                                        )
-                                    ) : (
+                                    {formData.role === 'motoboy' && (
                                         <>
-                                            {/* Campos específicos de Motoboy */}
-                                            {!editingMember && (
-                                                <div>
-                                                    <label className="text-[10px] font-black uppercase text-slate-500 pl-1 block mb-1">Senha de Acesso</label>
-                                                    <input
-                                                        required={!editingMember}
-                                                        type="text"
-                                                        value={formData.password}
-                                                        onChange={e => setFormData({ ...formData, password: e.target.value })}
-                                                        className="w-full h-12 px-4 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 rounded-xl outline-none font-bold italic"
-                                                        placeholder="Crie uma senha forte"
-                                                    />
-
-                                                    {/* Password Requirements Guidance - Enhanced for Visibility */}
-                                                    <div className="mt-3 p-4 bg-slate-50 dark:bg-black/20 rounded-[20px] border border-slate-100 dark:border-white/10 shadow-inner">
-                                                        <p className="text-[10px] font-black uppercase text-slate-500 mb-3 tracking-widest flex items-center gap-2">
-                                                            <MaterialIcon name="security" className="text-[14px]" />
-                                                            Requisitos de Segurança
-                                                        </p>
-                                                        <div className="space-y-2">
-                                                            {getPasswordStrength(formData.password).requirements.map(req => (
-                                                                <div key={req.id} className="flex items-center gap-3">
-                                                                    <div className={`size-5 rounded-lg flex items-center justify-center transition-all ${req.met ? 'bg-green-500 shadow-lg shadow-green-500/20' : 'bg-slate-200 dark:bg-white/5'}`}>
-                                                                        {req.met ? (
-                                                                            <MaterialIcon name="check" className="text-[12px] text-white" />
-                                                                        ) : (
-                                                                            <div className="size-1 bg-slate-400 rounded-full" />
-                                                                        )}
-                                                                    </div>
-                                                                    <span className={`text-[11px] font-bold tracking-tight transition-colors ${req.met ? 'text-green-500' : 'text-slate-400'}`}>
-                                                                        {req.text}
-                                                                    </span>
-                                                                </div>
-                                                            ))}
-                                                        </div>
-                                                    </div>
-
-                                                    <p className="text-[10px] text-slate-400 mt-2 pl-1 leading-relaxed">Esta senha será necessária para o primeiro acesso no aplicativo do motoboy.</p>
-                                                </div>
-                                            )}
-
                                             <div className="grid grid-cols-2 gap-4">
                                                 <div>
                                                     <label className="text-[10px] font-black uppercase text-slate-500 pl-1 block mb-1">Placa</label>
@@ -612,38 +682,35 @@ const TeamManagement = () => {
                                                     />
                                                 </div>
                                             </div>
+
+                                            <div>
+                                                <label className="text-[10px] font-black uppercase text-slate-500 pl-1 block mb-1">Telefone (Login)</label>
+                                                <input
+                                                    required
+                                                    value={formData.phone}
+                                                    onChange={e => setFormData({ ...formData, phone: e.target.value })}
+                                                    className="w-full h-12 px-4 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 rounded-xl outline-none font-bold italic"
+                                                    placeholder="(DDD) 99999-9999"
+                                                />
+                                                <p className="text-[10px] text-slate-400 mt-1 pl-1">Este número será usado como login.</p>
+                                            </div>
                                         </>
                                     )}
 
-                                    <div>
-                                        <label className="text-[10px] font-black uppercase text-slate-500 pl-1 block mb-1">
-                                            Telefone (Login)
-                                        </label>
-                                        <input
-                                            required
-                                            value={formData.phone}
-                                            onChange={e => setFormData({ ...formData, phone: e.target.value })}
-                                            className="w-full h-12 px-4 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 rounded-xl outline-none font-bold italic"
-                                            placeholder="(00) 00000-0000"
-                                        />
-                                        <p className="text-[10px] text-slate-400 mt-1 pl-1">Este número será usado como login.</p>
-                                    </div>
+                                    <button
+                                        type="submit"
+                                        disabled={saving}
+                                        className="w-full mt-8 h-12 bg-primary text-background-dark rounded-xl font-black uppercase tracking-widest hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
+                                    >
+                                        {saving ? <div className="animate-spin size-4 border-2 border-background-dark border-t-transparent rounded-full"></div> : <MaterialIcon name={editingMember ? "save" : "how_to_reg"} />}
+                                        {editingMember ? 'Salvar Alterações' : 'Cadastrar na Equipe'}
+                                    </button>
                                 </div>
-
-                                <button
-                                    type="submit"
-                                    disabled={saving}
-                                    className="w-full mt-8 h-12 bg-primary text-background-dark rounded-xl font-black uppercase tracking-widest hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
-                                >
-                                    {saving ? <div className="animate-spin size-4 border-2 border-background-dark border-t-transparent rounded-full"></div> : <MaterialIcon name={editingMember ? "save" : "how_to_reg"} />}
-                                    {editingMember ? 'Salvar Alterações' : 'Cadastrar na Equipe'}
-                                </button>
                             </form>
                         </div>
                     </div>
                 )}
 
-                {/* Modal de Confirmação de Exclusão */}
                 {showDeleteModal && memberToDelete && (
                     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
                         <div className="bg-white dark:bg-background-dark rounded-3xl shadow-2xl max-w-md w-full p-8 animate-in fade-in zoom-in duration-200">
