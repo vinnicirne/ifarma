@@ -221,16 +221,15 @@ serve(async (req) => {
 
                     if (existingUser) {
                         user = existingUser;
+                        console.log(`[create-user-admin] Found existing userId=${existingUser.id}. Keeping existing password, updating metadata only.`);
+
                         const { error: updateAuthErr } = await supabaseAdmin.auth.admin.updateUserById(existingUser.id, {
-                            password: password,
                             user_metadata: metadata,
                             email_confirm: true
                         });
 
                         if (updateAuthErr) {
-                            console.error("[create-user-admin] Error updating existing user password:", updateAuthErr);
-                        } else {
-                            console.log(`[create-user-admin] Password updated for existing user: ${existingUser.id}`);
+                            console.error("[create-user-admin] Error updating existing user metadata:", updateAuthErr);
                         }
                     } else {
                         console.error("[create-user-admin] User exists but could not be found in list.");

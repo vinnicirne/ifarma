@@ -309,15 +309,15 @@ const StoreCustomization = () => {
                     state,
                     latitude: parseFloat(latitude) || 0,
                     longitude: parseFloat(longitude) || 0,
-                    // auto_message fields temporarily disabled (pending DB migration)
-                    // auto_message_accept_enabled: autoMessageAcceptEnabled,
-                    // auto_message_accept_text: autoMessageAcceptText,
-                    // auto_message_cancel_enabled: autoMessageCancelEnabled,
-                    // auto_message_cancel_text: autoMessageCancelText,
+                    // auto_message fields
+                    auto_message_accept_enabled: autoMessageAcceptEnabled,
+                    auto_message_accept_text: autoMessageAcceptText,
+                    auto_message_cancel_enabled: autoMessageCancelEnabled,
+                    auto_message_cancel_text: autoMessageCancelText,
                     // Opening Hours
                     auto_open_status: autoOpenStatus,
-                    // opening_hours_start: openingHoursStart,
-                    // opening_hours_end: openingHoursEnd,
+                    opening_hours_start: openingHoursStart,
+                    opening_hours_end: openingHoursEnd,
                     opening_hours: openingHours,
                     // Delivery Fees
                     delivery_fee_type: deliveryFeeType,

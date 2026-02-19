@@ -767,7 +767,7 @@ const MerchantOrderManagement = () => {
 
             // Payload mínimo - apenas status obrigatório
             const updateData: any = { status: newStatus };
-            
+
             // Adicionar cancellation_reason apenas se for cancelamento
             if (newStatus === 'cancelado' && reason) {
                 updateData.cancellation_reason = reason;
@@ -786,12 +786,12 @@ const MerchantOrderManagement = () => {
 
             if (error) {
                 console.error('Erro na primeira tentativa:', error);
-                
+
                 // SEGUNDA TENTATIVA: Apenas com status (se erro for coluna não existente)
                 if (error.message?.includes('column') && error.message?.includes('cancellation_reason')) {
                     console.log('Tentando fallback sem cancellation_reason...');
                     const fallbackData = { status: newStatus };
-                    
+
                     const result = await supabase
                         .from('orders')
                         .update(fallbackData)
@@ -799,11 +799,11 @@ const MerchantOrderManagement = () => {
                         .eq('pharmacy_id', pharmacy.id)
                         .select('id, status')
                         .maybeSingle();
-                    
+
                     // CORREÇÃO: Tipar corretamente o resultado do fallback
                     const fallbackDataResult = result.data as any;
                     const fallbackError = result.error;
-                    
+
                     if (fallbackDataResult && !fallbackError) {
                         // Adicionar cancellation_reason localmente para consistência
                         fallbackDataResult.cancellation_reason = reason;
@@ -813,7 +813,7 @@ const MerchantOrderManagement = () => {
                         error = fallbackError;
                     }
                 }
-                
+
                 if (error) {
                     console.error('Erro mesmo com fallback:', error);
                     throw error;
@@ -852,9 +852,10 @@ const MerchantOrderManagement = () => {
                 }
                 return prev.map(o => o.id === orderId ? { ...o, status: newStatus } : o);
             });
-        } catch (err) {
+        } catch (err: any) {
             console.error('Error updating status:', err);
-            alert(`Erro ao atualizar status: ${err instanceof Error ? err.message : String(err)}`);
+            const errorMsg = err?.message || err?.details || String(err);
+            alert(`Erro ao atualizar status: ${errorMsg}`);
         }
     };
 
@@ -893,9 +894,10 @@ const MerchantOrderManagement = () => {
             if (pharmacy?.id) fetchOrders(pharmacy.id);
             alert(`Motoboy atribuído a ${targets.length} pedido(s) com sucesso! Status atualizado.`);
 
-        } catch (err) {
+        } catch (err: any) {
             console.error('Error assigning driver:', err);
-            alert('Erro ao atribuir motoboy. Verifique se o pedido não foi cancelado ou entregue.');
+            const errorMsg = err?.message || err?.details || "Erro desconhecido";
+            alert(`Erro ao atribuir motoboy: ${errorMsg}`);
         }
     };
 

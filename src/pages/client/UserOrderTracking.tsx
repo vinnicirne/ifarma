@@ -419,7 +419,7 @@ export const UserOrderTracking = () => {
                 </div>
 
                 {/* Cancel Button - Only visible if status is NOT yet removed/en route/delivered/canceled */}
-                {['pendente', 'preparando', 'aguardando_motoboy', 'pronto_entrega', 'aceito'].includes(order?.status) && (
+                {['pendente', 'preparando', 'aguardando_motoboy', 'pronto_entrega', 'aceito', 'aguardando_retirada'].includes(order?.status?.toLowerCase()) && (
                     <button
                         onClick={() => setIsCancelModalOpen(true)}
                         className="w-full bg-red-50 text-red-600 dark:bg-red-500/10 dark:text-red-400 py-3 rounded-full font-bold text-xs transition-all active:scale-95"
