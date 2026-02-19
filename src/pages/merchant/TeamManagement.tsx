@@ -9,15 +9,22 @@ const MaterialIcon = ({ name, className = "" }: { name: string, className?: stri
 
 const TeamManagement = () => {
     const [team, setTeam] = useState<any[]>([]);
+    const [contracts, setContracts] = useState<Record<string, any>>({});
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
     const [showDeleteModal, setShowDeleteModal] = useState(false);
+    const [showContractModal, setShowContractModal] = useState(false);
     const [memberToDelete, setMemberToDelete] = useState<any | null>(null);
     const [editingMember, setEditingMember] = useState<any | null>(null);
+    const [selectedMotoboy, setSelectedMotoboy] = useState<any | null>(null);
     const [saving, setSaving] = useState(false);
     const [pharmacyId, setPharmacyId] = useState<string | null>(null);
     const [myRole, setMyRole] = useState<string | null>(null);
     const [toast, setToast] = useState<{ message: string, type: 'success' | 'error' | 'info' | 'warning' } | null>(null);
+    const [contractData, setContractData] = useState({
+        delivery_fee: 0, fixed_salary: 0, daily_rate: 0,
+        productivity_goal: 0, productivity_bonus: 0
+    });
 
     const showToast = (message: string, type: 'success' | 'error' | 'info' | 'warning' = 'info') => {
         setToast({ message, type });
@@ -66,15 +73,15 @@ const TeamManagement = () => {
         setLoading(true);
         try {
             console.log("🚀 Iniciando fetchTeam...");
-            
+
             const { data: { user }, error: authError } = await supabase.auth.getUser();
-            
+
             if (authError) {
                 console.error("❌ Erro de autenticação:", authError);
                 setLoading(false);
                 return;
             }
-            
+
             if (!user) {
                 console.warn("⚠️ Usuário não autenticado");
                 window.location.href = '/login';
@@ -89,7 +96,7 @@ const TeamManagement = () => {
                 .select('pharmacy_id, role, full_name, email, phone, is_active')
                 .eq('id', user.id)
                 .maybeSingle();
-            
+
             if (profileError) {
                 console.error("❌ Erro ao buscar perfil:", profileError);
                 setLoading(false);
@@ -114,7 +121,7 @@ const TeamManagement = () => {
 
     const processProfile = async (profile: any, userId: string) => {
         console.log("🔧 Processando perfil:", profile);
-        
+
         setPharmacyId(profile.pharmacy_id);
         setMyRole(profile.role);
 
@@ -128,7 +135,7 @@ const TeamManagement = () => {
         }
 
         console.log("🔍 Buscando membros da farmácia:", profile.pharmacy_id);
-        
+
         try {
             const { data: members, error } = await supabase
                 .from('profiles')
@@ -145,6 +152,18 @@ const TeamManagement = () => {
             } else {
                 console.log("✅ Equipe encontrada:", members?.length || 0);
                 setTeam(members || []);
+
+                // Buscar contratos dos motoboys em uma única query
+                const motoboyIds = (members || []).filter(m => m.role === 'motoboy').map(m => m.id);
+                if (motoboyIds.length > 0) {
+                    const { data: contractsData } = await supabase
+                        .from('courier_contracts')
+                        .select('*')
+                        .in('courier_id', motoboyIds);
+                    const map: Record<string, any> = {};
+                    (contractsData || []).forEach(c => { map[c.courier_id] = c; });
+                    setContracts(map);
+                }
             }
         } catch (err) {
             console.error("💥 Erro crítico ao buscar equipe:", err);
@@ -180,32 +199,79 @@ const TeamManagement = () => {
         setShowDeleteModal(true);
     };
 
+    const openContractModal = (boy: any) => {
+        setSelectedMotoboy(boy);
+        const existing = contracts[boy.id];
+        setContractData({
+            delivery_fee: existing?.delivery_fee ?? 0,
+            fixed_salary: existing?.fixed_salary ?? 0,
+            daily_rate: existing?.daily_rate ?? 0,
+            productivity_goal: existing?.productivity_goal ?? 0,
+            productivity_bonus: existing?.productivity_bonus ?? 0
+        });
+        setShowContractModal(true);
+    };
+
+    const handleSaveContract = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!selectedMotoboy || !pharmacyId) return;
+        setSaving(true);
+        try {
+            const { error } = await supabase.rpc('upsert_courier_contract_owner', {
+                p_courier_id: selectedMotoboy.id,
+                p_pharmacy_id: pharmacyId,
+                p_delivery_fee: contractData.delivery_fee,
+                p_fixed_salary: contractData.fixed_salary,
+                p_daily_rate: contractData.daily_rate,
+                p_productivity_goal: contractData.productivity_goal,
+                p_productivity_bonus: contractData.productivity_bonus
+            });
+            if (error) throw error;
+            setContracts(prev => ({ ...prev, [selectedMotoboy.id]: { ...contractData } }));
+            showToast('Contrato salvo com sucesso!', 'success');
+            setShowContractModal(false);
+        } catch (err: any) {
+            showToast('Erro ao salvar contrato: ' + err.message, 'error');
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const fmt = (v: number) => v > 0 ? `R$ ${v.toFixed(2).replace('.', ',')}` : null;
+
     const handleConfirmDelete = async () => {
         if (!memberToDelete) return;
 
         setSaving(true);
         try {
-            console.log("🗑️ Iniciando deleção do usuário:", memberToDelete.id);
+            console.log("🗑️ Desativando usuário:", memberToDelete.id);
 
-            const { error } = await supabase
+            // Atualizar is_active no profile para revogar acesso imediato
+            const { error: profileError, data: updatedRows } = await supabase
                 .from('profiles')
-                .update({ is_active: false })
-                .eq('id', memberToDelete.id);
+                .update({ is_active: false, pharmacy_id: null })
+                .eq('id', memberToDelete.id)
+                .select('id');
 
-            if (error) {
-                console.error("❌ Erro ao desativar usuário:", error);
-                throw new Error("Erro ao desativar usuário: " + error.message);
+            if (profileError) {
+                console.error("❌ Erro RLS ao desativar:", profileError);
+                throw new Error(profileError.message);
             }
-            
-            console.log("✅ Usuário desativado com sucesso");
-            showToast(`${memberToDelete.full_name} foi desativado.`, 'success');
 
+            if (!updatedRows || updatedRows.length === 0) {
+                throw new Error('Nenhuma linha foi atualizada. Verifique permissões RLS para atualizar profiles de outros usuários.');
+            }
+
+            console.log("✅ Usuário desativado e desvinculado da farmácia");
+            showToast(`${memberToDelete.full_name} foi removido da equipe.`, 'success');
+
+            // Atualizar lista local imediatamente (não esperar realtime)
+            setTeam(prev => prev.filter(m => m.id !== memberToDelete.id));
             setShowDeleteModal(false);
             setMemberToDelete(null);
-            fetchTeam();
         } catch (error: any) {
-            console.error('Erro ao deletar:', error);
-            showToast('Erro ao remover funcionário: ' + error.message, 'error');
+            console.error('Erro ao remover:', error);
+            showToast('Erro: ' + error.message, 'error');
         } finally {
             setSaving(false);
         }
@@ -273,7 +339,7 @@ const TeamManagement = () => {
                 }
 
                 console.log("🚀 Criando usuário via Edge Function...");
-                
+
                 const { data: { session } } = await supabase.auth.getSession();
                 if (!session?.access_token) {
                     throw new Error("Sessão expirada. Faça login novamente.");
@@ -375,11 +441,11 @@ const TeamManagement = () => {
             })
             .on(
                 'postgres_changes',
-                { 
-                    event: '*', 
-                    schema: 'public', 
-                    table: 'profiles', 
-                    filter: `pharmacy_id=eq.${pharmacyId}` 
+                {
+                    event: '*',
+                    schema: 'public',
+                    table: 'profiles',
+                    filter: `pharmacy_id=eq.${pharmacyId}`
                 },
                 (payload) => {
                     console.log('[Realtime] Mudança detectada na equipe:', payload);
@@ -403,7 +469,7 @@ const TeamManagement = () => {
                     console.error('[Realtime] ❌ Canal fechou ou erro:', err || status);
                     // Cleanup automático
                     supabase.removeChannel(channel);
-                    
+
                     // Re-subscribe após delay (evita loop rápido)
                     setTimeout(() => {
                         console.log('[Realtime] 🔄 Tentando reconectar automaticamente...');
@@ -503,44 +569,63 @@ const TeamManagement = () => {
                                                     <MaterialIcon name="call" className="text-[14px]" />
                                                     <span className="text-xs font-medium">{member.phone || '-'}</span>
                                                 </div>
-                                                {member.role === 'motoboy' && (
-                                                    <div className="flex items-center gap-2 text-slate-400">
-                                                        <MaterialIcon name="two_wheeler" className="text-[14px]" />
-                                                        <span className="text-[10px] font-bold uppercase">Motoboy</span>
-                                                    </div>
-                                                )}
+                                                {member.role === 'motoboy' && (() => {
+                                                    const c = contracts[member.id];
+                                                    const fee = c && fmt(c.delivery_fee);
+                                                    const salary = c && fmt(c.fixed_salary);
+                                                    const daily = c && fmt(c.daily_rate);
+                                                    const bonus = c && fmt(c.productivity_bonus);
+                                                    const hasAny = fee || salary || daily || bonus;
+                                                    return (
+                                                        <div className="flex items-center gap-1 flex-wrap">
+                                                            {fee && <span className="text-[9px] font-black bg-green-100 text-green-600 dark:bg-green-500/10 dark:text-green-400 px-1.5 py-0.5 rounded">{fee}/entrega</span>}
+                                                            {salary && <span className="text-[9px] font-black bg-blue-100 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400 px-1.5 py-0.5 rounded">{salary}/mês</span>}
+                                                            {daily && <span className="text-[9px] font-black bg-purple-100 text-purple-600 dark:bg-purple-500/10 dark:text-purple-400 px-1.5 py-0.5 rounded">{daily}/dia</span>}
+                                                            {bonus && <span className="text-[9px] font-black bg-orange-100 text-orange-600 dark:bg-orange-500/10 dark:text-orange-400 px-1.5 py-0.5 rounded">🎯 {bonus}</span>}
+                                                            {!hasAny && <span className="text-[9px] text-slate-400 italic">sem contrato</span>}
+                                                        </div>
+                                                    );
+                                                })()}
                                             </div>
                                         </div>
 
                                         <div className="col-span-2 flex justify-center items-center gap-2">
-                                            <div className={`px-3 py-1 rounded-full border flex items-center gap-2 ${
-                                                member.is_active 
-                                                    ? 'bg-green-500/10 text-green-500 border-green-500/20' 
-                                                    : 'bg-red-500/10 text-red-500 border-red-500/20'
-                                            }`}>
+                                            <div className={`px-3 py-1 rounded-full border flex items-center gap-2 ${member.is_active
+                                                ? 'bg-green-500/10 text-green-500 border-green-500/20'
+                                                : 'bg-red-500/10 text-red-500 border-red-500/20'
+                                                }`}>
                                                 <div className={`size-1.5 rounded-full ${member.is_active ? 'bg-green-500' : 'bg-red-500'} ${member.is_active ? 'animate-pulse' : ''}`}></div>
-                                                <span className="text-[9px] font-black uppercase tracking-widest">
+                                                <span className="text-[9px] font-black uppercase tracking-widest hidden sm:block">
                                                     {member.is_active ? 'Ativo' : 'Inativo'}
                                                 </span>
                                             </div>
 
                                             {['merchant', 'manager'].includes(myRole || '') && (
-                                                <>
+                                                <div className="flex items-center gap-1">
+                                                    {member.role === 'motoboy' && (
+                                                        <button
+                                                            onClick={() => openContractModal(member)}
+                                                            className="size-8 rounded-full bg-green-50 dark:bg-green-500/10 text-green-600 hover:bg-green-500 hover:text-white transition-all flex items-center justify-center"
+                                                            title="Configurar contrato"
+                                                        >
+                                                            <MaterialIcon name="request_quote" className="text-[16px]" />
+                                                        </button>
+                                                    )}
                                                     <button
                                                         onClick={() => handleEditClick(member)}
-                                                        className="size-8 rounded-full bg-slate-100 dark:bg-white/5 text-slate-400 hover:text-primary hover:bg-white hover:shadow-lg transition-all flex items-center justify-center opacity-0 group-hover:opacity-100 transform translate-x-2 group-hover:translate-x-0"
+                                                        className="size-8 rounded-full bg-slate-100 dark:bg-white/5 text-slate-500 hover:text-primary hover:bg-primary/10 transition-all flex items-center justify-center"
                                                         title="Editar acesso"
                                                     >
                                                         <MaterialIcon name="edit" className="text-[16px]" />
                                                     </button>
                                                     <button
                                                         onClick={() => handleDeleteClick(member)}
-                                                        className="size-8 rounded-full bg-red-50 dark:bg-red-500/10 text-red-500 hover:text-white hover:bg-red-500 hover:shadow-lg hover:shadow-red-500/20 transition-all flex items-center justify-center opacity-0 group-hover:opacity-100 transform translate-x-2 group-hover:translate-x-0"
+                                                        className="size-8 rounded-full bg-red-50 dark:bg-red-500/10 text-red-500 hover:text-white hover:bg-red-500 transition-all flex items-center justify-center"
                                                         title="Remover da equipe"
                                                     >
                                                         <MaterialIcon name="delete" className="text-[16px]" />
                                                     </button>
-                                                </>
+                                                </div>
                                             )}
                                         </div>
                                     </div>
@@ -766,6 +851,106 @@ const TeamManagement = () => {
                 )}
 
                 {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+
+                {/* Contract Modal */}
+                {showContractModal && selectedMotoboy && (
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+                        <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowContractModal(false)}></div>
+                        <div className="relative w-full max-w-md bg-white dark:bg-[#1a2e23] rounded-[32px] shadow-2xl overflow-hidden border border-white/10">
+                            <form onSubmit={handleSaveContract} className="p-8 max-h-[90vh] overflow-y-auto">
+                                <div className="flex justify-between items-center mb-6">
+                                    <div>
+                                        <h2 className="text-2xl font-black italic tracking-tighter text-slate-900 dark:text-white">Contrato & Valores</h2>
+                                        <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mt-1">{selectedMotoboy.full_name}</p>
+                                    </div>
+                                    <button type="button" onClick={() => setShowContractModal(false)} className="size-10 rounded-full bg-slate-100 dark:bg-black/20 flex items-center justify-center hover:rotate-90 transition-transform"><MaterialIcon name="close" /></button>
+                                </div>
+
+                                <div className="space-y-4">
+                                    <div className="bg-slate-50 dark:bg-black/20 p-4 rounded-2xl border border-slate-100 dark:border-white/5">
+                                        <div className="flex items-center gap-2 mb-3">
+                                            <MaterialIcon name="local_shipping" className="text-green-500" />
+                                            <label className="text-[10px] font-black uppercase text-slate-600 dark:text-slate-300">Taxa por Entrega</label>
+                                        </div>
+                                        <div className="relative">
+                                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">R$</span>
+                                            <input type="number" step="0.01" min="0"
+                                                value={contractData.delivery_fee}
+                                                onChange={e => setContractData({ ...contractData, delivery_fee: parseFloat(e.target.value) || 0 })}
+                                                className="w-full h-11 pl-9 pr-3 bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl outline-none focus:border-primary font-bold italic text-sm transition-colors"
+                                                placeholder="0,00" />
+                                        </div>
+                                        <p className="text-[9px] text-slate-400 mt-2">Valor pago por cada entrega finalizada.</p>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="bg-slate-50 dark:bg-black/20 p-4 rounded-2xl border border-slate-100 dark:border-white/5">
+                                            <div className="flex items-center gap-2 mb-3">
+                                                <MaterialIcon name="payments" className="text-blue-500" />
+                                                <label className="text-[10px] font-black uppercase text-slate-600 dark:text-slate-300">Salário Fixo</label>
+                                            </div>
+                                            <div className="relative">
+                                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">R$</span>
+                                                <input type="number" step="0.01" min="0"
+                                                    value={contractData.fixed_salary}
+                                                    onChange={e => setContractData({ ...contractData, fixed_salary: parseFloat(e.target.value) || 0 })}
+                                                    className="w-full h-11 pl-9 pr-3 bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl outline-none focus:border-primary font-bold italic text-sm transition-colors" />
+                                            </div>
+                                        </div>
+                                        <div className="bg-slate-50 dark:bg-black/20 p-4 rounded-2xl border border-slate-100 dark:border-white/5">
+                                            <div className="flex items-center gap-2 mb-3">
+                                                <MaterialIcon name="calendar_today" className="text-slate-400" />
+                                                <label className="text-[10px] font-black uppercase text-slate-600 dark:text-slate-300">Diária</label>
+                                            </div>
+                                            <div className="relative">
+                                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">R$</span>
+                                                <input type="number" step="0.01" min="0"
+                                                    value={contractData.daily_rate}
+                                                    onChange={e => setContractData({ ...contractData, daily_rate: parseFloat(e.target.value) || 0 })}
+                                                    className="w-full h-11 pl-9 pr-3 bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl outline-none focus:border-primary font-bold italic text-sm transition-colors" />
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="bg-slate-50 dark:bg-black/20 p-4 rounded-2xl border border-slate-100 dark:border-white/5">
+                                        <div className="flex items-center gap-2 mb-3">
+                                            <MaterialIcon name="trending_up" className="text-orange-500" />
+                                            <label className="text-[10px] font-black uppercase text-slate-600 dark:text-slate-300">Bônus de Produtividade</label>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <div>
+                                                <p className="text-[9px] font-bold text-slate-400 uppercase mb-2">Meta (nº Entregas)</p>
+                                                <input type="number" min="0"
+                                                    value={contractData.productivity_goal}
+                                                    onChange={e => setContractData({ ...contractData, productivity_goal: parseInt(e.target.value) || 0 })}
+                                                    className="w-full h-11 px-3 bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl outline-none focus:border-primary font-bold italic text-sm transition-colors"
+                                                    placeholder="Ex: 50" />
+                                            </div>
+                                            <div>
+                                                <p className="text-[9px] font-bold text-slate-400 uppercase mb-2">Bônus (Valor)</p>
+                                                <div className="relative">
+                                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">R$</span>
+                                                    <input type="number" step="0.01" min="0"
+                                                        value={contractData.productivity_bonus}
+                                                        onChange={e => setContractData({ ...contractData, productivity_bonus: parseFloat(e.target.value) || 0 })}
+                                                        className="w-full h-11 pl-9 pr-3 bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl outline-none focus:border-primary font-bold italic text-sm transition-colors"
+                                                        placeholder="0,00" />
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <p className="text-[9px] text-slate-400 mt-2">Motoboy recebe o bônus ao atingir a meta no mês.</p>
+                                    </div>
+                                </div>
+
+                                <button type="submit" disabled={saving}
+                                    className="w-full mt-8 h-12 bg-primary text-background-dark rounded-xl font-black uppercase tracking-widest hover:opacity-90 transition-opacity flex items-center justify-center gap-2">
+                                    {saving ? <div className="animate-spin size-4 border-2 border-background-dark border-t-transparent rounded-full"></div> : <MaterialIcon name="save" />}
+                                    Salvar Contrato
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                )}
             </div>
         </MerchantLayout>
     );

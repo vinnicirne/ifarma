@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useNotifications } from '../hooks/useNotifications';
 
@@ -7,10 +7,86 @@ const MaterialIcon = ({ name, className = "", style = {} }: { name: string, clas
     <span className={`material-symbols-outlined ${className}`} style={style}>{name}</span>
 );
 
+interface Notification {
+    id: string;
+    title: string;
+    message: string;
+    type: string;
+    is_read: boolean;
+    created_at: string;
+    data?: any;
+}
+
+const NotificationModal = ({ notif, onClose }: { notif: Notification, onClose: () => void }) => {
+    const navigate = useNavigate();
+    const getIcon = (type: string) => {
+        switch (type) {
+            case 'promo': return { icon: 'local_offer', color: 'text-orange-500', bg: 'bg-orange-500/20' };
+            case 'order': return { icon: 'package_2', color: 'text-blue-500', bg: 'bg-blue-500/20' };
+            case 'health': return { icon: 'favorite', color: 'text-rose-500', bg: 'bg-rose-500/20' };
+            default: return { icon: 'notifications', color: 'text-primary', bg: 'bg-primary/20' };
+        }
+    };
+    const style = getIcon(notif.type);
+    const orderId = notif.data?.order_id;
+
+    return (
+        <div
+            className="fixed inset-0 z-[200] flex items-end justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-200"
+            onClick={onClose}
+        >
+            <div
+                className="w-full max-w-lg bg-white dark:bg-[#1a2333] rounded-t-3xl p-6 pb-10 shadow-2xl animate-in slide-in-from-bottom-4 duration-300 flex flex-col max-h-[85vh]"
+                onClick={e => e.stopPropagation()}
+            >
+                {/* Handle bar */}
+                <div className="w-10 h-1 bg-slate-200 dark:bg-slate-700 rounded-full mx-auto mb-5 shrink-0" />
+
+                {/* Icon + Title */}
+                <div className="flex items-center gap-4 mb-4 shrink-0">
+                    <div className={`${style.bg} ${style.color} flex items-center justify-center rounded-xl shrink-0 size-14`}>
+                        <MaterialIcon name={style.icon} className="text-2xl" style={{ fontVariationSettings: "'FILL' 1" }} />
+                    </div>
+                    <div>
+                        <p className="text-slate-900 dark:text-white font-bold text-lg leading-tight">{notif.title}</p>
+                        <p className="text-slate-400 text-xs mt-0.5">
+                            {new Date(notif.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })} às {new Date(notif.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </p>
+                    </div>
+                </div>
+
+                {/* Full Message — scrollable area */}
+                <div className="bg-slate-50 dark:bg-slate-800/50 rounded-2xl p-4 mb-5 overflow-y-auto flex-1 min-h-[60px]">
+                    <p className="text-slate-700 dark:text-slate-200 text-sm leading-relaxed whitespace-pre-wrap">{notif.message}</p>
+                </div>
+
+                {/* Actions — always visible at bottom */}
+                <div className="flex flex-col gap-2 shrink-0">
+                    {orderId && (
+                        <button
+                            onClick={() => { onClose(); navigate(`/order-tracking/${orderId}`); }}
+                            className="w-full bg-primary text-white dark:text-slate-900 font-bold py-3.5 rounded-xl text-sm active:scale-95 transition-transform"
+                        >
+                            Ver Pedido
+                        </button>
+                    )}
+                    <button
+                        onClick={onClose}
+                        className="w-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-semibold py-3.5 rounded-xl text-sm active:scale-95 transition-transform"
+                    >
+                        Fechar
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 const Notifications = () => {
     const navigate = useNavigate();
     const [userId, setUserId] = useState<string | null>(null);
     const [activeFilter, setActiveFilter] = useState<'Todas' | 'Promoções' | 'Pedidos' | 'Saúde'>('Todas');
+    const [selectedNotif, setSelectedNotif] = useState<Notification | null>(null);
 
     useEffect(() => {
         supabase.auth.getSession().then(({ data: { session } }) => {
@@ -44,8 +120,21 @@ const Notifications = () => {
         }
     };
 
+    const handleClick = (notif: Notification) => {
+        if (!notif.is_read) markAsRead(notif.id);
+        setSelectedNotif(notif);
+    };
+
     return (
         <div className="flex flex-col min-h-screen w-full md:max-w-6xl mx-auto bg-background-light dark:bg-background-dark shadow-2xl md:shadow-none relative font-display text-slate-900 dark:text-slate-100 antialiased transition-colors duration-200">
+
+            {/* Modal */}
+            {selectedNotif && (
+                <NotificationModal
+                    notif={selectedNotif}
+                    onClose={() => setSelectedNotif(null)}
+                />
+            )}
 
             {/* Header */}
             <header className="sticky top-0 z-50 bg-background-light/80 dark:bg-background-dark/80 backdrop-blur-md pt-4 pb-4 px-4 border-b border-slate-200 dark:border-slate-800">
@@ -102,11 +191,12 @@ const Notifications = () => {
 
                     {filteredNotifications.map((notif) => {
                         const style = getIcon(notif.type);
+                        const isLong = notif.message && notif.message.length > 60;
                         return (
                             <div
                                 key={notif.id}
-                                onClick={() => !notif.is_read && markAsRead(notif.id)}
-                                className={`flex items-start gap-4 p-4 rounded-xl border shadow-sm relative transition-all cursor-pointer ${notif.is_read ? 'bg-slate-50/50 dark:bg-[#1a2333]/40 border-transparent opacity-80' : 'bg-white dark:bg-[#1a2333] border-slate-100 dark:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-[#1a2333]/80'}`}
+                                onClick={() => handleClick(notif)}
+                                className={`flex items-start gap-4 p-4 rounded-xl border shadow-sm relative transition-all cursor-pointer active:scale-[0.98] ${notif.is_read ? 'bg-slate-50/50 dark:bg-[#1a2333]/40 border-transparent opacity-80' : 'bg-white dark:bg-[#1a2333] border-slate-100 dark:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-[#1a2333]/80'}`}
                             >
                                 {!notif.is_read && (
                                     <div className="absolute right-4 top-4 w-2 h-2 rounded-full bg-primary animate-pulse"></div>
@@ -114,12 +204,19 @@ const Notifications = () => {
                                 <div className={`${style.bg} ${style.color} flex items-center justify-center rounded-lg shrink-0 size-12`}>
                                     <MaterialIcon name={style.icon} style={{ fontVariationSettings: "'FILL' 1" }} />
                                 </div>
-                                <div className="flex flex-col flex-1 pr-4">
+                                <div className="flex flex-col flex-1 pr-4 min-w-0">
                                     <p className="text-slate-900 dark:text-white text-base font-semibold leading-tight">{notif.title}</p>
-                                    <p className="text-slate-600 dark:text-slate-400 text-sm mt-1 leading-snug">{notif.message}</p>
-                                    <p className="text-slate-400 dark:text-slate-500 text-xs mt-2 font-medium">
-                                        {new Date(notif.created_at).toLocaleDateString()} {new Date(notif.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                    <p className={`text-slate-600 dark:text-slate-400 text-sm mt-1 leading-snug ${isLong ? 'line-clamp-2' : ''}`}>
+                                        {notif.message}
                                     </p>
+                                    <div className="flex items-center justify-between mt-2">
+                                        <p className="text-slate-400 dark:text-slate-500 text-xs font-medium">
+                                            {new Date(notif.created_at).toLocaleDateString()} {new Date(notif.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                        </p>
+                                        {isLong && (
+                                            <span className="text-primary text-xs font-bold">Ver mais →</span>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
                         );
