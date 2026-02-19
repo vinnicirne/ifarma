@@ -44,8 +44,8 @@ const UserProfile = ({ session, profile, onRefresh }: { session: any, profile: a
                 phone: profile.phone || '',
                 avatar_url: profile.avatar_url || '',
                 address: profile.address || '',
-                number: '',
-                complement: '',
+                number: profile.number || '',
+                complement: profile.complement || '',
                 latitude: profile.latitude || null,
                 longitude: profile.longitude || null
             });
@@ -171,7 +171,9 @@ const UserProfile = ({ session, profile, onRefresh }: { session: any, profile: a
                     cpf: cpfValue,
                     phone: formData.phone,
                     avatar_url: formData.avatar_url,
-                    address: fullAddress,
+                    address: formData.address,
+                    number: formData.number,
+                    complement: formData.complement,
                     latitude: formData.latitude,
                     longitude: formData.longitude
                 })

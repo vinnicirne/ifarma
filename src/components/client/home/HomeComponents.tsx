@@ -164,9 +164,18 @@ export const InternalAdCarousel = ({ region = 'global' }: { region?: string }) =
 
     return (
         <div className="w-full pb-4">
-            <div className="px-8 mb-3 flex items-center gap-2">
-                <MaterialIcon name="verified" className="text-primary text-sm" />
-                <span className="text-[10px] font-black uppercase text-white tracking-widest">Patrocinado</span>
+            <div className="px-8 pt-8 pb-3 flex items-center gap-3">
+                <div className="size-10 rounded-full bg-yellow-500/10 flex items-center justify-center border border-yellow-500/20">
+                    <MaterialIcon name="verified" className="text-yellow-500 text-xl" />
+                </div>
+                <div className="flex flex-col gap-0.5">
+                    <p className="text-[10px] font-black text-white italic uppercase tracking-[0.15em] leading-tight">
+                        Patrocinado
+                    </p>
+                    <p className="text-[9px] font-black text-primary uppercase tracking-widest">
+                        CAMPANHAS EM DESTAQUE
+                    </p>
+                </div>
             </div>
 
             <div className="w-full overflow-x-auto hide-scrollbar scroll-smooth">
@@ -294,10 +303,19 @@ export const FeaturedPharmacies = ({ config, pharmacies, title }: { pharmacies: 
 
     return (
         <div className="w-full">
-            <div className="px-8 pt-6 pb-2 flex justify-between items-center">
-                <div>
-                    <h3 className="text-[#0d161b] dark:text-white text-lg font-bold leading-tight tracking-[-0.015em]">{title || config?.title || 'Patrocinado'}</h3>
-                    <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">{config?.description || 'Farmácias em destaque na sua região'}</p>
+            <div className="px-8 pt-8 pb-3 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                    <div className="size-10 rounded-full bg-yellow-500/10 flex items-center justify-center border border-yellow-500/20">
+                        <MaterialIcon name="verified" className="text-yellow-500 text-xl" />
+                    </div>
+                    <div className="flex flex-col gap-0.5">
+                        <p className="text-[10px] font-black text-white italic uppercase tracking-[0.15em] leading-tight">
+                            {title || config?.title || 'Patrocinado'}
+                        </p>
+                        <p className="text-[9px] font-black text-primary uppercase tracking-widest">
+                            {config?.description || 'Farmácias em destaque na sua região'}
+                        </p>
+                    </div>
                 </div>
                 {displayList.length > 3 && (
                     <Link to="/pharmacies" className="text-[10px] font-bold text-primary hover:text-white transition-colors uppercase tracking-wider flex items-center gap-1">

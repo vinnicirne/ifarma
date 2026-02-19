@@ -374,6 +374,19 @@ export const UserOrderTracking = () => {
                     </div>
                 </div>
 
+                {order?.status === 'cancelado' && order?.cancellation_reason === 'timeout' && (
+                    <div className="mb-6 bg-red-500/10 border border-red-500/20 p-4 rounded-2xl animate-in fade-in slide-in-from-top-4 duration-500">
+                        <div className="flex items-center gap-3 mb-1">
+                            <MaterialIcon name="timer_off" className="text-red-500" />
+                            <p className="text-red-500 font-bold">Pedido não aceito</p>
+                        </div>
+                        <p className="text-[11px] text-red-600/80 leading-relaxed font-medium">
+                            A farmácia não visualizou seu pedido em tempo hábil (5 min). Para sua segurança, o pedido foi cancelado automaticamente.
+                            <br /><span className="font-bold underline">Por favor, tente realizar o pedido novamente.</span>
+                        </p>
+                    </div>
+                )}
+
                 <div className="space-y-6 px-4">
                     {steps.map((step, idx) => (
                         <div key={idx} className={`flex gap-4 items-start ${idx > currentStepIndex ? 'opacity-30' : ''}`}>

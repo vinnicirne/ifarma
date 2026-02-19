@@ -55,6 +55,7 @@ export const useNotifications = (userId: string | null) => {
         if (!error) {
             setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
             setUnreadCount(0);
+            fetchNotifications(); // Force refresh to stay in sync
         }
     };
 
