@@ -262,6 +262,9 @@ const StoreCustomization = () => {
     };
 
     const handleSave = async () => {
+        if (!pharmacy?.id) return;
+
+        setSaving(true);
         console.log("handleSave: Iniciando salvamento das configurações para pharmacy ID:", pharmacy.id);
 
         // Validation for Delivery Fee & Distance
@@ -284,13 +287,10 @@ const StoreCustomization = () => {
             return;
         }
 
-        setSaving(false); // Reset saving state before real save start (it was set true at beginning of fn)
-        setSaving(true);
-
         const fullAddress = `${street}, ${number} - ${neighborhood}, ${city} - ${state}`;
 
         try {
-            const { error } = await supabase
+            const { data: updateResult, error } = await supabase
                 .from('pharmacies')
                 .update({
                     name,
@@ -329,13 +329,20 @@ const StoreCustomization = () => {
                     delivery_max_km: deliveryMaxKm,
                     delivery_time_min: deliveryTimeMin,
                     delivery_time_max: deliveryTimeMax,
-                    updated_at: new Date()
+                    updated_at: new Date().toISOString()
                 })
-                .eq('id', pharmacy.id);
+                .eq('id', pharmacy.id)
+                .select();
 
             if (error) {
                 console.error("handleSave: Erro retornado pelo supabase:", error);
                 throw error;
+            }
+
+            if (!updateResult || updateResult.length === 0) {
+                console.warn("handleSave: Nenhuma linha atualizada. Verifique permissões RLS.");
+                alert("Erro de permissão: Você não tem autorização para alterar as configurações desta farmácia.");
+                return;
             }
 
             console.log("handleSave: Configurações salvas com sucesso!");
