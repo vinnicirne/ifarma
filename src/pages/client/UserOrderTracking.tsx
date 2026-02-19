@@ -420,10 +420,25 @@ export const UserOrderTracking = () => {
             <OrderCancellationModal
                 isOpen={isCancelModalOpen}
                 onClose={() => setIsCancelModalOpen(false)}
-                orderId={orderId || ""}
-                onSuccess={() => {
-                    setIsCancelModalOpen(false);
-                    // Refresh data or status will auto-update via realtime
+                userRole="customer"
+                onConfirm={async (reason) => {
+                    try {
+                        const { error } = await supabase
+                            .from('orders')
+                            .update({
+                                status: 'cancelado',
+                                cancellation_reason: reason,
+                                cancelled_at: new Date().toISOString(),
+                                cancelled_by: userId
+                            })
+                            .eq('id', orderId);
+
+                        if (error) throw error;
+                        setIsCancelModalOpen(false);
+                    } catch (err: any) {
+                        console.error("Erro ao cancelar pedido:", err);
+                        alert("Falha ao cancelar pedido. Tente novamente.");
+                    }
                 }}
             />
         </div>

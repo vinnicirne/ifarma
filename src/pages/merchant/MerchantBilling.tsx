@@ -67,11 +67,14 @@ const MerchantBilling = () => {
                     return;
                 }
 
-                if (payload.new && payload.new.status === 'active') {
+                if (payload.new && (payload.new as any).status === 'active') {
                     setCurrentCycle(payload.new);
 
-                    if (payload.old?.free_orders_used !== payload.new?.free_orders_used) {
-                        const used = payload.new.free_orders_used || 0;
+                    const oldUsed = (payload.old as any)?.free_orders_used;
+                    const newUsed = (payload.new as any)?.free_orders_used;
+
+                    if (oldUsed !== newUsed) {
+                        const used = newUsed || 0;
                         const limit = subscription?.plan?.free_orders_per_period || 0;
                         const remaining = Math.max(0, limit - used);
 
