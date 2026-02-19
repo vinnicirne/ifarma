@@ -93,6 +93,7 @@ const MotoboyDeliveryConfirm = () => {
             } catch (e) { console.warn("Erro ao limpar cache local:", e); }
 
             setShowSuccess(true);
+            setTimeout(() => navigate('/motoboy-dashboard'), 3000);
         } catch (error: any) {
             console.error(error);
             alert('Erro ao confirmar entrega: ' + (error.message || 'Erro desconhecido'));

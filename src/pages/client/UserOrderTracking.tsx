@@ -19,6 +19,7 @@ export const UserOrderTracking = () => {
     const [error, setError] = useState<string | null>(null);
     const [userId, setUserId] = useState<string | null>(null);
     const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
+    const [countdownSeconds, setCountdownSeconds] = useState<number | null>(null);
 
     const { unreadCount: notificationCount } = useNotifications(userId);
 
@@ -306,7 +307,52 @@ export const UserOrderTracking = () => {
             const timer = setTimeout(() => navigate('/'), 4000);
             return () => clearTimeout(timer);
         }
+        if (order?.status === 'cancelado') {
+            const timer = setTimeout(() => navigate('/'), 3000);
+            return () => clearTimeout(timer);
+        }
     }, [order?.status]);
+
+    // 5-min countdown timer + client-side auto-cancel fallback
+    useEffect(() => {
+        if (!order || order.status !== 'pendente') {
+            setCountdownSeconds(null);
+            return;
+        }
+
+        const orderCreatedAt = new Date(order.created_at).getTime();
+        const TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
+        let cancelled = false;
+
+        const tick = async () => {
+            const elapsed = Date.now() - orderCreatedAt;
+            const remaining = Math.max(0, Math.floor((TIMEOUT_MS - elapsed) / 1000));
+            setCountdownSeconds(remaining);
+
+            if (remaining === 0 && !cancelled) {
+                cancelled = true; // Guard: only cancel once
+                const { error } = await supabase
+                    .from('orders')
+                    .update({
+                        status: 'cancelado',
+                        cancellation_reason: 'timeout',
+                        cancelled_at: new Date().toISOString()
+                    })
+                    .eq('id', order.id)
+                    .eq('status', 'pendente'); // Safety: only if still pending
+
+                if (!error) {
+                    setOrder((prev: any) => ({ ...prev, status: 'cancelado', cancellation_reason: 'timeout' }));
+                } else {
+                    console.error('Erro no cancelamento automático:', error);
+                }
+            }
+        };
+
+        tick(); // Run immediately
+        const interval = setInterval(tick, 1000);
+        return () => clearInterval(interval);
+    }, [order?.id, order?.status]);
 
     if (error) return <div className="p-6 bg-background-dark text-white text-center"><h2>{error}</h2></div>;
     if (!order) return <div className="p-6 bg-background-dark text-white text-center">Carregando...</div>;
@@ -372,6 +418,22 @@ export const UserOrderTracking = () => {
                         <p className="text-[10px] uppercase font-bold text-primary">Previsão</p>
                         <p className="text-xl font-bold">{calculateETA()}</p>
                     </div>
+                    {order?.status === 'pendente' && countdownSeconds !== null && (
+                        <div className={`flex flex-col items-center px-4 py-2 rounded-2xl border transition-colors ${countdownSeconds <= 60
+                            ? 'bg-red-500/10 border-red-500/30'
+                            : countdownSeconds <= 120
+                                ? 'bg-orange-500/10 border-orange-500/30'
+                                : 'bg-slate-100/50 border-slate-200 dark:bg-white/5 dark:border-white/10'
+                            }`}>
+                            <span className="text-[9px] uppercase font-black tracking-widest text-slate-500 dark:text-slate-400">Auto-cancela em</span>
+                            <span className={`font-black text-xl tabular-nums ${countdownSeconds <= 60 ? 'text-red-500 animate-pulse'
+                                : countdownSeconds <= 120 ? 'text-orange-500'
+                                    : 'text-slate-700 dark:text-white'
+                                }`}>
+                                {String(Math.floor(countdownSeconds / 60)).padStart(2, '0')}:{String(countdownSeconds % 60).padStart(2, '0')}
+                            </span>
+                        </div>
+                    )}
                 </div>
 
                 {order?.status === 'cancelado' && order?.cancellation_reason === 'timeout' && (

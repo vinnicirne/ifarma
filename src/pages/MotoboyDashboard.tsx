@@ -102,19 +102,33 @@ const MotoboyDashboard = ({ session, profile }: { session: any, profile: any }) 
         setLoading(true);
         isProcessingAction.current = true;
 
-        // Sincronizar status 'aceito' no banco para evitar conflitos
-        const { error } = await supabase.from('orders')
+        const { data: updated, error } = await supabase
+            .from('orders')
             .update({ status: 'aceito' })
-            .eq('id', order.id);
+            .eq('id', order.id)
+            .select('id, status');
 
-        if (!error) {
-            setAcceptedOrders(prev => [...new Set([...prev, order.id])]);
-            setOrdersQueue((prev: any[]) => prev.map(o => o.id === order.id ? { ...o, status: 'aceito' } : o));
-            setCurrentView('delivery');
+        if (error) {
+            console.error('Erro ao aceitar corrida:', error);
+            alert(`Erro ao aceitar corrida: ${error.message}`);
+            setLoading(false);
+            isProcessingAction.current = false;
+            return;
         }
+
+        if (!updated || updated.length === 0) {
+            console.error('Aceitar corrida bloqueado por RLS: 0 linhas atualizadas. Verifique permissões.');
+            alert('Não foi possível aceitar a corrida. Verifique se você está atribuído a esta farmácia.');
+            setLoading(false);
+            isProcessingAction.current = false;
+            return;
+        }
+
+        setAcceptedOrders(prev => [...new Set([...prev, order.id])]);
+        setOrdersQueue((prev: any[]) => prev.map(o => o.id === order.id ? { ...o, status: 'aceito' } : o));
+        setCurrentView('delivery');
         stopAudio();
 
-        // Simular um delay para feedback visual e evitar eco de Realtime
         setTimeout(() => { isProcessingAction.current = false; setLoading(false); }, 4000);
     };
 
