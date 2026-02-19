@@ -145,6 +145,21 @@ body {
   animation: slide-in-right 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
+@keyframes fade-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.animate-fade-in-right {
+  animation: fade-in-right 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
 .font-black {
   font-weight: 900;
 }

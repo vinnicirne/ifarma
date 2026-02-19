@@ -56,7 +56,7 @@ export const getInitialRoute = (): string => {
         case 'motoboy':
             return '/motoboy-login';
         case 'farmacia':
-            return '/merchant/login';
+            return '/gestor/login';
         default:
             return '/'; // Web padrão
     }

@@ -48,8 +48,9 @@ export const PromoCarousel = ({ config }: { config?: any }) => {
                 const { data } = await supabase
                     .from('promotions')
                     .select('*')
-                    .eq('is_active', true)
-                    .gte('end_date', new Date().toISOString().split('T')[0]);
+                    .eq('is_active', true);
+                // Removido gte('end_date') para ser mais permissivo, 
+                // o admin controla via 'is_active'
 
                 if (data && data.length > 0) {
                     setPromotions(data);
@@ -132,9 +133,7 @@ export const InternalAdCarousel = ({ region = 'global' }: { region?: string }) =
                 .from('ads_campaigns')
                 .select('*')
                 .eq('is_active', true)
-                .lte('start_date', today)
-                .or(`end_date.is.null, end_date.gte.${today}`)
-                .eq('region_id', region)
+                .order('priority', { ascending: false })
                 .order('created_at', { ascending: false });
 
             if (data) setAds(data);
@@ -176,9 +175,10 @@ export const InternalAdCarousel = ({ region = 'global' }: { region?: string }) =
                         <div
                             key={ad.id}
                             onClick={() => handleAdClick(ad)}
-                            className="relative w-[300px] h-[180px] rounded-[28px] overflow-hidden shadow-xl border border-white/5 shrink-0 cursor-pointer active:scale-95 transition-all"
+                            className="relative w-[75vw] max-w-[340px] h-[180px] rounded-[28px] overflow-hidden shadow-xl border border-white/10 shrink-0 cursor-pointer active:scale-95 transition-all"
                         >
                             <img src={ad.image_url} alt={ad.title} className="w-full h-full object-cover" />
+                            <div className="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-black/60 to-transparent" />
                         </div>
                     ))}
                 </div>
@@ -341,8 +341,9 @@ export const SpecialHighlights = ({ config, title, pharmacies }: { pharmacies: a
                     is_generic,
                     pharmacies!inner(name, plan, status)
                 `)
-                .eq('pharmacies.status', 'approved')
-                .limit(config?.limit || 10);
+                .in('pharmacies.status', ['approved', 'Aprovado', 'active', 'Ativo'])
+                .order('promo_price', { ascending: true, nullsFirst: false })
+                .limit(config?.limit || 50);
 
             if ((!data || data.length === 0)) {
                 // FALLBACK: Get products from any approved pharmacy if featured pharmacies aren't available
@@ -358,15 +359,22 @@ export const SpecialHighlights = ({ config, title, pharmacies }: { pharmacies: a
                         is_generic,
                         pharmacies!inner(name, plan, status)
                     `)
-                    .eq('pharmacies.status', 'approved')
-                    .limit(10);
+                    .in('pharmacies.status', ['approved', 'Aprovado', 'active', 'Ativo'])
+                    .limit(50);
 
                 data = fallbackData;
                 setIsFallback(true);
             }
 
             if (data) {
-                data = data.sort(() => Math.random() - 0.5);
+                // Priority Sort: Items with Image + Promo > Items with Promo > Items with Image > Others
+                // Then randomize within groups
+                data = data.sort((a: any, b: any) => {
+                    const aScore = (a.promo_price ? 2 : 0) + (a.image_url ? 1 : 0);
+                    const bScore = (b.promo_price ? 2 : 0) + (b.image_url ? 1 : 0);
+                    if (aScore !== bScore) return bScore - aScore;
+                    return Math.random() - 0.5;
+                });
             }
 
             if (data) setProducts(data);
@@ -399,7 +407,7 @@ export const SpecialHighlights = ({ config, title, pharmacies }: { pharmacies: a
                         <Link
                             to={`/product/${item.id}`}
                             key={item.id}
-                            className={`w-32 bg-white dark:bg-[#1a2e23] p-3 rounded-[32px] flex flex-col gap-2 transition-all active:scale-95 border-b-4 border-yellow-400 shadow-[0_10px_15px_-6px_rgba(250,204,21,0.4)] shrink-0 snap-start`}
+                            className={`w-36 bg-[#1a2e23] p-3 rounded-[32px] flex flex-col gap-2 transition-all active:scale-95 border-b-4 border-[#FAC415] shadow-[0_10px_20px_-5px_rgba(26,46,35,0.5)] shrink-0 snap-start border border-white/5 text-left`}
                         >
                             <div className="aspect-square rounded-2xl bg-white dark:bg-black/20 flex items-center justify-center p-2 overflow-hidden relative border border-slate-100 dark:border-white/5">
                                 {item.image_url ? (
@@ -458,7 +466,7 @@ export const NearbyPharmacies = ({ pharmacies, config, title }: { pharmacies?: a
                         <Link
                             to={`/pharmacy/${pharma.id}`}
                             key={pharma.id}
-                            className={`flex items-center gap-4 p-4 rounded-[28px] bg-white dark:bg-[#1a2e23] border border-slate-100 dark:border-white/5 active:scale-[0.98] transition-all shadow-sm ${!isOpen ? 'grayscale' : ''}`}
+                            className={`flex items-center gap-4 p-4 rounded-[32px] bg-[#1a2e23] border border-white/5 active:scale-[0.98] transition-all shadow-lg ${!isOpen ? 'grayscale opacity-60' : ''}`}
                         >
                             <div className="size-16 rounded-2xl bg-slate-50 dark:bg-black/20 flex items-center justify-center p-2 relative overflow-hidden border border-slate-100 dark:border-white/5">
                                 {pharma.logo_url ? (

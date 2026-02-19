@@ -3,10 +3,10 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 
 // Loading Component
 const LoadingScreen = () => (
-    <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+    <div className="flex items-center justify-center min-h-screen bg-[#0d161b]">
         <div className="text-center">
-            <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-indigo-600 mx-auto mb-4"></div>
-            <p className="text-gray-600 font-medium">Carregando...</p>
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+            <p className="text-primary/60 text-[10px] font-black uppercase tracking-widest">Carregando...</p>
         </div>
     </div>
 );

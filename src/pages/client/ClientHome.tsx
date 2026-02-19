@@ -23,6 +23,7 @@ import {
     HomeSkeleton
 } from '../../components/client/home/HomeComponents';
 import { rankPharmaciesIfoodStyle } from '../../lib/ranking';
+import { useToast } from '../../components/ToastProvider';
 
 export const ClientHome = ({ userLocation, sortedPharmacies, session }: { userLocation: { lat: number, lng: number } | null, sortedPharmacies: any[], session: any }) => {
     const navigate = useNavigate();
@@ -32,6 +33,7 @@ export const ClientHome = ({ userLocation, sortedPharmacies, session }: { userLo
     const [feedSections, setFeedSections] = useState<any[]>([]);
     const [loadingFeed, setLoadingFeed] = useState(true);
     const cartCount = useCartCount(session?.user?.id);
+    const { showToast } = useToast();
 
     // --- FALLBACK SYSTEM (Resilience) ---
     const [fallbackPharmacies, setFallbackPharmacies] = useState<any[]>([]);
@@ -103,17 +105,10 @@ export const ClientHome = ({ userLocation, sortedPharmacies, session }: { userLo
                 .select('*');
 
             if (data && data.length > 0) {
-                // Prevenir duplicatas de tipo no frontend por segurança
-                const uniqueSections = data.reduce((acc: any[], current: any) => {
-                    const x = acc.find(item => item.type === current.type);
-                    if (!x) return acc.concat([current]);
-                    else return acc;
-                }, []);
-
-                setFeedSections(uniqueSections);
+                setFeedSections(data);
                 const settingsMap: any = {};
                 settingsData?.forEach(s => settingsMap[s.key] = s.value);
-                handleAdMob(uniqueSections, settingsMap);
+                handleAdMob(data, settingsMap);
             }
             setLoadingFeed(false);
         };
@@ -170,10 +165,11 @@ export const ClientHome = ({ userLocation, sortedPharmacies, session }: { userLo
             const pharmacyId = item?.pharmacy_id;
 
             await addToCart(productId, pharmacyId || '');
-            alert('Produto adicionado ao carrinho! 🛒');
+            // Soft feedback with Toast
+            showToast('Produto adicionado ao carrinho!', 'info');
         } catch (error: any) {
             console.error("💥 Erro ao adicionar ao carrinho:", error);
-            alert(`Erro: ${error.message}`);
+            showToast('Erro ao adicionar produto', 'error');
         }
     };
 
@@ -333,7 +329,7 @@ export const ClientHome = ({ userLocation, sortedPharmacies, session }: { userLo
                                                     <span className="text-primary font-black text-lg italic tracking-tighter">R$ {parseFloat(item.price).toFixed(2)}</span>
                                                 </div>
                                                 <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">{item.product.category}</p>
-                                                
+
                                                 {/* Informações adicionais do produto */}
                                                 {item.brand && (
                                                     <p className="text-[9px] text-slate-500 font-medium mt-1">Marca: {item.brand}</p>
@@ -357,9 +353,9 @@ export const ClientHome = ({ userLocation, sortedPharmacies, session }: { userLo
                                                     <div className="inline-flex items-center gap-1 mt-1">
                                                         <MaterialIcon name="warning" className="text-amber-500 text-xs" />
                                                         <span className="text-[9px] text-amber-500 font-black uppercase tracking-widest">
-                                                            {item.control_level === 'controlled_yellow' ? 'Receita Amarela' : 
-                                                             item.control_level === 'controlled_blue' ? 'Receita Azul' : 
-                                                             item.control_level === 'prescription_only' ? 'Venda sob Prescrição' : 'Controle Especial'}
+                                                            {item.control_level === 'controlled_yellow' ? 'Receita Amarela' :
+                                                                item.control_level === 'controlled_blue' ? 'Receita Azul' :
+                                                                    item.control_level === 'prescription_only' ? 'Venda sob Prescrição' : 'Controle Especial'}
                                                         </span>
                                                     </div>
                                                 )}

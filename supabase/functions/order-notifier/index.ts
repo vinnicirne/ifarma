@@ -180,13 +180,14 @@ serve(async (req) => {
             const senderId = messageRecord.sender_id
             const content = messageRecord.content
 
-            // 1. Buscar detalhes do pedido e participantes
+            // 1. Buscar detalhes do pedido e participantes com IDs corretos
             const { data: order, error: orderError } = await supabase
                 .from('orders')
                 .select(`
                     customer_id, 
-                    motoboy_id, 
-                    pharmacy:pharmacies(owner_id, name)
+                    motoboy_id,
+                    pharmacy_id,
+                    pharmacy:pharmacies(id, owner_id, name)
                 `)
                 .eq('id', orderId)
                 .single()
@@ -198,8 +199,9 @@ serve(async (req) => {
 
             const motoboyId = order.motoboy_id;
 
-            // Robustez: Tratar se 'pharmacy' retornar objeto ou array (depende do PostgREST)
+            // Robustez: Tratar se 'pharmacy' retornar objeto ou array
             const pharmacyData = Array.isArray(order.pharmacy) ? order.pharmacy[0] : order.pharmacy;
+            const pharmacyId = pharmacyData?.id || order.pharmacy_id;
             const pharmacyOwnerId = pharmacyData?.owner_id;
             const pharmacyName = pharmacyData?.name || 'Farmácia';
             const customerId = order.customer_id;
@@ -214,7 +216,7 @@ serve(async (req) => {
                 const { data: pharmacyUsers } = await supabase
                     .from('profiles')
                     .select('id')
-                    .eq('pharmacy_id', order.pharmacy?.id || order.pharmacy_id)
+                    .eq('pharmacy_id', pharmacyId)
 
                 if (pharmacyUsers) {
                     pharmacyUsers.forEach(u => recipients.push(u.id))
@@ -237,7 +239,7 @@ serve(async (req) => {
                 const { data: pharmacyUsers } = await supabase
                     .from('profiles')
                     .select('id')
-                    .eq('pharmacy_id', order.pharmacy?.id || order.pharmacy_id)
+                    .eq('pharmacy_id', pharmacyId)
 
                 if (pharmacyUsers) {
                     pharmacyUsers.forEach(u => recipients.push(u.id))

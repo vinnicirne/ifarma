@@ -73,8 +73,12 @@ export function rankPharmaciesIfoodStyle(pharmacies: any[], userLocation: { lat:
         if (isOpen) score += 800; else score -= 200;
 
         // rotação controlada (determinística): muda por “bucket” (hora), mas não fica doido
-        const rot = hashToFloat(`${p.id}-${bucket}`) * 30; // 0..30
+        const rot = hashToFloat(`${p.id}-${bucket}`) * 10; // Reduzido de 30 para 10 para evitar saltos drásticos
         score += rot;
+
+        // Garantir que lojas abertas sempre estejam no topo se a diferença de score não for absurda
+        if (isOpen) score += 5000;
+        else score -= 1000;
 
         return { ...p, distance, isOpen, is_featured: isFeatured, score };
     });

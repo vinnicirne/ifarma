@@ -7,6 +7,7 @@ import { initAppContext } from './lib/appContext';
 import { calculateDistance } from './lib/geoUtils';
 import { Capacitor } from '@capacitor/core';
 import { AppRoutes } from './routes/AppRoutes';
+import { rankPharmaciesIfoodStyle } from './lib/ranking';
 
 function App() {
   const [session, setSession] = useState<any>(null);
@@ -326,107 +327,10 @@ function App() {
   const deferredPharmacies = useDeferredValue(allPharmacies);
   const deferredUserLocation = useDeferredValue(userLocation);
 
+  // Process and sort nearby pharmacies using shared ranking logic
   const sortedPharmacies = useMemo(() => {
-    const referenceLoc = deferredUserLocation || { lat: -22.8269, lng: -43.0539 };
-    const now = new Date();
-    const isNewThreshold = 90 * 24 * 60 * 60 * 1000; // 90 days in ms
-    const currentDay = now.getDay();
-    const currentTime = now.getHours() * 60 + now.getMinutes();
-
-    return deferredPharmacies.map(p => {
-      let distance = Infinity;
-      if (p.latitude && p.longitude) {
-        distance = calculateDistance(
-          referenceLoc.lat,
-          referenceLoc.lng,
-          Number(p.latitude),
-          Number(p.longitude)
-        );
-      }
-
-      // Calculate if pharmacy is new
-      const createdDate = new Date(p.created_at);
-      const isNew = (now.getTime() - createdDate.getTime()) < isNewThreshold;
-
-      // Calculate isOpen status for Sorting
-      let isOpen = false;
-      if (p.is_open) {
-        isOpen = true; // Manual override (Always Open)
-      } else if (p.auto_open_status && Array.isArray(p.opening_hours) && p.opening_hours.length > 0) {
-        // Automatic Schedule Logic
-        const todayRule = p.opening_hours.find((h: any) => h.day === currentDay);
-        if (todayRule && !todayRule.closed && todayRule.open && todayRule.close) {
-          const [hOpen, mOpen] = todayRule.open.split(':').map(Number);
-          const [hClose, mClose] = todayRule.close.split(':').map(Number);
-          const openTimeVal = hOpen * 60 + mOpen;
-          const closeTimeVal = hClose * 60 + mClose;
-
-          if (currentTime >= openTimeVal && currentTime < closeTimeVal) {
-            isOpen = true;
-          }
-        }
-      }
-
-      // Feature Flag - is_featured do banco OU planos pagos aparecem como Destaque
-      const plan = p.plan?.toLowerCase();
-      const is_featured = p.is_featured === true || ['premium', 'pro', 'destaque'].includes(plan);
-
-      // 🧠 ALGORITMO DE RANQUEAMENTO INTELIGENTE (iFood Style)
-      // ======================================================
-
-      // 1. Proximidade (Peso Alto - 35%)
-      const distKm = (distance || 0) / 1000;
-      const scoreProx = Math.max(0, 100 - (distKm * 6));
-
-      // 2. Tempo de Entrega (Peso Médio - 25%)
-      const avgTime = (Number(p.delivery_time_min || 30) + Number(p.delivery_time_max || 60)) / 2;
-      const scoreTime = Math.max(0, 100 - (avgTime * 1.5));
-
-      // 3. Performance Operacional / SLA (Peso 20%)
-      const scoreSla = p.sla_score !== undefined ? Number(p.sla_score) : 100;
-
-      // 4. Avaliação (Peso 15%)
-      const scoreRating = (Number(p.rating) || 5) * 20;
-
-      // 5. Promoção/Planos (Peso 5%)
-      const scorePromo = is_featured ? 100 : 0;
-
-      // CÁLCULO FINAL
-      let finalScore =
-        (scoreProx * 0.35) +
-        (scoreTime * 0.25) +
-        (scoreSla * 0.20) +
-        (scoreRating * 0.15) +
-        (scorePromo * 0.05);
-
-      // BOOSTS E RANDOMIZAÇÃO (Fair Rotation)
-      // =====================================
-      if (is_featured) {
-        // 1. Boost massivo para garantir que fiquem no topo (Tier 1)
-        finalScore += 10000;
-
-        // 2. Jitter Determinístico (Melhor que random)
-        // Adiciona um offset fixo baseado no ID para desempatar mas manter ordem estável
-        // Isso evita que a lista "pule" a cada refresh ou navegação
-        const idSum = p.id.split('').reduce((acc: number, char: string) => acc + char.charCodeAt(0), 0);
-        finalScore += (idSum % 2000); // 0..1999 pontos estáveis
-      }
-
-      if (p.is_sponsored) finalScore += 5000; // Ads específicos (Banner de busca, etc)
-
-      if (isOpen) {
-        finalScore += 5000; // Lojas abertas sempre acima das fechadas no mesmo tier
-      } else {
-        finalScore -= 100;
-      }
-
-      if (isNew) finalScore += 50;
-
-      return { ...p, distance, isNew, isOpen, is_featured, score: finalScore };
-    }).sort((a, b) => b.score - a.score);
+    return rankPharmaciesIfoodStyle(allPharmacies, userLocation);
   }, [allPharmacies, userLocation]);
-
-
 
   if (loading || !contextLoaded) {
     return (
