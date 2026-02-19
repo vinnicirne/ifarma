@@ -47,6 +47,47 @@ const MerchantBilling = () => {
         }
     }, [subscription?.status]);
 
+    // Realtime subscription para billing cycles
+    useEffect(() => {
+        if (!pharmacyId) return;
+
+        const billingChannel = supabase
+            .channel(`billing_cycle_${pharmacyId}`)
+            .on('postgres_changes', {
+                event: '*', // Listen to ALL changes (UPDATE, INSERT, DELETE)
+                schema: 'public',
+                table: 'billing_cycles',
+                filter: `pharmacy_id=eq.${pharmacyId}`
+            }, (payload) => {
+                console.log('Faturamento Notificação:', payload.eventType, payload.new);
+
+                // If it's a delete or deactivate, we might need a full refresh
+                if (payload.eventType === 'DELETE' || (payload.new && payload.new.status !== 'active')) {
+                    fetchBillingData(true);
+                    return;
+                }
+
+                if (payload.new && payload.new.status === 'active') {
+                    setCurrentCycle(payload.new);
+
+                    if (payload.old?.free_orders_used !== payload.new?.free_orders_used) {
+                        const used = payload.new.free_orders_used || 0;
+                        const limit = subscription?.plan?.free_orders_per_period || 0;
+                        const remaining = Math.max(0, limit - used);
+
+                        if (remaining <= 2) {
+                            toast(`⚠️ Atenção: você tem apenas ${remaining} pedido${remaining !== 1 ? 's' : ''} grátis!`);
+                        }
+                    }
+                }
+            })
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(billingChannel);
+        };
+    }, [pharmacyId, subscription?.plan?.free_orders_per_period]);
+
     const fetchBillingData = async (silent = false) => {
         if (!silent) setLoading(true);
         try {
@@ -103,14 +144,17 @@ const MerchantBilling = () => {
                 .maybeSingle();
             setSubscription(sub);
 
-            // 2. Fetch Current Cycle
-            const { data: cycle } = await supabase
+            // 2. Fetch Current Cycle (Mais robusto: pega o mais recente ativo)
+            const { data: cycles, error: cycleErr } = await supabase
                 .from('billing_cycles')
                 .select('*')
                 .eq('pharmacy_id', pId)
                 .eq('status', 'active')
-                .maybeSingle();
-            setCurrentCycle(cycle);
+                .order('period_start', { ascending: false })
+                .limit(1);
+
+            if (cycleErr) console.error("Erro ao buscar ciclo:", cycleErr);
+            setCurrentCycle(cycles && cycles.length > 0 ? cycles[0] : null);
 
             // 3. Fetch Available Plans (for upgrade/selection)
             // Apenas planos ativos
@@ -173,6 +217,11 @@ const MerchantBilling = () => {
         } finally {
             setLoading(false);
         }
+    };
+
+    const handleRefreshBilling = async () => {
+        await fetchBillingData(true);
+        toast.success('Contadores atualizados!');
     };
 
     const calculatePercentage = () => {
@@ -331,7 +380,18 @@ const MerchantBilling = () => {
                     <div className="bg-[#111a16] border border-white/5 rounded-[40px] p-8 flex flex-col shadow-xl">
                         <div className="flex justify-between items-center mb-6">
                             <h4 className="text-xs font-black text-white uppercase tracking-widest italic leading-none">Limite de Pedidos</h4>
-                            <Zap size={16} className="text-primary animate-pulse" />
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={handleRefreshBilling}
+                                    className="text-primary hover:text-primary/80 transition-colors"
+                                    title="Atualizar contadores"
+                                >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                    </svg>
+                                </button>
+                                <Zap size={16} className="text-primary animate-pulse" />
+                            </div>
                         </div>
 
                         <div className="space-y-6">
@@ -351,11 +411,36 @@ const MerchantBilling = () => {
                                 ></div>
                             </div>
 
+                            {/* --- NEW: Overage Counter Section --- */}
+                            {currentCycle?.overage_orders > 0 && (
+                                <div className="space-y-3 mt-4 animate-fade-in">
+                                    <div className="flex justify-between items-end">
+                                        <div className="flex flex-col">
+                                            <span className="text-[10px] font-black text-amber-500 uppercase tracking-widest leading-none mb-1">Pedidos Excedentes</span>
+                                            <span className="text-2xl font-[900] italic text-white tracking-tighter leading-none">
+                                                +{currentCycle.overage_orders}
+                                            </span>
+                                        </div>
+                                        <div className="text-right">
+                                            <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest leading-none block mb-1">Custo Adicional</span>
+                                            <span className="text-sm font-bold text-white italic">
+                                                {formatCurrency(currentCycle.overage_amount_cents || 0)}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div className="h-1.5 bg-amber-500/10 rounded-full overflow-hidden">
+                                        <div className="h-full bg-amber-500 w-full opacity-50 pulse"></div>
+                                    </div>
+                                </div>
+                            )}
+
                             <div className="p-4 bg-primary/5 rounded-2xl border border-primary/10">
                                 <p className="text-[9px] font-bold text-primary leading-relaxed text-center uppercase tracking-widest">
-                                    {calculatePercentage() >= 80
-                                        ? "Atenção: Você está chegando ao limite da sua franquia."
-                                        : "Sua franquia está saudável. Aproveite o crescimento!"
+                                    {currentCycle?.overage_orders > 0
+                                        ? `Você atingiu sua franquia e agora está gerando pedidos excedentes (+${currentCycle.overage_orders}).`
+                                        : calculatePercentage() >= 80
+                                            ? "Atenção: Você está chegando ao limite da sua franquia."
+                                            : "Sua franquia está saudável. Aproveite o crescimento!"
                                     }
                                 </p>
                             </div>

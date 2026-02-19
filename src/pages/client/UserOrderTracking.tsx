@@ -390,21 +390,42 @@ export const UserOrderTracking = () => {
             </div>
             <div className="h-32"></div>
 
-            <div className="px-6 py-4 fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[480px]">
+            <div className="px-6 py-4 fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[480px] flex flex-col gap-3 bg-gradient-to-t from-white dark:from-background-dark via-white dark:via-background-dark to-transparent pt-10">
                 <div className="relative">
                     <button
                         onClick={() => navigate(`/chat/${orderId}`)}
-                        className="w-full bg-primary py-4 rounded-full font-bold shadow-lg transition-transform active:scale-95"
+                        className="w-full bg-primary py-4 rounded-full font-bold shadow-lg transition-transform active:scale-95 text-[#0d1b13]"
                     >
                         Chat com a Farmácia
                     </button>
                     {unreadChatCount > 0 && (
-                        <div className="absolute -top-1 -right-1 bg-red-600 text-white text-[10px] font-bold w-6 h-6 rounded-full flex items-center justify-center border-2 border-white animate-bounce">
+                        <div className="absolute -top-1 -right-1 bg-red-600 text-white text-[10px] font-black w-6 h-6 rounded-full flex items-center justify-center border-2 border-white dark:border-zinc-900 animate-bounce">
                             {unreadChatCount}
                         </div>
                     )}
                 </div>
+
+                {/* Cancel Button - Only visible if status is NOT yet removed/en route/delivered/canceled */}
+                {['pendente', 'preparando', 'aguardando_motoboy', 'pronto_entrega', 'aceito'].includes(order?.status) && (
+                    <button
+                        onClick={() => setIsCancelModalOpen(true)}
+                        className="w-full bg-red-50 text-red-600 dark:bg-red-500/10 dark:text-red-400 py-3 rounded-full font-bold text-xs transition-all active:scale-95"
+                    >
+                        Cancelar Pedido
+                    </button>
+                )}
             </div>
+
+            {/* Modal de Cancelamento */}
+            <OrderCancellationModal
+                isOpen={isCancelModalOpen}
+                onClose={() => setIsCancelModalOpen(false)}
+                orderId={orderId || ""}
+                onSuccess={() => {
+                    setIsCancelModalOpen(false);
+                    // Refresh data or status will auto-update via realtime
+                }}
+            />
         </div>
     );
 };

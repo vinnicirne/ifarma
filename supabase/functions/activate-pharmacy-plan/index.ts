@@ -168,6 +168,30 @@ Deno.serve(async (req) => {
 
             if (upsertErr) return json({ error: upsertErr.message }, 500);
 
+            // --- NEW: Ensure Billing Cycle exists ---
+            try {
+                const today = new Date();
+                const periodStart = today.toISOString().split('T')[0];
+                const periodEnd = new Date(today);
+                periodEnd.setDate(periodEnd.getDate() + 30);
+                const periodEndStr = periodEnd.toISOString().split('T')[0];
+
+                await supabaseAdmin
+                    .from('billing_cycles')
+                    .upsert({
+                        pharmacy_id,
+                        period_start: periodStart,
+                        period_end: periodEndStr,
+                        status: 'active',
+                        free_orders_used: 0,
+                        overage_orders: 0,
+                        overage_amount_cents: 0,
+                    }, { onConflict: 'pharmacy_id,period_start' });
+            } catch (err) {
+                console.error("[activate-pharmacy-plan] Billing Cycle Insurance failed (non-blocking):", err);
+            }
+            // ----------------------------------------
+
             return json({ success: true, subscription: sub, pix: null });
         }
 
@@ -397,6 +421,30 @@ Deno.serve(async (req) => {
             console.error("[activate-pharmacy-plan] Subscription Upsert Failed:", upsertErr);
             return json({ error: upsertErr.message }, 500);
         }
+
+        // --- NEW: Ensure Billing Cycle exists ---
+        try {
+            const today = new Date();
+            const periodStart = today.toISOString().split('T')[0];
+            const periodEnd = new Date(today);
+            periodEnd.setDate(periodEnd.getDate() + 30);
+            const periodEndStr = periodEnd.toISOString().split('T')[0];
+
+            await supabaseAdmin
+                .from('billing_cycles')
+                .upsert({
+                    pharmacy_id,
+                    period_start: periodStart,
+                    period_end: periodEndStr,
+                    status: 'active',
+                    free_orders_used: 0,
+                    overage_orders: 0,
+                    overage_amount_cents: 0,
+                }, { onConflict: 'pharmacy_id,period_start' });
+        } catch (err) {
+            console.error("[activate-pharmacy-plan] Billing Cycle Insurance failed (non-blocking):", err);
+        }
+        // ----------------------------------------
 
         return json({
             success: !asaasError,

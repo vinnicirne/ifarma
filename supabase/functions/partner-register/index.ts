@@ -250,7 +250,7 @@ serve(async (req) => {
                 overage_orders: 0,
                 overage_fee_cents: 0,
                 overage_amount_cents: 0,
-                status: "open",
+                status: "active",
             }])
             .select()
             .single();

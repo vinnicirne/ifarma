@@ -238,6 +238,36 @@ Deno.serve(async (req) => {
             return json({ ok: true, warning: "falha ao ativar subscription" }, 200);
         } else {
             console.log(`[asaas-webhook] Subscription ${sub.id} ativada com sucesso!`);
+
+            // --- NEW: Create Rolling Billing Cycle starting on Payment Date ---
+            try {
+                const paymentDateStr = payment.paymentDate || new Date().toISOString().slice(0, 10);
+                const paymentDate = new Date(paymentDateStr);
+
+                // End date is 30 days after payment
+                const endDate = new Date(paymentDate);
+                endDate.setDate(endDate.getDate() + 30);
+                const endDateStr = endDate.toISOString().slice(0, 10);
+
+                console.log(`[asaas-webhook] Criando ciclo rolante: ${paymentDateStr} até ${endDateStr}`);
+
+                await supabaseAdmin
+                    .from('billing_cycles')
+                    .upsert({
+                        pharmacy_id: invoice.pharmacy_id,
+                        period_start: paymentDateStr,
+                        period_end: endDateStr,
+                        status: 'active',
+                        free_orders_used: 0,
+                        overage_orders: 0,
+                        overage_amount_cents: 0,
+                    }, { onConflict: 'pharmacy_id,period_start' });
+
+                console.log(`[asaas-webhook] Ciclo criado com sucesso para ${invoice.pharmacy_id}`);
+            } catch (err) {
+                console.error("[asaas-webhook] Erro ao criar ciclo inicial:", err);
+            }
+            // -----------------------------------------------------------------
         }
 
         // Bônus: logar se o pagamento veio com ID de subscription do Asaas

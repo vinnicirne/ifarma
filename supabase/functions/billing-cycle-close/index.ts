@@ -166,10 +166,41 @@ Deno.serve(async (req) => {
                 // 3.5. Atualizar status do ciclo para 'invoiced'
                 await supabase
                     .from('billing_cycles')
-                    .update({ status: 'invoiced' })
+                    .update({ status: 'closed' }) // Mantem 'closed' ou 'invoiced' conforme sua preferência, mas aqui abrimos o próximo
                     .eq('id', cycle.id);
 
-                console.log(`✅ Ciclo ${cycle.id} marcado como invoiced`);
+                console.log(`✅ Ciclo ${cycle.id} marcado como processado`);
+
+                // --- NEW: Open Next Cycle (30 days rolling) ---
+                try {
+                    const oldEnd = new Date(cycle.period_end);
+                    const nextStart = new Date(oldEnd);
+                    nextStart.setDate(nextStart.getDate() + 1);
+                    const nextStartStr = nextStart.toISOString().split('T')[0];
+
+                    const nextEnd = new Date(nextStart);
+                    nextEnd.setDate(nextEnd.getDate() + 30);
+                    const nextEndStr = nextEnd.toISOString().split('T')[0];
+
+                    console.log(`🆕 Abrindo próximo ciclo: ${nextStartStr} até ${nextEndStr}`);
+
+                    await supabase
+                        .from('billing_cycles')
+                        .insert({
+                            pharmacy_id: cycle.pharmacy_id,
+                            period_start: nextStartStr,
+                            period_end: nextEndStr,
+                            status: 'active',
+                            free_orders_used: 0,
+                            overage_orders: 0,
+                            overage_amount_cents: 0,
+                        });
+
+                    console.log(`✅ Próximo ciclo criado para farmácia ${cycle.pharmacy_id}`);
+                } catch (err) {
+                    console.error(`❌ Erro ao criar próximo ciclo para ${cycle.pharmacy_id}:`, err);
+                }
+                // ----------------------------------------------
 
             } catch (err) {
                 console.error(`❌ Erro ao processar ciclo ${cycle.id}:`, err);
