@@ -169,7 +169,7 @@ export const ClientHome = ({ userLocation, sortedPharmacies, session }: { userLo
             showToast('Produto adicionado ao carrinho!', 'info');
         } catch (error: any) {
             console.error("💥 Erro ao adicionar ao carrinho:", error);
-            showToast('Erro ao adicionar produto', 'error');
+            showToast(error.message || 'Erro ao adicionar produto', 'error');
         }
     };
 

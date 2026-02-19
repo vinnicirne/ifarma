@@ -23,7 +23,7 @@ Estes são os módulos onde erros têm maior impacto no negócio:
 |:---|:---|:---|:---|
 | CLT-01 | Busca & Filtro | Buscar produto por nome/princípio ativo. | Lista filtrada com preço e distância. |
 | CLT-02 | Carrinho Multi-loja | Adicionar itens de farmácias diferentes. | Sistema deve avisar que o carrinho permite apenas uma loja por vez. |
-| CLT-03 | Checkout (PIX) | Finalizar compra com PIX. | Geração do Copy-Paste e QR Code Válido. |
+| CLT-03 | Checkout (PIX) | Finalizar compra com PIX. | Confirmação de pagamento na entrega via maquininha do entregador. |
 | CLT-04 | Rastreamento | Acompanhar deslocamento do Motoboy no mapa. | Ícone do motoboy se movendo em tempo real. |
 | CLT-05 | Chat com Loja | Enviar mensagem durante o pedido. | Recebimento e notificação de resposta da farmácia. |
 

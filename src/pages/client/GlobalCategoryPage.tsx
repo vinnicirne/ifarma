@@ -5,6 +5,7 @@ import { TopAppBar } from '../../components/layout/TopAppBar';
 import { MaterialIcon } from '../../components/Shared';
 import { calculateDistance } from '../../lib/geoUtils';
 import { useCart } from '../../hooks/useCart';
+import { useToast } from '../../components/ToastProvider';
 
 export const GlobalCategoryPage = ({ session, userLocation }: { session: any, userLocation: any }) => {
     const { id } = useParams();
@@ -13,6 +14,7 @@ export const GlobalCategoryPage = ({ session, userLocation }: { session: any, us
     const [loading, setLoading] = useState(true);
     const [categoryName, setCategoryName] = useState('');
     const { addToCart } = useCart();
+    const { showToast } = useToast();
 
     useEffect(() => {
         const fetchCategoryAndProducts = async () => {
@@ -99,9 +101,9 @@ export const GlobalCategoryPage = ({ session, userLocation }: { session: any, us
         }
         try {
             await addToCart(productId, pharmacyId);
-            alert('Produto adicionado ao carrinho!');
+            showToast('Produto adicionado ao carrinho! 🛒', 'success');
         } catch (error: any) {
-            alert(`Erro: ${error.message}`);
+            showToast(error.message || 'Erro ao adicionar ao carrinho', 'error');
         }
     };
 

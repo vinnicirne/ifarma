@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase';
 import { MaterialIcon } from '../../components/Shared';
 import { useCart } from '../../hooks/useCart';
 import { NavigationDrawer } from '../../components/layout/NavigationDrawer';
+import { useToast } from '../../components/ToastProvider';
 
 export const ProductPage = ({ session }: { session: any }) => {
     const { id } = useParams();
@@ -12,7 +13,7 @@ export const ProductPage = ({ session }: { session: any }) => {
     const [loading, setLoading] = useState(true);
     const [qty, setQty] = useState(1);
     const [isDrawerOpen, setIsDrawerOpen] = useState(false);
-
+    const { showToast } = useToast();
     const { addToCart: addToCartHook } = useCart();
 
     const handleAddToCart = async () => {
@@ -23,11 +24,11 @@ export const ProductPage = ({ session }: { session: any }) => {
 
         try {
             await addToCartHook(product.id, product.pharmacy_id, qty);
-            alert('Produto adicionado ao carrinho! 🛒');
+            showToast('Produto adicionado ao carrinho! 🛒', 'success');
             navigate('/cart');
         } catch (error: any) {
             console.error("Erro ao adicionar ao carrinho:", error);
-            alert(`Erro: ${error.message}`);
+            showToast(error.message || 'Erro ao adicionar ao carrinho', 'error');
         }
     };
 
@@ -49,12 +50,12 @@ export const ProductPage = ({ session }: { session: any }) => {
                 navigate('/');
                 return;
             }
-            
+
             // Debug para verificar os dados do produto
             console.log("Product data:", data);
             console.log("Product price:", data?.price);
             console.log("Product promo_price:", data?.promo_price);
-            
+
             setProduct(data);
             setLoading(false);
         };
@@ -119,7 +120,7 @@ export const ProductPage = ({ session }: { session: any }) => {
 
                 <div className="mt-8">
                     <h3 className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-4 font-display">Informações do Produto</h3>
-                    
+
                     <div className="space-y-3">
                         {product.brand && (
                             <div className="flex justify-between items-center py-2 border-b border-slate-100 dark:border-white/5">
@@ -127,21 +128,21 @@ export const ProductPage = ({ session }: { session: any }) => {
                                 <span className="text-sm font-bold text-slate-800 dark:text-white">{product.brand}</span>
                             </div>
                         )}
-                        
+
                         {product.dosage && (
                             <div className="flex justify-between items-center py-2 border-b border-slate-100 dark:border-white/5">
                                 <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Dosagem</span>
                                 <span className="text-sm font-bold text-slate-800 dark:text-white">{product.dosage}</span>
                             </div>
                         )}
-                        
+
                         {product.quantity_label && (
                             <div className="flex justify-between items-center py-2 border-b border-slate-100 dark:border-white/5">
                                 <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Embalagem</span>
                                 <span className="text-sm font-bold text-slate-800 dark:text-white">{product.quantity_label}</span>
                             </div>
                         )}
-                        
+
                         {product.principle_active && product.principle_active.length > 0 && (
                             <div className="py-2 border-b border-slate-100 dark:border-white/5">
                                 <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-2">Princípio Ativo</span>
@@ -150,18 +151,18 @@ export const ProductPage = ({ session }: { session: any }) => {
                                 </span>
                             </div>
                         )}
-                        
+
                         {product.control_level && product.control_level !== 'none' && (
                             <div className="py-2 border-b border-slate-100 dark:border-white/5">
                                 <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-2">Controle Especial</span>
                                 <span className="text-sm font-bold text-amber-600 dark:text-amber-400">
-                                    {product.control_level === 'controlled_yellow' ? 'Receita Amarela (Portaria 344/98 - Lista A)' : 
-                                     product.control_level === 'controlled_blue' ? 'Receita Azul (Portaria 344/98 - Lista B)' : 
-                                     product.control_level === 'prescription_only' ? 'Venda sob Prescrição Médica' : 'Controle Especial'}
+                                    {product.control_level === 'controlled_yellow' ? 'Receita Amarela (Portaria 344/98 - Lista A)' :
+                                        product.control_level === 'controlled_blue' ? 'Receita Azul (Portaria 344/98 - Lista B)' :
+                                            product.control_level === 'prescription_only' ? 'Venda sob Prescrição Médica' : 'Controle Especial'}
                                 </span>
                             </div>
                         )}
-                        
+
                         {product.usage_instructions && (
                             <div className="py-2 border-b border-slate-100 dark:border-white/5">
                                 <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-2">Modo de Usar</span>
@@ -170,7 +171,7 @@ export const ProductPage = ({ session }: { session: any }) => {
                                 </p>
                             </div>
                         )}
-                        
+
                         {product.stock !== undefined && (
                             <div className="flex justify-between items-center py-2 border-b border-slate-100 dark:border-white/5">
                                 <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Estoque</span>
@@ -179,7 +180,7 @@ export const ProductPage = ({ session }: { session: any }) => {
                                 </span>
                             </div>
                         )}
-                        
+
                         {product.tags && product.tags.length > 0 && (
                             <div className="py-2">
                                 <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-2">Tags</span>
@@ -205,7 +206,7 @@ export const ProductPage = ({ session }: { session: any }) => {
                         <span className="text-3xl font-black text-slate-800 dark:text-white italic tracking-tighter">
                             R$ {product.price ? parseFloat(product.price).toFixed(2) : '0,00'}
                         </span>
-                        
+
                         {/* Preço promocional se existir */}
                         {product.promo_price && parseFloat(product.promo_price) > 0 && (
                             <span className="text-sm text-primary font-black mt-1">

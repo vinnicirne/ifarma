@@ -46,11 +46,19 @@ const Checkout = () => {
             .eq('customer_id', session.user.id);
 
         if (cart && cart.length > 0) {
+            // Verificação de segurança: todos os itens devem ser da mesma farmácia
+            const pharmacies = new Set(cart.map(item => item.products.pharmacy_id));
+            if (pharmacies.size > 1) {
+                alert('Erro: Seu carrinho contém itens de múltiplas farmácias. Por favor, limpe o carrinho e adicione itens de apenas uma loja por vez.');
+                navigate('/cart');
+                return;
+            }
+
             setCartItems(cart);
             const t = cart.reduce((acc, item) => acc + (Number(item.products.price) * item.quantity), 0);
             setTotal(t);
 
-            // Pegar pharmacy_id do primeiro item
+            // Pegar pharmacy_id do primeiro item (agora garantido ser único)
             const pharmId = cart[0].products.pharmacy_id;
             setPharmacyId(pharmId);
 
@@ -494,6 +502,18 @@ const Checkout = () => {
                             </button>
                         ))}
                     </div>
+
+                    {selectedPayment === 'pix' && (
+                        <div className="mt-4 p-4 bg-primary/10 border border-primary/20 rounded-2xl flex items-start gap-3 animate-in fade-in slide-in-from-top-2">
+                            <MaterialIcon name="info" className="text-primary" />
+                            <div className="flex flex-col">
+                                <p className="text-xs font-bold text-slate-800 dark:text-white uppercase tracking-wider">Pagamento na Entrega</p>
+                                <p className="text-[10px] text-slate-600 dark:text-slate-400 mt-1 leading-relaxed">
+                                    O pagamento via <strong>PIX</strong> será realizado diretamente na maquininha que o entregador levará até você.
+                                </p>
+                            </div>
+                        </div>
+                    )}
                 </div>
 
                 {/* Parcelamento (apenas para crédito) */}

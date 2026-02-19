@@ -5,6 +5,7 @@ import { supabase } from '../../lib/supabase';
 import { MaterialIcon } from '../../components/Shared';
 import { useCart } from '../../hooks/useCart';
 import { ConfirmModal } from '../../components/ConfirmModal';
+import { useToast } from '../../components/ToastProvider';
 
 export const PharmacyCategoryPage = ({ session }: { session: any }) => {
     const { id, categoryName } = useParams();
@@ -14,6 +15,7 @@ export const PharmacyCategoryPage = ({ session }: { session: any }) => {
     const [loading, setLoading] = useState(true);
     const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
     const { addToCart } = useCart();
+    const { showToast } = useToast();
 
     const decodedCategoryName = decodeURIComponent(categoryName || '');
 
@@ -25,10 +27,10 @@ export const PharmacyCategoryPage = ({ session }: { session: any }) => {
 
         try {
             await addToCart(productId, id || '');
-            alert('Produto adicionado ao carrinho! 🛒');
+            showToast('Produto adicionado ao carrinho! 🛒', 'success');
         } catch (error: any) {
-            console.error("Erro ao adicionar ao carrinho:", error);
-            alert(`Erro: ${error.message}`);
+            console.error("💥 Erro ao adicionar ao carrinho:", error);
+            showToast(error.message || 'Erro ao adicionar produto', 'error');
         }
     };
 

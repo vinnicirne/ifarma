@@ -6,6 +6,7 @@ import { useCart } from '../../hooks/useCart';
 import { useNotifications } from '../../hooks/useNotifications';
 import { NavigationDrawer } from '../../components/layout/NavigationDrawer';
 import { ConfirmModal } from '../../components/ConfirmModal';
+import { useToast } from '../../components/ToastProvider';
 
 export const PharmacyPage = ({ session }: { session: any }) => {
     const { id } = useParams();
@@ -20,6 +21,7 @@ export const PharmacyPage = ({ session }: { session: any }) => {
     const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
     const { unreadCount: notificationCount } = useNotifications(session?.user?.id);
     const { addToCart } = useCart();
+    const { showToast } = useToast();
 
     const handleAddToCart = async (productId: string) => {
         if (!session?.user) {
@@ -29,10 +31,10 @@ export const PharmacyPage = ({ session }: { session: any }) => {
 
         try {
             await addToCart(productId, id || '');
-            alert('Produto adicionado ao carrinho! 🛒');
+            showToast('Produto adicionado ao carrinho! 🛒', 'success');
         } catch (error: any) {
             console.error("Erro ao adicionar ao carrinho:", error);
-            alert(`Erro: ${error.message}`);
+            showToast(error.message || 'Erro ao adicionar ao carrinho', 'error');
         }
     };
 
@@ -323,7 +325,7 @@ export const PharmacyPage = ({ session }: { session: any }) => {
                                     <Link to={`/product/${prod.id}`} className="text-xs font-bold line-clamp-2 text-slate-800 dark:text-white leading-tight h-8">
                                         {prod.name}
                                     </Link>
-                                    
+
                                     {/* Tag Genérico */}
                                     {prod.is_generic && (
                                         <div className="inline-block">
@@ -332,7 +334,7 @@ export const PharmacyPage = ({ session }: { session: any }) => {
                                             </span>
                                         </div>
                                     )}
-                                    
+
                                     <div className="flex items-center justify-between">
                                         <p className="font-black text-sm italic text-slate-900 dark:text-white">R$ {parseFloat(prod.price || '0').toFixed(2)}</p>
                                     </div>

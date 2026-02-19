@@ -38,6 +38,17 @@ export const useCart = () => {
             throw new Error('Usuário não autenticado. Por favor, faça login novamente.');
         }
 
+        // Check if there are items from other pharmacies
+        const { data: currentCart } = await supabase
+            .from('cart_items')
+            .select('pharmacy_id')
+            .eq('customer_id', session.user.id)
+            .limit(1);
+
+        if (currentCart && currentCart.length > 0 && currentCart[0].pharmacy_id !== pharmacyId) {
+            throw new Error('Você já possui itens de outra farmácia no carrinho. Limpe o carrinho para adicionar produtos desta loja.');
+        }
+
         // Check if item already exists in cart
         const { data: existing } = await supabase
             .from('cart_items')
