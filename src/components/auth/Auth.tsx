@@ -16,9 +16,10 @@ export const Auth = ({ view = 'login' }: { view?: 'login' | 'signup' }) => {
         setLoading(true);
 
         try {
+            const normalizedEmail = email.trim().toLowerCase();
             if (isLogin) {
-                console.log('🔐 Tentando fazer login com:', email);
-                const { error, data } = await supabase.auth.signInWithPassword({ email, password });
+                console.log('🔐 Tentando fazer login com:', normalizedEmail);
+                const { error, data } = await supabase.auth.signInWithPassword({ email: normalizedEmail, password });
 
                 if (error) {
                     console.error('❌ Erro no login:', error);
@@ -55,9 +56,9 @@ export const Auth = ({ view = 'login' }: { view?: 'login' | 'signup' }) => {
                     }
                 }
             } else {
-                console.log('📝 Tentando criar conta para:', email);
+                console.log('📝 Tentando criar conta para:', normalizedEmail);
                 const { error } = await supabase.auth.signUp({
-                    email,
+                    email: normalizedEmail,
                     password,
                     options: { data: { full_name: fullName } }
                 });

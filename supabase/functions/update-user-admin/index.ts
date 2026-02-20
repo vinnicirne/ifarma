@@ -67,7 +67,7 @@ serve(async (req) => {
         console.log(`[update-user-admin] Updating user: ${userId}`);
 
         const updateData: any = {};
-        if (email) updateData.email = email;
+        if (email) updateData.email = String(email).trim().toLowerCase();
         if (password) updateData.password = password;
         if (metadata) updateData.user_metadata = metadata;
 

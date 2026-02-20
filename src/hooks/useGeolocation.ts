@@ -138,8 +138,7 @@ export const useGeolocation = (userId: string | null, shouldTrack: boolean = fal
                                                 orderId: orderId || null,
                                                 batteryLevel,
                                                 isCharging
-                                            },
-                                            headers: { Authorization: `Bearer ${session.access_token}` }
+                                            }
                                         });
 
                                         if (!trackingError) invokeSuccess = true;

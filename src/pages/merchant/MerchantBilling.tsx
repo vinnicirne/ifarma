@@ -185,10 +185,11 @@ const MerchantBilling = () => {
 
         try {
             setLoading(true);
-            const { data: sessionData } = await supabase.auth.getSession();
-            const token = sessionData.session?.access_token;
 
-            if (!token) {
+            // Forçamos o refresh para garantir token válido (evita token expirado 401)
+            const { data: sessionData, error: sessionError } = await supabase.auth.refreshSession();
+
+            if (sessionError || !sessionData.session) {
                 toast.error("Sessão expirada. Faça login novamente.");
                 return;
             }
@@ -197,9 +198,6 @@ const MerchantBilling = () => {
                 body: {
                     pharmacy_id: pharmacyId,
                     plan_id: plan.id
-                },
-                headers: {
-                    Authorization: `Bearer ${token}`
                 }
             });
 

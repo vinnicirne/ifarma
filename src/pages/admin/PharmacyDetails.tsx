@@ -356,11 +356,14 @@ const PharmacyDetailsContent = ({ googleKey }: { googleKey: string }) => {
 
             // --- PASSO 1: Ativar Plano ---
             console.log(`[Approve] Passo 1: Ativando plano para ${id}`);
+
+            // Forçamos o refresh para garantir token válido
+            const { data: refreshData } = await supabase.auth.refreshSession();
+
             const { data: planData, error: planErr } = await supabase.functions.invoke(
                 'activate-pharmacy-plan',
                 {
-                    body: { pharmacy_id: id },
-                    headers: { Authorization: `Bearer ${session.access_token}` }
+                    body: { pharmacy_id: id }
                 }
             );
 
@@ -764,7 +767,7 @@ const PharmacyDetailsContent = ({ googleKey }: { googleKey: string }) => {
                                 }
                             };
 
-                            if (formData.merchant_email) updateData.email = formData.merchant_email;
+                            if (formData.merchant_email) updateData.email = formData.merchant_email.trim().toLowerCase();
                             if (formData.merchant_password) {
                                 if (formData.merchant_password.length < 6) {
                                     alert("A nova senha deve ter pelo menos 6 caracteres.");
@@ -774,10 +777,7 @@ const PharmacyDetailsContent = ({ googleKey }: { googleKey: string }) => {
                             }
 
                             const { error: updateAuthErr } = await supabase.functions.invoke('update-user-admin', {
-                                body: updateData,
-                                headers: {
-                                    Authorization: `Bearer ${currentSession.access_token}`,
-                                }
+                                body: updateData
                             });
 
                             if (updateAuthErr) {
@@ -853,9 +853,6 @@ const PharmacyDetailsContent = ({ googleKey }: { googleKey: string }) => {
                                 pharmacy_id: pharmacyId,
                                 phone: formData.owner_phone
                             }
-                        },
-                        headers: {
-                            Authorization: `Bearer ${currentSession.access_token}`,
                         }
                     });
 

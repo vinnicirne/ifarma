@@ -3,7 +3,7 @@
 // EDGE FUNCTION: Activate Pharmacy Plan (Restored Logic + Fixes)
 // ============================================================================
 
-import { extractBearer, adminClient } from "../_shared/authz.ts";
+import { extractBearer, adminClient, authorizeBillingAccess } from "../_shared/authz.ts";
 import { asaasFetch } from "../_shared/asaas.ts";
 
 const corsHeaders = {
@@ -60,7 +60,15 @@ Deno.serve(async (req) => {
             return json({ error: "pharmacy_id inválido ou ausente" }, 400);
         }
 
-        // 2. Init Admin Client
+        // 2. Authorization Check (Improved Security)
+        const authz = await authorizeBillingAccess({ token, pharmacyId: pharmacy_id });
+
+        if (!authz.allowed) {
+            console.error("[activate-pharmacy-plan] Unauthorized access attempt:", authz.reason);
+            return json({ error: "Acesso negado", reason: authz.reason }, 401);
+        }
+
+        // 3. Init Admin Client
         const supabaseAdmin = adminClient();
 
         // 2.1 Fast Path: Check if already active

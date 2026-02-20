@@ -108,9 +108,11 @@ const PharmacyFinanceTab: React.FC<PharmacyFinanceTabProps> = ({ pharmacyId }) =
             }
 
             // 3) chamar edge function com token válido
+            // Forçamos o refresh para garantir token válido
+            await supabase.auth.refreshSession();
+
             const { data, error } = await supabase.functions.invoke("activate-pharmacy-plan", {
-                body: { pharmacy_id: pharmacyId, plan_id: planId },
-                headers: { Authorization: `Bearer ${accessToken}` },
+                body: { pharmacy_id: pharmacyId, plan_id: planId }
             });
 
             if (error) {

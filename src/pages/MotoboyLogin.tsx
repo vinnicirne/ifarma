@@ -17,7 +17,8 @@ const MotoboyLogin = () => {
         try {
             // Se o usuário digitou apenas o telefone, tentamos converter para um formato de e-mail interno se necessário
             // Ou assumimos que ele digitou o e-mail cadastrado
-            const loginEmail = email.includes('@') ? email : `${email.replace(/\D/g, '')}@motoboy.ifarma.com`;
+            const normalizedEmail = email.trim().toLowerCase();
+            const loginEmail = normalizedEmail.includes('@') ? normalizedEmail : `${normalizedEmail.replace(/\D/g, '')}@motoboy.ifarma.com`;
 
             const { error, data } = await supabase.auth.signInWithPassword({
                 email: loginEmail,

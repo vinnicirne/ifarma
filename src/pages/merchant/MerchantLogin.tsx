@@ -19,9 +19,10 @@ const MerchantLogin = () => {
 
         try {
             // Suporte para Login por Telefone (Funcionários) e E-mail (Gestor)
-            const loginIdentifier = email.includes('@')
-                ? email
-                : `${email.replace(/\D/g, '')}@employee.ifarma.com`;
+            const normalizedEmail = email.trim().toLowerCase();
+            const loginIdentifier = normalizedEmail.includes('@')
+                ? normalizedEmail
+                : `${normalizedEmail.replace(/\D/g, '')}@employee.ifarma.com`;
 
             const { error, data } = await supabase.auth.signInWithPassword({
                 email: loginIdentifier,

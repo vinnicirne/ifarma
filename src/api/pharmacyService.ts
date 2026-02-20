@@ -162,8 +162,7 @@ export const pharmacyService = {
         const { data: { session: activationSession } } = await supabase.auth.getSession();
 
         const { error: activationError } = await supabase.functions.invoke('activate-pharmacy-plan', {
-            body: { pharmacy_id: id },
-            headers: { Authorization: `Bearer ${activationSession?.access_token}` }
+            body: { pharmacy_id: id }
         });
 
         if (activationError) {

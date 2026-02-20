@@ -265,8 +265,7 @@ export const UserManagement = ({ profile }: { profile: any }) => {
         try {
             const { data: { session } } = await supabase.auth.getSession();
             const { error: deleteFuncErr } = await supabase.functions.invoke('delete-user-admin', {
-                body: { user_id: id },
-                headers: { Authorization: `Bearer ${session?.access_token}` }
+                body: { user_id: id }
             });
 
             if (deleteFuncErr) {
