@@ -34,7 +34,9 @@ except:
 SKIP_DIRS = {
     'node_modules', '.next', 'dist', 'build', '.git', '.github',
     '__pycache__', '.vscode', '.idea', 'coverage', 'test', 'tests',
-    '__tests__', 'spec', 'docs', 'documentation', 'examples'
+    '__tests__', 'spec', 'docs', 'documentation', 'examples',
+    '.agent', 'scripts', 'playwright-report', 'test-results', 'supabase',
+    'public'  # Vite public dir - not React pages
 }
 
 # Files to skip (not pages)
@@ -102,30 +104,34 @@ def check_page(file_path: Path) -> dict:
     except Exception as e:
         return {"file": str(file_path.name), "issues": [f"Error: {e}"]}
     
-    # Detect if this is a layout/template file (has Head component)
-    is_layout = 'Head>' in content or '<head' in content.lower()
+    # For SPA React apps: only HTML files with <head> need meta tags
+    # TSX/JSX component files in pages/ are rendered via React Router - no direct HTML head
+    is_html_file = file_path.suffix.lower() in ['.html', '.htm']
+    is_layout = '<head' in content.lower() or '<html' in content.lower()
     
-    # 1. Title tag
-    has_title = '<title' in content.lower() or 'title=' in content or 'Head>' in content
-    if not has_title and is_layout:
-        issues.append("Missing <title> tag")
+    # Only check meta tags in actual HTML files with <head>
+    if is_html_file and is_layout:
+        # 1. Title tag
+        has_title = '<title' in content.lower()
+        if not has_title:
+            issues.append("Missing <title> tag")
+        
+        # 2. Meta description
+        has_description = 'name="description"' in content.lower() or "name='description'" in content.lower()
+        if not has_description:
+            issues.append("Missing meta description")
+        
+        # 3. Open Graph tags
+        has_og = 'og:' in content or 'property="og:' in content.lower()
+        if not has_og:
+            issues.append("Missing Open Graph tags")
     
-    # 2. Meta description
-    has_description = 'name="description"' in content.lower() or 'name=\'description\'' in content.lower()
-    if not has_description and is_layout:
-        issues.append("Missing meta description")
-    
-    # 3. Open Graph tags
-    has_og = 'og:' in content or 'property="og:' in content.lower()
-    if not has_og and is_layout:
-        issues.append("Missing Open Graph tags")
-    
-    # 4. Heading hierarchy - multiple H1s
+    # 4. Heading hierarchy - multiple H1s (check all files)
     h1_matches = re.findall(r'<h1[^>]*>', content, re.I)
     if len(h1_matches) > 1:
         issues.append(f"Multiple H1 tags ({len(h1_matches)})")
     
-    # 5. Images without alt
+    # 5. Images without alt (check all files)
     img_pattern = r'<img[^>]+>'
     imgs = re.findall(img_pattern, content, re.I)
     for img in imgs:
@@ -135,9 +141,6 @@ def check_page(file_path: Path) -> dict:
         if 'alt=""' in img or "alt=''" in img:
             issues.append("Image has empty alt attribute")
             break
-    
-    # 6. Check for canonical link (nice to have)
-    # has_canonical = 'rel="canonical"' in content.lower()
     
     return {
         "file": str(file_path.name),

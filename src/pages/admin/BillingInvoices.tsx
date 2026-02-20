@@ -164,7 +164,7 @@ const BillingInvoices = () => {
                                         <div className="flex items-center gap-4">
                                             <div className="size-12 rounded-2xl bg-[#0a0f0d] border border-white/5 flex items-center justify-center overflow-hidden shrink-0 group-hover:border-primary/20 transition-all">
                                                 {invoice.pharmacy.logo_url ? (
-                                                    <img src={invoice.pharmacy.logo_url} alt="" className="w-full h-full object-cover" />
+                                                    <img src={invoice.pharmacy.logo_url} alt={`Logo ${invoice.pharmacy.name}`} className="w-full h-full object-cover" />
                                                 ) : (
                                                     <FileText size={20} className="text-slate-600" />
                                                 )}

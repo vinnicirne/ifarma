@@ -236,7 +236,7 @@ const PharmacyManagement = ({ profile }: { profile: any }) => {
                                             <div className="flex items-center gap-5">
                                                 <div className="size-14 rounded-2xl bg-[#0a0f0d] border border-white/5 flex items-center justify-center overflow-hidden shrink-0 group-hover:border-primary/20 transition-all">
                                                     {pharm.logo_url ? (
-                                                        <img src={pharm.logo_url} alt="" className="w-full h-full object-cover" />
+                                                        <img src={pharm.logo_url} alt={`Logo ${pharm.name}`} className="w-full h-full object-cover" />
                                                     ) : (
                                                         <Store size={24} className="text-slate-700" />
                                                     )}

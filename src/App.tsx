@@ -4,7 +4,6 @@ import { supabase } from './lib/supabase';
 import { PharmacyService } from './services/pharmacy.service';
 import { useNotifications } from './hooks/useNotifications';
 import { initAppContext } from './lib/appContext';
-import { calculateDistance } from './lib/geoUtils';
 import { Capacitor } from '@capacitor/core';
 import { AppRoutes } from './routes/AppRoutes';
 import { rankPharmaciesIfoodStyle } from './lib/ranking';
@@ -329,8 +328,8 @@ function App() {
 
   // Process and sort nearby pharmacies using shared ranking logic
   const sortedPharmacies = useMemo(() => {
-    return rankPharmaciesIfoodStyle(allPharmacies, userLocation);
-  }, [allPharmacies, userLocation]);
+    return rankPharmaciesIfoodStyle(deferredPharmacies, deferredUserLocation);
+  }, [deferredPharmacies, deferredUserLocation]);
 
   if (loading || !contextLoaded) {
     return (

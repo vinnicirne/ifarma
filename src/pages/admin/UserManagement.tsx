@@ -465,7 +465,7 @@ export const UserManagement = ({ profile }: { profile: any }) => {
                                                         </div>
                                                     </td>
                                                     <td className="p-5 hidden sm:table-cell">
-                                                        <span className={`inline-flex items-center px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest ${u.role === 'merchant' ? 'bg-purple-500/10 text-purple-500' : 'bg-blue-500/10 text-blue-500'
+                                                        <span className={`inline-flex items-center px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest ${u.role === 'merchant' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-blue-500/10 text-blue-500'
                                                             }`}>
                                                             {u.role === 'merchant' ? 'Lojista' : 'Cliente'}
                                                         </span>

@@ -252,9 +252,9 @@ const MerchantMotoboys = () => {
                                                 </div>
                                             )}
                                             {contract.daily_rate > 0 && (
-                                                <div className="bg-purple-50 dark:bg-purple-500/10 rounded-xl p-3">
-                                                    <p className="text-[8px] font-black text-purple-600 dark:text-purple-400 uppercase tracking-widest">Diária</p>
-                                                    <p className="text-sm font-black text-purple-700 dark:text-purple-300 mt-0.5">{fmt(contract.daily_rate)}</p>
+                                                <div className="bg-emerald-50 dark:bg-emerald-500/10 rounded-xl p-3">
+                                                    <p className="text-[8px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest">Diária</p>
+                                                    <p className="text-sm font-black text-emerald-700 dark:text-emerald-300 mt-0.5">{fmt(contract.daily_rate)}</p>
                                                 </div>
                                             )}
                                             {contract.productivity_bonus > 0 && (

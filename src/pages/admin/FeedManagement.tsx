@@ -108,7 +108,7 @@ const ConfigModal = ({ section, onClose, onSave, onUpload }: { section: any, onC
                                 {banners.map((banner, idx) => (
                                     <div key={idx} className="flex gap-3 bg-slate-50 dark:bg-black/20 p-3 rounded-xl border border-slate-100 dark:border-white/5">
                                         <div className="w-24 aspect-video rounded-lg overflow-hidden shrink-0 border border-white/10 relative group">
-                                            <img src={banner.image} className="w-full h-full object-cover" />
+                                            <img src={banner.image} alt={`Banner ${idx + 1}`} className="w-full h-full object-cover" />
                                             <button
                                                 onClick={() => removeBanner(idx)}
                                                 className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all text-white"
@@ -271,7 +271,7 @@ export const FeedManagement = ({ profile }: { profile: any }) => {
                             {sections.filter(s => s.is_active).map(s => (
                                 <div key={s.id} className="w-full relative group overflow-hidden bg-white dark:bg-[#1e293b] rounded-xl border border-dashed border-slate-200 dark:border-white/10 flex flex-col items-center justify-center p-2">
                                     {s.type === 'banner.top' && s.config?.images?.length > 0 ? (
-                                        <img src={s.config.images[0]} className="w-full h-20 object-cover rounded-lg" />
+                                        <img src={s.config.images[0]} alt={`Preview ${s.title}`} className="w-full h-20 object-cover rounded-lg" />
                                     ) : (
                                         <>
                                             <span className="text-[8px] font-black uppercase text-slate-400">{s.title || 'Sem Título'}</span>

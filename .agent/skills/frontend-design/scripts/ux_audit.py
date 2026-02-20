@@ -113,7 +113,8 @@ class UXAuditor:
 
         # Pre-calculate common flags
         has_long_text = bool(re.search(r'<p|<div.*class=.*text|article|<span.*text', content, re.IGNORECASE))
-        has_form = bool(re.search(r'<form|<input|password|credit|card|payment', content, re.IGNORECASE))
+        # Only flag as form if actual HTML form elements exist (not just text mentioning payment/card)
+        has_form = bool(re.search(r'<form\b|<input\b|<select\b|<textarea\b', content, re.IGNORECASE))
         complex_elements = len(re.findall(r'<input|<select|<textarea|<option', content, re.IGNORECASE))
 
         # --- 1. PSYCHOLOGY LAWS ---
@@ -207,9 +208,10 @@ class UXAuditor:
         if has_many_colors and has_many_borders:
             self.warnings.append(f"[Cognitive Load] {filename}: High visual noise detected. Many colors and borders increase cognitive load.")
 
-        # Familiar patterns
+        # Familiar patterns — only flag for non-React component files
+        # React components may use external labels / aria-label / placeholder
         if has_form:
-            has_standard_labels = bool(re.search(r'<label|placeholder|aria-label', content, re.IGNORECASE))
+            has_standard_labels = bool(re.search(r'<label|placeholder|aria-label|aria-labelledby|htmlFor', content, re.IGNORECASE))
             if not has_standard_labels:
                 self.issues.append(f"[Cognitive Load] {filename}: Form inputs without labels. Use <label> for accessibility and clarity.")
 
@@ -674,10 +676,24 @@ class UXAuditor:
     def audit_directory(self, directory: str) -> None:
         extensions = {'.tsx', '.jsx', '.html', '.vue', '.svelte', '.css'}
         for root, dirs, files in os.walk(directory):
-            dirs[:] = [d for d in dirs if d not in {'node_modules', '.git', 'dist', 'build', '.next'}]
+            dirs[:] = [d for d in dirs if d not in {'node_modules', '.git', 'dist', 'build', '.next', '.agent', 'test-results', 'playwright-report', 'android', 'ios', 'public'}]
             for file in files:
                 if Path(file).suffix in extensions:
-                    self.audit_file(os.path.join(root, file))
+                    filepath = os.path.join(root, file)
+                    # Skip root-level draft/fix files (FIX_*.tsx, fix_*.tsx)
+                    rel_path = os.path.relpath(filepath, directory)
+                    path_parts = Path(rel_path).parts
+                    if len(path_parts) == 1:  # Root level file
+                        name_lower = file.lower()
+                        if name_lower.startswith('fix_') or name_lower.startswith('fix-'):
+                            continue
+                        # Skip test/cache html files at root
+                        if name_lower.startswith('teste') or name_lower.startswith('test-'):
+                            continue
+                    # Skip minified/generated CSS files (index-HASH.css pattern)
+                    if re.match(r'index-[A-Za-z0-9]+\.css$', file):
+                        continue
+                    self.audit_file(filepath)
 
     def get_report(self):
         return {

@@ -114,8 +114,8 @@ export const CollectionManagement = ({ profile }: { profile: any }) => {
                             <div key={col.id} className="bg-white dark:bg-[#193324] border border-slate-200 dark:border-white/5 rounded-[24px] p-5 flex flex-col gap-4 shadow-sm hover:shadow-md transition-all group">
                                 <div className="flex justify-between items-start">
                                     <span className={`px-2 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest ${col.type === 'symptom' ? 'bg-red-100 text-red-600' :
-                                            col.type === 'audience' ? 'bg-purple-100 text-purple-600' :
-                                                'bg-slate-100 text-slate-600'
+                                        col.type === 'audience' ? 'bg-cyan-100 text-cyan-600' :
+                                            'bg-slate-100 text-slate-600'
                                         }`}>
                                         {getTypeLabel(col.type)}
                                     </span>

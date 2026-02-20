@@ -59,7 +59,8 @@ const MotoboyDashboard = ({ session, profile }: { session: any, profile: any }) 
 
     const { play: playAudio, stop: stopAudio } = useAudio();
 
-    useWakeLock(!!currentOrder && currentOrder.status === 'em_rota');
+    const ACTIVE_DELIVERY_STATUSES = ['aceito', 'pronto_entrega', 'aguardando_retirada', 'retirado', 'em_rota'];
+    useWakeLock(!!currentOrder && ACTIVE_DELIVERY_STATUSES.includes(currentOrder.status));
 
     useEffect(() => {
         if (!session?.user) navigate('/motoboy-login');

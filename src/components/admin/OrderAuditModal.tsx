@@ -168,7 +168,7 @@ const OrderAuditModal = ({ orderId, onClose }: OrderAuditModalProps) => {
                                 <div className="bg-white/[0.02] border border-white/5 p-8 rounded-[32px] flex items-center gap-6">
                                     <div className="size-20 bg-white/5 rounded-3xl border border-white/5 overflow-hidden flex items-center justify-center">
                                         {order.pharmacies?.logo_url ? (
-                                            <img src={order.pharmacies.logo_url} className="w-full h-full object-cover" />
+                                            <img src={order.pharmacies.logo_url} alt={`Logo ${order.pharmacies.name}`} className="w-full h-full object-cover" />
                                         ) : (
                                             <Store className="text-primary/20" size={40} />
                                         )}

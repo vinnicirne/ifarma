@@ -88,6 +88,13 @@ def run_tests(cmd: list, cwd: Path) -> dict:
     }
     
     try:
+        # Windows compatibility for npm/npx
+        import platform
+        if platform.system() == "Windows":
+            if cmd[0] in ["npm", "npx"]:
+                if not cmd[0].lower().endswith(".cmd"):
+                    cmd[0] = f"{cmd[0]}.cmd"
+        
         proc = subprocess.run(
             cmd,
             cwd=str(cwd),
@@ -95,7 +102,8 @@ def run_tests(cmd: list, cwd: Path) -> dict:
             text=True,
             encoding='utf-8',
             errors='replace',
-            timeout=300  # 5 min timeout for tests
+            timeout=300,  # 5 min timeout for tests
+            shell=platform.system() == "Windows"
         )
         
         result["output"] = proc.stdout[:3000] if proc.stdout else ""

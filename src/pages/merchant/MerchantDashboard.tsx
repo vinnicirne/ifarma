@@ -34,7 +34,7 @@ const GeminiAssistant = () => {
     }, []);
 
     return (
-        <div className="bg-gradient-to-br from-indigo-600 to-purple-700 p-6 rounded-[32px] border border-white/10 relative overflow-hidden group shadow-lg shadow-indigo-500/20">
+        <div className="bg-gradient-to-br from-blue-600 to-emerald-700 p-6 rounded-[32px] border border-white/10 relative overflow-hidden group shadow-lg shadow-blue-500/20">
             <div className="absolute top-0 right-0 p-24 bg-white/10 rounded-full blur-3xl -mr-12 -mt-12 group-hover:bg-white/20 transition-all duration-1000"></div>
             <div className="relative z-10">
                 <div className="flex items-center gap-3 mb-3">

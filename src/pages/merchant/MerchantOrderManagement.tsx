@@ -32,26 +32,24 @@ const AssignDriverModal = ({ isOpen, onClose, onAssign, pharmacyId }: any) => {
     const [drivers, setDrivers] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
 
-    useEffect(() => {
-        if (isOpen && pharmacyId) {
-            fetchDrivers();
-        }
-    }, [isOpen, pharmacyId]);
-
-    const fetchDrivers = async () => {
+    async function fetchDrivers() {
         setLoading(true);
-        // Fetch users with role 'motoboy'
-        // In a real app, you might filter by proximity or pharmacy association
         const { data } = await supabase
             .from('profiles')
             .select('*')
             .eq('role', 'motoboy')
             .eq('is_active', true)
-            .eq('is_online', true) // Only show online drivers!
+            .eq('is_online', true)
             .order('full_name', { ascending: true });
         setDrivers(data || []);
         setLoading(false);
-    };
+    }
+
+    useEffect(() => {
+        if (isOpen && pharmacyId) {
+            fetchDrivers();
+        }
+    }, [isOpen, pharmacyId]);
 
     if (!isOpen) return null;
 
@@ -81,7 +79,7 @@ const AssignDriverModal = ({ isOpen, onClose, onAssign, pharmacyId }: any) => {
                                 className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-slate-50 dark:hover:bg-white/5 border border-transparent hover:border-slate-200 dark:hover:border-white/10 transition-all group text-left"
                             >
                                 <div className="size-10 rounded-full bg-slate-200 dark:bg-zinc-700 flex items-center justify-center overflow-hidden">
-                                    {driver.avatar_url ? <img src={driver.avatar_url} className="w-full h-full object-cover" /> : <MaterialIcon name="sports_motorsports" className="text-slate-400" />}
+                                    {driver.avatar_url ? <img src={driver.avatar_url} alt={`Avatar ${driver.full_name}`} className="w-full h-full object-cover" /> : <MaterialIcon name="sports_motorsports" className="text-slate-400" />}
                                 </div>
                                 <div className="flex-1">
                                     <p className="font-bold text-slate-900 dark:text-white text-sm">{driver.full_name || 'Motoboy'}</p>
@@ -105,13 +103,7 @@ const OrderDetailsModal = ({ isOpen, onClose, order, updateStatus, onPrint }: an
     const [items, setItems] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
 
-    useEffect(() => {
-        if (isOpen && order) {
-            fetchItems();
-        }
-    }, [isOpen, order]);
-
-    const fetchItems = async () => {
+    async function fetchItems() {
         setLoading(true);
         const { data, error } = await supabase
             .from('order_items')
@@ -120,7 +112,13 @@ const OrderDetailsModal = ({ isOpen, onClose, order, updateStatus, onPrint }: an
 
         if (!error) setItems(data || []);
         setLoading(false);
-    };
+    }
+
+    useEffect(() => {
+        if (isOpen && order) {
+            fetchItems();
+        }
+    }, [isOpen, order]);
 
     if (!isOpen || !order) return null;
 
@@ -173,7 +171,7 @@ const OrderDetailsModal = ({ isOpen, onClose, order, updateStatus, onPrint }: an
                                     <div key={idx} className="flex items-center gap-4 p-3 rounded-lg border border-slate-100 dark:border-white/5 hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">
                                         <div className="size-12 bg-white rounded-lg flex items-center justify-center border border-slate-100 p-1">
                                             {item.products?.image_url ?
-                                                <img src={item.products.image_url} className="w-full h-full object-contain" /> :
+                                                <img src={item.products.image_url} alt={item.products.name} className="w-full h-full object-contain" /> :
                                                 <MaterialIcon name="medication" className="text-slate-300" />
                                             }
                                         </div>
@@ -412,7 +410,7 @@ const MerchantOrderManagement = () => {
     const columns = [
         { id: 'pendente', label: 'Novos', color: 'blue-500', icon: 'notifications_active' },
         { id: 'preparando', label: 'Em Preparo', color: 'orange-500', icon: 'inventory' },
-        { id: 'em_rota', label: 'Saiu p/ Entrega', color: 'purple-500', icon: 'sports_motorsports' },
+        { id: 'em_rota', label: 'Saiu p/ Entrega', color: 'cyan-500', icon: 'sports_motorsports' },
         { id: 'entregue', label: 'Entregues', color: 'green-500', icon: 'check_circle' },
     ];
 
@@ -1044,6 +1042,7 @@ const MerchantOrderManagement = () => {
                     </div>
                     <div className="flex items-center gap-2">
                         <select
+                            aria-label="Som de Notificação"
                             value={notificationSound}
                             onChange={(e) => {
                                 const val = e.target.value as any;
@@ -1101,13 +1100,13 @@ const MerchantOrderManagement = () => {
                             const bgColors: Record<string, string> = {
                                 'blue-500': 'bg-blue-500',
                                 'orange-500': 'bg-orange-500',
-                                'purple-500': 'bg-purple-600',
+                                'cyan-500': 'bg-cyan-600',
                                 'green-500': 'bg-emerald-500'
                             };
                             const lightColors: Record<string, string> = {
                                 'blue-500': 'bg-blue-50 text-blue-600',
                                 'orange-500': 'bg-orange-50 text-orange-600',
-                                'purple-500': 'bg-purple-50 text-purple-600',
+                                'cyan-500': 'bg-cyan-50 text-cyan-600',
                                 'green-500': 'bg-emerald-50 text-emerald-600'
                             };
 
@@ -1211,6 +1210,7 @@ const MerchantOrderManagement = () => {
                                                 <div className="flex items-center justify-center p-1">
                                                     <input
                                                         type="checkbox"
+                                                        aria-label="Selecionar Pedido"
                                                         checked={selectedOrderIds.includes(order.id)}
                                                         onChange={() => toggleOrderSelection(order.id)}
                                                         className="size-5 rounded border-slate-300 text-primary focus:ring-primary cursor-pointer"

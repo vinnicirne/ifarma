@@ -1,65 +1,106 @@
-# 💊 Ifarma - A Sua Saúde na Palma da Mão
+# <p align="center">💊 Ifarma - Ecossistema Digital de Saúde</p>
 
-Ifarma é uma plataforma completa de delivery de medicamentos e produtos de saúde, conectando farmácias locais, entregadores (motoboys) e clientes finais em uma experiência rápida, segura e intuitiva.
-
-## 🚀 O que é o Ifarma?
-
-O Ifarma não é apenas um app de delivery; é uma infraestrutura digital para o setor farmacêutico. Nosso ecossistema permite que farmácias de qualquer tamanho entrem no mundo digital com ferramentas robustas de gestão, enquanto oferece aos usuários a conveniência de receber seus remédios em minutos.
-
-### 👥 Quem usa o Ifarma?
-
-1.  **Clientes (Pacientes):** Compram medicamentos, enviam receitas médicas digitalmente, acompanham o pedido em tempo real e conversam com o farmacêutico via chat.
-2.  **Farmácias (Parceiros):** Gerenciam estoque, processam pedidos, configuram automações de chat e visualizam métricas financeiras em um dashboard dedicado.
-3.  **Motoboys (Entregadores):** Recebem chamadas de entrega, utilizam GPS integrado para rotas otimizadas e gerenciam seus ganhos diários.
-4.  **Administradores:** Controlam a aprovação de novos parceiros, gerenciam anúncios e configuram parâmetros globais do sistema.
-
-## ✨ Benefícios Principais
-
-*   **Para o Usuário:** Agilidade na entrega, acesso a farmácias próximas com melhores preços e segurança no manuseio de receitas.
-*   **Para a Farmácia:** Aumento nas vendas, digitalização do atendimento e logística de entrega simplificada.
-*   **Para o Motoboy:** Fluxo constante de entregas e interface focada em produtividade.
+<p align="center">
+  <img src="https://img.shields.io/badge/version-2.1.0-emerald?style=for-the-badge" alt="Version">
+  <img src="https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB" alt="React">
+  <img src="https://img.shields.io/badge/Supabase-3ECF8E?style=for-the-badge&logo=supabase&logoColor=white" alt="Supabase">
+  <img src="https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript&logoColor=white" alt="TypeScript">
+  <img src="https://img.shields.io/badge/Tailwind_CSS-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white" alt="Tailwind">
+</p>
 
 ---
 
-## 🛠️ Stack Tecnológica
+## 🚀 Sobre o Projeto
 
-*   **Frontend:** React 18 + TypeScript + Vite.
-*   **Mobile:** Capacitor (Transforma a Web App em Apps Nativos iOS/Android).
-*   **Backend & DB:** Supabase (PostgreSQL, Realtime, Auth, Edge Functions & Storage).
-*   **Estilização:** CSS Moderno / TailwindCSS.
-*   **Geolocalização:** Google Maps API & Capacitor Geolocation.
-*   **Monitoramento:** Rollbar para rastreamento de erros em produção.
+O **Ifarma** é uma infraestrutura digital completa para o setor farmacêutico. Mais do que um simples delivery, é um ecossistema que conecta farmácias, profissionais de saúde, entregadores e pacientes em uma rede inteligente de cuidados.
+
+Nossa missão é transformar a farmácia local em um hub digital, garantindo que medicamentos cheguem a quem precisa com segurança, rastreabilidade e agilidade extrema.
 
 ---
 
-## 🏃 Como Rodar o Projeto
+## 📱 Experiências Dedicadas
 
-1.  **Clone o repositório:**
-    ```bash
-    git clone https://github.com/vinnicirne/ifarma.git
-    cd ifarma
-    ```
-2.  **Instale as dependências:**
-    ```bash
-    npm install
-    ```
-3.  **Configure o Ambiente:**
-    Crie um arquivo `.env` baseado no `.env.example` com suas chaves do Supabase e Google Maps.
-4.  **Inicie o servidor de desenvolvimento:**
-    ```bash
-    npm run dev
-    ```
+O ecossistema Ifarma foi desenhado com nichos de usuários específicos em mente:
 
----
+### 👤 **Para o Paciente (App Cliente)**
+*   **Busca Inteligente:** Encontre medicamentos por nome, marca ou sintoma.
+*   **Receita Digital:** Upload e validação de prescrições médicas em tempo real.
+*   **Acompanhamento Live:** Rastreio do entregador no mapa via Google Maps API.
+*   **Chat Direto:** Canal de comunicação com o farmacêutico responsável.
 
-## 📄 Documentação Adicional
+### 🏢 **Para a Farmácia (Painel Lojista)**
+*   **Gestão de Inventário:** Controle simplificado de estoque e preços.
+*   **Dashboard Financeiro:** Métricas de vendas, ticket médio e lucratividade.
+*   **Billing Automatizado:** Sistema de mensalidade via PIX e cobranças recorrentes.
+*   **Gestão de Frota:** Controle de motoboys próprios ou terceirizados.
 
-*   [Guia da API para Desenvolvedores](./API.md) - Endpoints e integração.
-*   [Setup de Notificações Push](./NOTIFICACOES_PUSH_SETUP.md) - Configuração do Firebase/Capacitor.
-*   [Manual do Gestor Farmacêutico](./INSTRUCOES_LOGIN_FARMACIA.txt) - Como usar o painel lojista.
+### 🛵 **Para o Entregador (App Motoboy)**
+*   **Roteirização:** Caminhos otimizados para múltiplas entregas.
+*   **Carteira Digital:** Extrato diário de ganhos e quilometragem.
+*   **Comprovante Digital:** Captura de foto e assinatura na entrega.
 
 ---
 
-## 🛡️ Licença
+## 🛠️ Stack Tecnológica Moderníssima
 
-Copyright © 2026 Ifarma. Todos os direitos reservados.
+| Camada | Tecnologia |
+| :--- | :--- |
+| **Frontend Core** | React 18+ & TypeScript |
+| **Mobile Foundation** | Capacitor.js (iOS & Android) |
+| **Infraestrutura Cloud** | Supabase (Postgres & Edge Functions) |
+| **Estilização** | Tailwind CSS v4 & Maestro Design Standards |
+| **Real-time** | Websockets via Supabase Realtime |
+| **Maps & Geo** | Google Maps SDK & PostGIS |
+
+---
+
+## 🏃 Começando (Quick Start)
+
+Para rodar o ambiente de desenvolvimento localmente:
+
+1. **Clone & Install**
+   ```bash
+   git clone https://github.com/vinnicirne/ifarma.git
+   npm install
+   ```
+
+2. **Variaveis de Ambiente**
+   Configure o arquivo `.env` com suas credenciais:
+   ```env
+   VITE_SUPABASE_URL=sua_url
+   VITE_SUPABASE_ANON_KEY=sua_key
+   VITE_GOOGLE_MAPS_KEY=sua_key
+   ```
+
+3. **Inicie o Motor**
+   ```bash
+   npm run dev
+   ```
+
+---
+
+## 💎 Qualidade e Engenharia de Software
+
+O Ifarma utiliza um pipeline de qualidade rigoroso para garantir disponibilidade de 99.9%:
+
+*   ⚡ **Master Checklist:** `python .agent/scripts/checklist.py .` (Auditoria completa 360°)
+*   🎨 **UX Audit:** Verificação automática contra as regras de cor e acessibilidade Maestro.
+*   🧪 **Test Suite:** Cobertura de testes unitários e integração via Vitest.
+*   🔍 **SEO Engine:** Otimização para mecanismos de busca e compartilhamento social.
+
+---
+
+## 📄 Documentação e Recursos
+
+Acesse nossos guias detalhados:
+
+*   📖 [Guia da API para Desenvolvedores](./docs/API.md)
+*   🗄️ [Histórico de Engenharia e PRDs](./docs/archive/)
+*   💾 [Banco de Dados (Migrations)](./supabase/migrations/)
+
+---
+
+<p align="center">
+  Desenvolvido com ❤️ pela equipe Ifarma.<br>
+  Copyright © 2026 Ifarma. Todos os direitos reservados.
+</p>

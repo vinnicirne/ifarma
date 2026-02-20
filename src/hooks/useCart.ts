@@ -4,24 +4,37 @@ import { supabase } from '../lib/supabase';
 export const useCart = () => {
     const [cartItems, setCartItems] = useState<any[]>([]);
     const [total, setTotal] = useState(0);
-    const [loading, setLoading] = useState(false);
+    const [loading, setLoading] = useState(true);
 
     const fetchCartItems = async () => {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session) return;
+        try {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) {
+                setLoading(false);
+                return;
+            }
 
-        setLoading(true);
-        const { data } = await supabase
-            .from('cart_items')
-            .select('*, products(*, pharmacies(*))')
-            .eq('customer_id', session.user.id);
+            setLoading(true);
+            const { data, error } = await supabase
+                .from('cart_items')
+                .select('*, products(*, pharmacies(*))')
+                .eq('customer_id', session.user.id);
 
-        if (data) {
-            setCartItems(data);
-            const t = data.reduce((acc, item) => acc + (Number(item.products.price) * item.quantity), 0);
-            setTotal(t);
+            if (error) throw error;
+
+            if (data) {
+                setCartItems(data);
+                const t = data.reduce((acc, item) => {
+                    const price = Number(item.products?.price || 0);
+                    return acc + (price * item.quantity);
+                }, 0);
+                setTotal(t);
+            }
+        } catch (error) {
+            console.error('❌ Erro ao buscar itens do carrinho:', error);
+        } finally {
+            setLoading(false);
         }
-        setLoading(false);
     };
 
     const addToCart = async (productId: string, pharmacyId: string, quantity: number = 1) => {

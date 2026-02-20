@@ -39,9 +39,14 @@ const OrderCard: React.FC<OrderCardProps> = ({ order, onAccept, onMoveUp, onMove
 
             <div className="flex justify-between items-start mb-5 pl-4">
                 <div>
-                    <h3 className="text-xl font-bold text-white group-hover:text-primary transition-colors">
-                        {order.profiles?.full_name || order.customer_name || 'Cliente'}
-                    </h3>
+                    <div className="flex items-center gap-2">
+                        <h3 className="text-xl font-bold text-white group-hover:text-primary transition-colors">
+                            {order.profiles?.full_name || order.customer_name || 'Cliente'}
+                        </h3>
+                        <span className="text-[10px] font-black bg-slate-700 text-slate-400 px-2 py-0.5 rounded-lg border border-white/5">
+                            #{order.id.substring(0, 6).toUpperCase()}
+                        </span>
+                    </div>
                     <p className="text-slate-400 text-sm flex items-center mt-1">
                         <MaterialIcon name="near_me" className="text-primary text-sm mr-1" />
                         {order.delivery_sequence ? `Sequência #${order.delivery_sequence}` : 'Próxima entrega'} • {order.distance || 'Calculando...'}
@@ -90,7 +95,7 @@ const OrderCard: React.FC<OrderCardProps> = ({ order, onAccept, onMoveUp, onMove
                 {order.status === 'retirado' || order.status === 'em_rota' ? 'VOLTAR PARA GPS' :
                     order.status === 'aceito' ? 'IR PARA COLETA' : 'ACEITAR CORRIDA'}
             </button>
-        </div>
+        </div >
     );
 };
 

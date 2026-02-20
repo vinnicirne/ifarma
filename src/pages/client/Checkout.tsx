@@ -33,102 +33,128 @@ const Checkout = () => {
     }, []);
 
     const fetchCartAndSettings = async () => {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session) {
-            navigate('/login');
-            return;
-        }
-
-        // Buscar itens do carrinho
-        const { data: cart } = await supabase
-            .from('cart_items')
-            .select('*, products(*, pharmacies(*))')
-            .eq('customer_id', session.user.id);
-
-        if (cart && cart.length > 0) {
-            // Verificação de segurança: todos os itens devem ser da mesma farmácia
-            const pharmacies = new Set(cart.map(item => item.products.pharmacy_id));
-            if (pharmacies.size > 1) {
-                alert('Erro: Seu carrinho contém itens de múltiplas farmácias. Por favor, limpe o carrinho e adicione itens de apenas uma loja por vez.');
-                navigate('/cart');
+        setLoading(true);
+        try {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) {
+                navigate('/login');
                 return;
             }
 
-            setCartItems(cart);
-            const t = cart.reduce((acc, item) => acc + (Number(item.products.price) * item.quantity), 0);
-            setTotal(t);
+            // Buscar itens do carrinho
+            // Buscar itens do carrinho com Retry e Catch (Agressivo para E2E)
+            let cart = null;
+            console.log(`🔍 [Checkout] Buscando carrinho para: ${session.user.id}`);
+            for (let i = 0; i < 5; i++) {
+                try {
+                    const { data, error } = await supabase
+                        .from('cart_items')
+                        .select('*, products(*, pharmacies(*))')
+                        .eq('customer_id', session.user.id);
 
-            // Pegar pharmacy_id do primeiro item (agora garantido ser único)
-            const pharmId = cart[0].products.pharmacy_id;
-            setPharmacyId(pharmId);
-
-            // Buscar configurações de pagamento da farmácia
-            const { data: settings } = await supabase
-                .from('pharmacy_payment_settings')
-                .select('*')
-                .eq('pharmacy_id', pharmId)
-                .single();
-
-            if (settings) {
-                setPaymentSettings(settings);
-                // Selecionar primeiro método disponível
-                if (settings.accepts_pix) setSelectedPayment('pix');
-                else if (settings.accepts_cash) setSelectedPayment('cash');
-                else if (settings.accepts_debit) setSelectedPayment('debit');
-                else if (settings.accepts_credit) setSelectedPayment('credit');
+                    if (error) throw error;
+                    console.log(`📡 [Checkout] Tentativa ${i + 1}: ${data?.length} itens encontrados.`);
+                    if (data && data.length > 0) {
+                        cart = data;
+                        break;
+                    }
+                } catch (e: any) {
+                    console.warn(`❌ [Checkout] Tentativa ${i + 1} falhou:`, e.message);
+                }
+                await new Promise(r => setTimeout(r, 2000));
             }
 
-            // Buscar dados extras da farmácia (taxas)
-            const pharmData = cart[0].products.pharmacies;
-            setPharmacy(pharmData);
-        }
+            if (!cart) {
+                console.error("❌ [Checkout] Carrinho vazio após 5 tentativas.");
+                throw new Error("Não foi possível carregar seu carrinho. Verifique sua conexão.");
+            }
 
-        // 1. Buscar endereço do perfil (Principal)
-        const { data: profile } = await supabase
-            .from('profiles')
-            .select('address, latitude, longitude')
-            .eq('id', session.user.id)
-            .single();
+            if (cart && cart.length > 0) {
+                // Verificação de segurança: todos os itens devem ser da mesma farmácia
+                const pharmacies = new Set(cart.map(item => item.products.pharmacy_id));
+                if (pharmacies.size > 1) {
+                    alert('Erro: Seu carrinho contém itens de múltiplas farmácias. Por favor, limpe o carrinho e adicione itens de apenas uma loja por vez.');
+                    navigate('/cart');
+                    return;
+                }
 
-        // 2. Buscar todos os endereços salvos na user_addresses
-        const { data: userAddresses } = await supabase
-            .from('user_addresses')
-            .select('*')
-            .eq('user_id', session.user.id);
+                setCartItems(cart);
+                const t = cart.reduce((acc, item) => acc + (Number(item.products.price) * item.quantity), 0);
+                setTotal(t);
 
-        let allPossibleAddresses: any[] = [];
+                // Pegar pharmacy_id do primeiro item (agora garantido ser único)
+                const pharmId = cart[0].products.pharmacy_id;
+                setPharmacyId(pharmId);
 
-        // Adicionar endereço do perfil como "Principal" se existir
-        if (profile?.address) {
-            allPossibleAddresses.push({
-                id: 'profile_main',
-                name: 'Principal',
-                street: profile.address, // Já vem completo do UserProfile.tsx
-                latitude: profile.latitude,
-                longitude: profile.longitude,
-                is_default: !userAddresses || userAddresses.every(a => !a.is_default)
-            });
-        }
+                // Buscar configurações de pagamento da farmácia
+                const { data: settings } = await supabase
+                    .from('pharmacy_payment_settings')
+                    .select('*')
+                    .eq('pharmacy_id', pharmId)
+                    .single();
 
-        if (userAddresses && userAddresses.length > 0) {
-            const mapped = userAddresses.map(a => {
-                // Para user_addresses, precisamos concatenar
-                let full = a.street || a.address || '';
-                if (a.number && !full.includes(a.number)) full += `, ${a.number}`;
-                return { ...a, street: full }; // Normalizar para exibir no UI
-            });
-            allPossibleAddresses = [...allPossibleAddresses, ...mapped];
-        }
+                if (settings) {
+                    setPaymentSettings(settings);
+                    // Selecionar primeiro método disponível
+                    if (settings.accepts_pix) setSelectedPayment('pix');
+                    else if (settings.accepts_cash) setSelectedPayment('cash');
+                    else if (settings.accepts_debit) setSelectedPayment('debit');
+                    else if (settings.accepts_credit) setSelectedPayment('credit');
+                }
 
-        setAddresses(allPossibleAddresses);
+                // Buscar dados extras da farmácia (taxas)
+                const pharmData = cart[0].products.pharmacies;
+                setPharmacy(pharmData);
+            }
 
-        // Selecionar o padrão ou o primeiro disponível
-        const defaultAddr = allPossibleAddresses.find(a => a.is_default) || allPossibleAddresses[0];
-        if (defaultAddr) {
-            setAddress(defaultAddr.street);
-            setSelectedAddressId(defaultAddr.id);
-            setComplement(defaultAddr.complement || '');
-            // Se for do perfil, talvez o complemento já esteja na string, mas deixamos vazio ou extraímos
+            // 1. Buscar endereço do perfil (Principal)
+            const { data: profile } = await supabase
+                .from('profiles')
+                .select('address, latitude, longitude')
+                .eq('id', session.user.id)
+                .single();
+
+            // 2. Buscar todos os endereços salvos na user_addresses
+            const { data: userAddresses } = await supabase
+                .from('user_addresses')
+                .select('*')
+                .eq('user_id', session.user.id);
+
+            let allPossibleAddresses: any[] = [];
+
+            // Adicionar endereço do perfil como "Principal" se existir
+            if (profile?.address) {
+                allPossibleAddresses.push({
+                    id: 'profile_main',
+                    name: 'Principal',
+                    street: profile.address,
+                    latitude: profile.latitude,
+                    longitude: profile.longitude,
+                    is_default: !userAddresses || userAddresses.every(a => !a.is_default)
+                });
+            }
+
+            if (userAddresses && userAddresses.length > 0) {
+                const mapped = userAddresses.map(a => {
+                    let full = a.street || a.address || '';
+                    if (a.number && !full.includes(a.number)) full += `, ${a.number}`;
+                    return { ...a, street: full };
+                });
+                allPossibleAddresses = [...allPossibleAddresses, ...mapped];
+            }
+
+            setAddresses(allPossibleAddresses);
+
+            const defaultAddr = allPossibleAddresses.find(a => a.is_default) || allPossibleAddresses[0];
+            if (defaultAddr) {
+                setAddress(defaultAddr.street);
+                setSelectedAddressId(defaultAddr.id);
+                setComplement(defaultAddr.complement || '');
+            }
+        } catch (err) {
+            console.error("Erro ao carregar dados do checkout:", err);
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -230,6 +256,12 @@ const Checkout = () => {
             return;
         }
 
+        if (!pharmacyId || pharmacyId === "") {
+            console.error("ERRO: pharmacyId está vazio!", { cartItems, pharmacy });
+            alert('Erro interno: ID da farmácia não identificado. Tente recarregar a página.');
+            return;
+        }
+
         // Validação de Troco
         if (selectedPayment === 'cash' && needsChange) {
             if (changeFor < total) {
@@ -239,6 +271,12 @@ const Checkout = () => {
         }
 
         setLoading(true);
+        console.log('🚀 Iniciando criação de pedido...', {
+            pharmacyId,
+            payment: selectedPayment,
+            total: total + deliveryFee
+        });
+
         try {
             const { data: { session } } = await supabase.auth.getSession();
             if (!session) throw new Error('Sessão expirada');
@@ -249,19 +287,18 @@ const Checkout = () => {
             const payload: any = {
                 customer_id: session.user.id,
                 pharmacy_id: pharmacyId,
-                total_price: total + deliveryFee, // Soma a taxa ao total
-                delivery_fee: deliveryFee, // Campo para auditoria
+                total_price: total + deliveryFee,
+                delivery_fee: deliveryFee,
                 payment_method: selectedPayment,
                 installments: selectedPayment === 'credit' ? installments : 1,
                 address: address,
                 complement: complement,
-                customer_notes: observation,
+                customer_notes: observation || null, // Garantir null em vez de empty string
                 latitude: selectedAddrObj?.latitude || 0,
                 longitude: selectedAddrObj?.longitude || 0,
                 status: 'pendente'
             };
 
-            // Adicionar change_for se for dinheiro e precisar
             if (selectedPayment === 'cash' && needsChange && changeFor > 0) {
                 payload.change_for = changeFor;
             }

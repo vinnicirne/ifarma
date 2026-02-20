@@ -19,6 +19,7 @@ export const useMotoboyQueue = (userId: string | undefined, notificationSound: '
         if (!userId) return;
 
         setLoading(true);
+        console.log(`📡 [useMotoboyQueue] Buscando fila para motoboy: ${userId}`);
         try {
             const { data, error } = await supabase
                 .from('orders')
@@ -28,11 +29,13 @@ export const useMotoboyQueue = (userId: string | undefined, notificationSound: '
                 .order('created_at', { ascending: true });
 
             if (error) {
-                console.error("Erro ao buscar fila de pedidos:", error);
+                console.error("❌ [useMotoboyQueue] Erro ao buscar fila:", error.message);
                 return;
             }
 
             if (data) {
+                console.log(`✅ [useMotoboyQueue] Pedidos encontrados: ${data.length}`);
+                data.forEach(o => console.log(`   - Order #${o.id.substring(0, 6)} [${o.status}]`));
                 const previousQueue = ordersQueueRef.current;
                 const previousIds = new Set(previousQueue.map(o => o.id));
                 const isGenuinelyNew = data.some(o => !previousIds.has(o.id));

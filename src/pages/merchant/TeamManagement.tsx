@@ -580,7 +580,7 @@ const TeamManagement = () => {
                                                         <div className="flex items-center gap-1 flex-wrap">
                                                             {fee && <span className="text-[9px] font-black bg-green-100 text-green-600 dark:bg-green-500/10 dark:text-green-400 px-1.5 py-0.5 rounded">{fee}/entrega</span>}
                                                             {salary && <span className="text-[9px] font-black bg-blue-100 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400 px-1.5 py-0.5 rounded">{salary}/mês</span>}
-                                                            {daily && <span className="text-[9px] font-black bg-purple-100 text-purple-600 dark:bg-purple-500/10 dark:text-purple-400 px-1.5 py-0.5 rounded">{daily}/dia</span>}
+                                                            {daily && <span className="text-[9px] font-black bg-blue-100 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400 px-1.5 py-0.5 rounded">{daily}/dia</span>}
                                                             {bonus && <span className="text-[9px] font-black bg-orange-100 text-orange-600 dark:bg-orange-500/10 dark:text-orange-400 px-1.5 py-0.5 rounded">🎯 {bonus}</span>}
                                                             {!hasAny && <span className="text-[9px] text-slate-400 italic">sem contrato</span>}
                                                         </div>

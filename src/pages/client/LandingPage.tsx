@@ -71,7 +71,7 @@ export const LandingPage = () => {
                     <div className="flex items-center gap-6 pt-4">
                         <div className="flex -space-x-3">
                             {[1, 2, 3, 4].map(i => (
-                                <img key={i} src={`https://i.pravatar.cc/100?img=${i + 10}`} className="size-10 rounded-full border-4 border-white dark:border-background-dark object-cover" />
+                                <img key={i} src={`https://i.pravatar.cc/100?img=${i + 10}`} alt={`Usuário Ifarma ${i}`} className="size-10 rounded-full border-4 border-white dark:border-background-dark object-cover" />
                             ))}
                         </div>
                         <p className="text-xs font-bold text-slate-400">

@@ -255,6 +255,7 @@ const AdminDashboard = ({ profile }: { profile: any }) => {
                         <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest px-1">Data Início</span>
                         <input
                             type="date"
+                            aria-label="Data Início"
                             className="bg-white/5 border border-white/5 rounded-xl px-4 py-2 text-xs text-white outline-none focus:border-primary/30 transition-all font-bold"
                             value={customDates.start}
                             onChange={(e) => {
@@ -267,6 +268,7 @@ const AdminDashboard = ({ profile }: { profile: any }) => {
                         <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest px-1">Data Fim</span>
                         <input
                             type="date"
+                            aria-label="Data Fim"
                             className="bg-white/5 border border-white/5 rounded-xl px-4 py-2 text-xs text-white outline-none focus:border-primary/30 transition-all font-bold"
                             value={customDates.end}
                             onChange={(e) => {

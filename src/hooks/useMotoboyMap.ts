@@ -71,18 +71,19 @@ export const useMotoboyMap = (
                         bounds.extend({ lat: startLat, lng: startLng });
                         bounds.extend({ lat: destLat, lng: destLng });
 
-                        // Padding generoso
-                        mapInstance.current.fitBounds(bounds, { top: 150, bottom: 250, left: 80, right: 80 });
+                        // Force resize before fitBounds so the map knows its true dimensions
+                        google.maps.event.trigger(mapInstance.current, 'resize');
+                        mapInstance.current.fitBounds(bounds, { top: 120, bottom: 220, left: 60, right: 60 });
                         hasInitialFit.current = destKey;
 
-                        // GARANTIA DE ZOOM: O fitBounds pode dar zoom muito longe. Nós travamos o mínimo.
+                        // Only enforce minimum zoom — do NOT panTo motoboy position,
+                        // that shifts the viewport away from the route line
                         setTimeout(() => {
                             if (mapInstance.current) {
                                 const currentZoom = mapInstance.current.getZoom();
-                                if (currentZoom < 16) mapInstance.current.setZoom(17);
-                                mapInstance.current.panTo({ lat: startLat, lng: startLng });
+                                if (currentZoom < 14) mapInstance.current.setZoom(15);
                             }
-                        }, 500);
+                        }, 600);
                     }
                 }
 
@@ -191,9 +192,22 @@ export const useMotoboyMap = (
         let dLat: number | null = null;
         let dLng: number | null = null;
 
-        if (needsToCollect && currentOrder.pharmacies?.latitude) {
-            dLat = Number(currentOrder.pharmacies.latitude);
-            dLng = Number(currentOrder.pharmacies.longitude);
+        if (needsToCollect) {
+            if (currentOrder.pharmacies?.latitude && currentOrder.pharmacies?.longitude) {
+                dLat = Number(currentOrder.pharmacies.latitude);
+                dLng = Number(currentOrder.pharmacies.longitude);
+            } else if (currentOrder.pharmacies?.address && (window as any).google) {
+                // Pharmacy coords missing — geocode the pharmacy address
+                const geocoder = new (window as any).google.maps.Geocoder();
+                geocoder.geocode({ address: currentOrder.pharmacies.address }, (results: any, status: any) => {
+                    if (status === 'OK' && results[0]) {
+                        fetchRoute(latitude, longitude,
+                            results[0].geometry.location.lat(),
+                            results[0].geometry.location.lng());
+                    }
+                });
+                return;
+            }
         } else {
             dLat = Number(currentOrder.delivery_lat ?? currentOrder.latitude);
             dLng = Number(currentOrder.delivery_lng ?? currentOrder.longitude);

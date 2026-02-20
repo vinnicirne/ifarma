@@ -40,6 +40,11 @@ export default defineConfig(({ mode }) => {
         }
       })
     ],
+    test: {
+      // Exclude Playwright E2E specs from Vitest — run them with `npx playwright test`
+      exclude: ['tests/e2e/**', 'node_modules/**'],
+      environment: 'jsdom',
+    },
     build: {
       rollupOptions: {
         output: {

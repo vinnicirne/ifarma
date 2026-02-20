@@ -53,7 +53,7 @@ const UserOrders = ({ session }: { session: any }) => {
         switch (status) {
             case 'pendente': return { label: 'Pendente', color: 'bg-yellow-500/20 text-yellow-600', icon: 'schedule' };
             case 'preparando': return { label: 'Em Preparo', color: 'bg-blue-500/20 text-blue-600', icon: 'pill' };
-            case 'aguardando_motoboy': return { label: 'Aguardando Entregador', color: 'bg-purple-500/20 text-purple-600', icon: 'person_search' };
+            case 'aguardando_motoboy': return { label: 'Aguardando Entregador', color: 'bg-cyan-500/20 text-cyan-600', icon: 'person_search' };
             case 'em_rota': return { label: 'A Caminho', color: 'bg-primary/20 text-primary', icon: 'local_shipping' };
             case 'entregue': return { label: 'Entregue', color: 'bg-green-500/20 text-green-600', icon: 'check_circle' };
             case 'cancelado': return { label: 'Cancelado', color: 'bg-red-500/20 text-red-600', icon: 'cancel' };
