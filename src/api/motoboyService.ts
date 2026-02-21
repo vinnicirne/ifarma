@@ -48,15 +48,8 @@ export const motoboyService = {
         const { data: { session } } = await supabase.auth.getSession();
         if (!session) throw new Error("Sessão expirada.");
 
-        // USAR create-staff-user em vez de create-user-admin (mais robusto para motoboys)
-        const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-staff-user`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${session.access_token}`,
-                'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY
-            },
-            body: JSON.stringify({
+        const { data, error } = await supabase.functions.invoke('create-staff-user', {
+            body: {
                 email: loginEmail,
                 password: formData.password,
                 metadata: {
@@ -69,12 +62,17 @@ export const motoboyService = {
                     cnh_url: formData.cnh_url,
                     is_active: true
                 }
-            })
+            },
+            headers: {
+                Authorization: `Bearer ${session?.access_token}`,
+                apikey: import.meta.env.VITE_SUPABASE_ANON_KEY
+            }
         });
 
-        if (!response.ok) {
-            const result = await response.json().catch(() => ({}));
-            throw new Error(result.error || result.message || "Erro na criação do motoboy");
+        if (error) {
+            console.error("Motoboy Creation Error:", error);
+            const errorBody = await error.context?.json().catch(() => ({}));
+            throw new Error(errorBody?.error || error.message || "Erro na criação do motoboy");
         }
     },
 

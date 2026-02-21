@@ -36,8 +36,7 @@ export const pharmacyService = {
         if (profile) {
             const { data: { session } } = await supabase.auth.getSession();
             await supabase.functions.invoke('delete-user-admin', {
-                body: { user_id: profile.id },
-                headers: { Authorization: `Bearer ${session?.access_token}` }
+                body: { user_id: profile.id }
             });
         }
 
@@ -78,9 +77,6 @@ export const pharmacyService = {
                     role: 'merchant',
                     pharmacy_id: id // Redundant but safe
                 }
-            },
-            headers: {
-                Authorization: `Bearer ${session.access_token}`
             }
         });
 
@@ -160,9 +156,14 @@ export const pharmacyService = {
 
         console.log(`[approvePharmacy] Activating plan for pharmacy: ${id}`);
         const { data: { session: activationSession } } = await supabase.auth.getSession();
+        await supabase.auth.refreshSession();
 
         const { error: activationError } = await supabase.functions.invoke('activate-pharmacy-plan', {
-            body: { pharmacy_id: id }
+            body: { pharmacy_id: id },
+            headers: {
+                Authorization: `Bearer ${activationSession?.access_token}`,
+                apikey: import.meta.env.VITE_SUPABASE_ANON_KEY
+            }
         });
 
         if (activationError) {

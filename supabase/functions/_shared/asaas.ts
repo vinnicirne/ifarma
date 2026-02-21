@@ -12,8 +12,12 @@ const ASAAS_BASE_URL =
     Deno.env.get("ASAAS_BASE_URL") ||
     "https://api-sandbox.asaas.com/v3"; // default sandbox
 
-if (!ASAAS_API_KEY) {
-    throw new Error("Missing env var: ASAAS_API_KEY");
+// --- CONFIGURAÇÃO DE PROXY (FIXED IP) ---
+const ASAAS_PROXY_URL = Deno.env.get("ASAAS_PROXY_URL");
+const PROXY_TOKEN = Deno.env.get("PROXY_TOKEN");
+
+if (!ASAAS_API_KEY && !PROXY_TOKEN) {
+    throw new Error("Missing env var: ASAAS_API_KEY or PROXY_TOKEN");
 }
 
 export interface AsaasResponse<T = any> {
@@ -55,10 +59,23 @@ export async function asaasFetch<T = any>(
     path: string,
     options: RequestInit = {}
 ): Promise<AsaasResponse<T>> {
-    const url = `${ASAAS_BASE_URL}${normalizePath(path)}`;
+    // Definimos se vamos usar o proxy (IP Fixo) ou direto
+    const useProxy = !!(ASAAS_PROXY_URL && PROXY_TOKEN);
+
+    // Se usar proxy, a URL base muda e o path ganha prefixo /asaas
+    const baseUrl = useProxy ? ASAAS_PROXY_URL : ASAAS_BASE_URL;
+    const finalPath = useProxy ? `/asaas${normalizePath(path)}` : normalizePath(path);
+    const url = `${baseUrl}${finalPath}`;
 
     const headers = new Headers(options.headers || {});
-    headers.set("access_token", ASAAS_API_KEY);
+
+    // O token de acesso muda se for proxy (Bearer) ou direto (access_token)
+    if (useProxy) {
+        headers.set("Authorization", `Bearer ${PROXY_TOKEN}`);
+    } else {
+        headers.set("access_token", ASAAS_API_KEY!);
+    }
+
     headers.set("accept", "application/json");
 
     if (!headers.has("Content-Type") && options.body) {

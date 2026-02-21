@@ -241,7 +241,8 @@ Deno.serve(async (req) => {
 
             // --- NEW: Create Rolling Billing Cycle starting on Payment Date ---
             try {
-                const paymentDateStr = payment.paymentDate || new Date().toISOString().slice(0, 10);
+                // CORREÇÃO: Usar data real do pagamento ou data de confirmação
+                const paymentDateStr = payment.paymentDate || payment.confirmedDate || new Date().toISOString().slice(0, 10);
                 const paymentDate = new Date(paymentDateStr);
 
                 // End date is 30 days after payment
@@ -251,19 +252,36 @@ Deno.serve(async (req) => {
 
                 console.log(`[asaas-webhook] Criando ciclo rolante: ${paymentDateStr} até ${endDateStr}`);
 
-                await supabaseAdmin
+                // Primeiro verifica se já existe ciclo para este período
+                const { data: existingCycle } = await supabaseAdmin
                     .from('billing_cycles')
-                    .upsert({
-                        pharmacy_id: invoice.pharmacy_id,
-                        period_start: paymentDateStr,
-                        period_end: endDateStr,
-                        status: 'active',
-                        free_orders_used: 0,
-                        overage_orders: 0,
-                        overage_amount_cents: 0,
-                    }, { onConflict: 'pharmacy_id,period_start' });
+                    .select('id, status')
+                    .eq('pharmacy_id', invoice.pharmacy_id)
+                    .eq('period_start', paymentDateStr)
+                    .maybeSingle();
 
-                console.log(`[asaas-webhook] Ciclo criado com sucesso para ${invoice.pharmacy_id}`);
+                if (existingCycle) {
+                    // Se existe, apenas ativa
+                    await supabaseAdmin
+                        .from('billing_cycles')
+                        .update({ status: 'active' })
+                        .eq('id', existingCycle.id);
+                    console.log(`[asaas-webhook] Ciclo existente ativado para ${invoice.pharmacy_id}`);
+                } else {
+                    // Se não existe, cria novo
+                    await supabaseAdmin
+                        .from('billing_cycles')
+                        .upsert({
+                            pharmacy_id: invoice.pharmacy_id,
+                            period_start: paymentDateStr,
+                            period_end: endDateStr,
+                            status: 'active',
+                            free_orders_used: 0,
+                            overage_orders: 0,
+                            overage_amount_cents: 0,
+                        }, { onConflict: 'pharmacy_id,period_start' });
+                    console.log(`[asaas-webhook] Novo ciclo criado para ${invoice.pharmacy_id}`);
+                }
             } catch (err) {
                 console.error("[asaas-webhook] Erro ao criar ciclo inicial:", err);
             }

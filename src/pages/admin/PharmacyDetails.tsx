@@ -363,7 +363,11 @@ const PharmacyDetailsContent = ({ googleKey }: { googleKey: string }) => {
             const { data: planData, error: planErr } = await supabase.functions.invoke(
                 'activate-pharmacy-plan',
                 {
-                    body: { pharmacy_id: id }
+                    body: { pharmacy_id: id },
+                    headers: {
+                        Authorization: `Bearer ${refreshData.session?.access_token}`,
+                        apikey: import.meta.env.VITE_SUPABASE_ANON_KEY
+                    }
                 }
             );
 
@@ -378,8 +382,7 @@ const PharmacyDetailsContent = ({ googleKey }: { googleKey: string }) => {
             const { data: accessData, error: accessErr } = await supabase.functions.invoke(
                 'provision-merchant-access',
                 {
-                    body: { pharmacy_id: id },
-                    headers: { Authorization: `Bearer ${session.access_token}` }
+                    body: { pharmacy_id: id }
                 }
             );
 

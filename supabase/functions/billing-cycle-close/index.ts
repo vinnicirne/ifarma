@@ -6,8 +6,7 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
 
-const ASAAS_API_KEY = Deno.env.get('ASAAS_API_KEY') || '';
-const ASAAS_BASE_URL = Deno.env.get('ASAAS_BASE_URL') || 'https://api-sandbox.asaas.com/v3';
+import { asaasFetch } from "../_shared/asaas.ts";
 
 interface BillingCycle {
     id: string;
@@ -108,12 +107,21 @@ Deno.serve(async (req) => {
                 // 3.3. Gerar fatura de mensalidade (se houver)
                 if (plan.monthly_fee_cents > 0 && asaasCustomerId) {
                     try {
-                        const monthlyInvoice = await createAsaasPayment({
-                            customer: asaasCustomerId,
-                            value: plan.monthly_fee_cents / 100,
-                            description: `Mensalidade ${plan.name} - ${cycle.period_start} a ${cycle.period_end}`,
-                            dueDate: new Date(new Date().setDate(new Date().getDate() + 5)).toISOString().split('T')[0],
+                        const dueDate = new Date(new Date().setDate(new Date().getDate() + 5)).toISOString().split('T')[0];
+                        const res = await asaasFetch("/payments", {
+                            method: 'POST',
+                            body: JSON.stringify({
+                                customer: asaasCustomerId,
+                                billingType: 'BOLETO',
+                                value: plan.monthly_fee_cents / 100,
+                                dueDate,
+                                description: `Mensalidade ${plan.name} - ${cycle.period_start} a ${cycle.period_end}`,
+                            }),
                         });
+
+                        if (!res.ok) throw new Error(res.rawText);
+
+                        const monthlyInvoice = res.data;
 
                         // Salvar fatura
                         await supabase.from('billing_invoices').insert({
@@ -137,12 +145,21 @@ Deno.serve(async (req) => {
                 // 3.4. Gerar fatura de excedente (se houver)
                 if (cycle.overage_amount_cents > 0 && asaasCustomerId) {
                     try {
-                        const overageInvoice = await createAsaasPayment({
-                            customer: asaasCustomerId,
-                            value: cycle.overage_amount_cents / 100,
-                            description: `Excedente de ${cycle.overage_orders} pedidos - ${cycle.period_start} a ${cycle.period_end}`,
-                            dueDate: new Date(new Date().setDate(new Date().getDate() + 5)).toISOString().split('T')[0],
+                        const dueDate = new Date(new Date().setDate(new Date().getDate() + 5)).toISOString().split('T')[0];
+                        const res = await asaasFetch("/payments", {
+                            method: 'POST',
+                            body: JSON.stringify({
+                                customer: asaasCustomerId,
+                                billingType: 'BOLETO',
+                                value: cycle.overage_amount_cents / 100,
+                                dueDate,
+                                description: `Excedente de ${cycle.overage_orders} pedidos - ${cycle.period_start} a ${cycle.period_end}`,
+                            }),
                         });
+
+                        if (!res.ok) throw new Error(res.rawText);
+
+                        const overageInvoice = res.data;
 
                         // Salvar fatura
                         await supabase.from('billing_invoices').insert({
@@ -226,36 +243,3 @@ Deno.serve(async (req) => {
         );
     }
 });
-
-// ============================================================================
-// HELPER: Criar pagamento no Asaas
-// ============================================================================
-
-async function createAsaasPayment(data: {
-    customer: string;
-    value: number;
-    description: string;
-    dueDate: string;
-}) {
-    const response = await fetch(`${ASAAS_BASE_URL}/payments`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'access_token': ASAAS_API_KEY,
-        },
-        body: JSON.stringify({
-            customer: data.customer,
-            billingType: 'BOLETO',
-            value: data.value,
-            dueDate: data.dueDate,
-            description: data.description,
-        }),
-    });
-
-    if (!response.ok) {
-        const error = await response.text();
-        throw new Error(`Asaas API error: ${error}`);
-    }
-
-    return await response.json();
-}

@@ -48,12 +48,14 @@ export function adminClient(): SupabaseClient {
 
   const url =
     Deno.env.get("SUPABASE_URL") ||
-    Deno.env.get("SUPABASE_PROJECT_URL") || // fallback raro
+    Deno.env.get("SUPABASE_PROJECT_URL") ||
+    Deno.env.get("VITE_SUPABASE_URL") ||
     "";
 
   const serviceKey =
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ||
     Deno.env.get("SERVICE_ROLE_KEY") ||
+    Deno.env.get("VITE_SUPABASE_SERVICE_ROLE_KEY") ||
     "";
 
   if (!url) throw new Error("Missing env var: SUPABASE_URL");
@@ -161,7 +163,7 @@ export async function authorizeBillingAccess(params: {
       };
     }
 
-    if (pharmacy.owner_id === user.id) {
+    if (pharmacy.owner_id === user.id || (profile.role === 'merchant' && profile.pharmacy_id === params.pharmacyId)) {
       return {
         userId: user.id,
         email: user.email ?? null,

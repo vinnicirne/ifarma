@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import MerchantLayout from './MerchantLayout';
 import { supabase } from '../../lib/supabase';
 import {
@@ -15,6 +15,7 @@ import {
     HelpCircle
 } from 'lucide-react';
 import { formatCurrency, getInvoiceStatusLabel, getSubscriptionStatusLabel } from '../../types/billing';
+import { usePixPollingFixed } from '../../hooks/usePixPollingFixed';
 import { toast } from 'react-hot-toast';
 
 const MerchantBilling = () => {
@@ -23,8 +24,27 @@ const MerchantBilling = () => {
     const [currentCycle, setCurrentCycle] = useState<any>(null);
     const [availablePlans, setAvailablePlans] = useState<any[]>([]);
     const [pharmacyId, setPharmacyId] = useState<string | null>(null);
-    const [pixData, setPixData] = useState<{ qr_base64: string; copy_paste?: string; payment_id: string; invoice_url?: string } | null>(null);
+    const [pixData, setPixData] = useState<{ qr_base64: string; copy_paste?: string; payment_id: string; invoice_url?: string; status?: string } | null>(null);
     const [showPixModal, setShowPixModal] = useState(false);
+
+    // Hook de polling dedicado para QR Code
+    const { qrData: polledQrData, loading: pixLoading, error: pixError } = usePixPollingFixed(
+        pixData?.payment_id,
+        showPixModal && pixData?.status === 'pending_qr'
+    );
+
+    // Efeito para sincronizar os dados do hook de volta para o estado do componente
+    useEffect(() => {
+        if (polledQrData && pixData?.status === 'pending_qr') {
+            setPixData((prev: any) => ({
+                ...prev,
+                qr_base64: polledQrData.qr_base64,
+                copy_paste: polledQrData.copy_paste,
+                status: 'ready'
+            }));
+            toast.success("QR Code gerado com sucesso!");
+        }
+    }, [polledQrData]);
 
     useEffect(() => {
         fetchBillingData();
@@ -198,15 +218,29 @@ const MerchantBilling = () => {
                 body: {
                     pharmacy_id: pharmacyId,
                     plan_id: plan.id
+                },
+                headers: {
+                    Authorization: `Bearer ${sessionData.session.access_token}`,
+                    apikey: import.meta.env.VITE_SUPABASE_ANON_KEY
                 }
             });
 
             if (error) throw error;
 
-            if (data?.pix_data) {
-                setPixData(data.pix_data);
+            const pix = data?.pix || data?.pix_data;
+
+            if (pix) {
+                setPixData(pix);
                 setShowPixModal(true);
-                toast.success("Pagamento gerado! Finalize para ativar.");
+
+                // Se QR está pronto ou pendente, as mensagens adequadas são exibidas e o polling se encarrega do resto
+                if (pix.status === 'ready' && pix.qr_base64) {
+                    toast.success("QR Code gerado com sucesso!");
+                } else if (pix.status === 'pending_qr' && pix.payment_id) {
+                    toast.success("Pagamento gerado! QR Code sendo processado...");
+                } else {
+                    toast.success("Pagamento gerado! Finalize para ativar.");
+                }
             } else {
                 toast.success("Plano atualizado com sucesso!");
                 fetchBillingData();
@@ -214,7 +248,25 @@ const MerchantBilling = () => {
 
         } catch (error: any) {
             console.error("Error migrating plan:", error);
-            toast.error(error.message || "Erro ao migrar plano.");
+
+            // Tenta extrair o erro detalhado da Edge Function
+            let errorMsg = "Erro ao migrar plano.";
+            if (error.context) {
+                try {
+                    const errorBody = await error.context.json();
+                    if (errorBody.reason) {
+                        errorMsg = `Erro: ${errorBody.reason} (${errorBody.error || ''})`;
+                    } else if (errorBody.error) {
+                        errorMsg = errorBody.error;
+                    }
+                } catch (e) {
+                    errorMsg = error.message || errorMsg;
+                }
+            } else {
+                errorMsg = error.message || errorMsg;
+            }
+
+            toast.error(errorMsg);
         } finally {
             setLoading(false);
         }
@@ -256,11 +308,31 @@ const MerchantBilling = () => {
                             Assim que o Asaas confirmar o pagamento, o plano será liberado automaticamente.
                         </p>
                         <div className="bg-white rounded-2xl p-3 inline-block">
-                            <img
-                                src={`data:image/png;base64,${pixData.qr_base64}`}
-                                alt="QR Code Pix Asaas"
-                                className="w-64 h-64 object-contain"
-                            />
+                            {(polledQrData?.qr_base64 || pixData?.qr_base64) ? (
+                                <img
+                                    src={`data:image/png;base64,${polledQrData?.qr_base64 || pixData?.qr_base64}`}
+                                    alt="QR Code Pix Asaas"
+                                    className="w-64 h-64 object-contain"
+                                    onLoad={() => console.log('✅ QR Image loaded successfully')}
+                                    onError={(e) => console.error('❌ QR Image failed to load:', e)}
+                                />
+                            ) : (
+                                <div className="w-64 h-64 flex flex-col items-center justify-center border-2 border-dashed border-slate-300 rounded-2xl">
+                                    {pixLoading ? (
+                                        <>
+                                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                                            <p className="mt-2 text-sm text-slate-600">Gerando QR Code...</p>
+                                            <p className="text-xs text-slate-500">Isso pode levar até 30 segundos</p>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <AlertCircle className="w-8 h-8 text-slate-400 mb-2" />
+                                            <p className="text-sm text-slate-600">QR Code não disponível</p>
+                                            {pixError && <p className="text-xs text-red-500 mt-1">{pixError}</p>}
+                                        </>
+                                    )}
+                                </div>
+                            )}
                         </div>
 
                         {pixData.copy_paste && (
@@ -295,6 +367,21 @@ const MerchantBilling = () => {
                                     Pagar com Cartão de Crédito
                                     <ExternalLink size={14} />
                                 </button>
+                            </div>
+                        )}
+
+                        {/* Fallback forte: Link direto para Asaas se QR não está disponível */}
+                        {pixData.status === 'pending_qr' && pixData.invoice_url && (
+                            <div className="mt-6 p-4 bg-amber-900/30 border border-amber-500/40 rounded-xl text-center">
+                                <p className="text-sm text-amber-300 mb-3">QR demorando? Acesse diretamente:</p>
+                                <a
+                                    href={pixData.invoice_url}
+                                    target="_blank"
+                                    className="w-full inline-flex items-center justify-center gap-2 bg-amber-600 hover:bg-amber-500 text-white px-6 py-3 rounded-xl font-bold transition-all"
+                                >
+                                    Ver PIX no Asaas
+                                    <ExternalLink size={16} />
+                                </a>
                             </div>
                         )}
                         <button
@@ -353,6 +440,40 @@ const MerchantBilling = () => {
                                     {getSubscriptionStatusLabel(subscription?.status || 'canceled')}
                                 </div>
                             </div>
+
+                            {subscription?.status === 'pending_asaas' && (
+                                <div className="mb-8">
+                                    <button
+                                        onClick={async () => {
+                                            if (pixData) {
+                                                setShowPixModal(true);
+                                            } else if (subscription?.id) {
+                                                // Tentar carregar o pagamento atual dele
+                                                setLoading(true);
+                                                try {
+                                                    const { data } = await supabase.functions.invoke('activate-pharmacy-plan', {
+                                                        body: { pharmacy_id: pharmacyId },
+                                                        headers: {
+                                                            Authorization: `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
+                                                            apikey: import.meta.env.VITE_SUPABASE_ANON_KEY
+                                                        }
+                                                    });
+                                                    if (data?.pix) {
+                                                        setPixData(data.pix);
+                                                        setShowPixModal(true);
+                                                    }
+                                                } finally {
+                                                    setLoading(false);
+                                                }
+                                            }
+                                        }}
+                                        className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-primary text-[#0a0f0d] text-[10px] font-black uppercase tracking-widest hover:brightness-110 transition-all"
+                                    >
+                                        Pagar com PIX
+                                        <ExternalLink size={14} />
+                                    </button>
+                                </div>
+                            )}
 
                             <div className="grid grid-cols-2 md:grid-cols-3 gap-8 mt-auto">
                                 <div>

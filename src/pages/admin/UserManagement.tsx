@@ -124,6 +124,9 @@ export const UserManagement = ({ profile }: { profile: any }) => {
                 return;
             }
 
+            // Refresh session to ensure latest token
+            const { data: sessionData } = await supabase.auth.refreshSession();
+
             if (selectedUser) {
                 // Editar usuário existente via Edge Function
                 const { data: responseData, error: invokeError } = await supabase.functions.invoke('update-user-admin', {
@@ -135,6 +138,10 @@ export const UserManagement = ({ profile }: { profile: any }) => {
                             full_name: formData.full_name,
                             role: formData.role
                         }
+                    },
+                    headers: {
+                        Authorization: `Bearer ${sessionData.session?.access_token}`,
+                        apikey: import.meta.env.VITE_SUPABASE_ANON_KEY
                     }
                 });
 
@@ -176,6 +183,10 @@ export const UserManagement = ({ profile }: { profile: any }) => {
                             full_name: formData.full_name,
                             role: formData.role
                         }
+                    },
+                    headers: {
+                        Authorization: `Bearer ${sessionData.session?.access_token}`,
+                        apikey: import.meta.env.VITE_SUPABASE_ANON_KEY
                     }
                 });
 
@@ -263,9 +274,13 @@ export const UserManagement = ({ profile }: { profile: any }) => {
         setConfirmModal(prev => prev ? { ...prev, loading: true } : null);
 
         try {
-            const { data: { session } } = await supabase.auth.getSession();
+            const { data: { session } } = await supabase.auth.refreshSession();
             const { error: deleteFuncErr } = await supabase.functions.invoke('delete-user-admin', {
-                body: { user_id: id }
+                body: { user_id: id },
+                headers: {
+                    Authorization: `Bearer ${session?.access_token}`,
+                    apikey: import.meta.env.VITE_SUPABASE_ANON_KEY
+                }
             });
 
             if (deleteFuncErr) {
