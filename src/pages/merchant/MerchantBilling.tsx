@@ -66,7 +66,7 @@ const MerchantBilling = () => {
 
         return () => {
             clearInterval(interval);
-            subscription.unsubscribe();
+            authSub.unsubscribe();
         };
     }, [showPixModal]);
 
@@ -515,7 +515,11 @@ const MerchantBilling = () => {
                                     <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Próxima Cobrança</p>
                                     <p className="text-xl font-bold text-white tracking-tight flex items-center gap-2">
                                         <Clock size={16} className="text-primary" />
-                                        {subscription?.next_billing_date ? new Date(subscription.next_billing_date).toLocaleDateString() : '--/--/----'}
+                                        {subscription?.plan?.slug === 'free' ? (
+                                            <span className="text-xs uppercase tracking-widest opacity-50">Não se aplica</span>
+                                        ) : (
+                                            subscription?.next_billing_date ? new Date(subscription.next_billing_date).toLocaleDateString() : '--/--/----'
+                                        )}
                                     </p>
                                 </div>
                                 <div className="hidden md:block">

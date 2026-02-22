@@ -826,22 +826,9 @@ const PharmacyDetailsContent = ({ googleKey }: { googleKey: string }) => {
 
 
 
-                // ⚠️ Criação de Assinatura via UPSERT para garantir idempotência
-                console.log("Criando/Garantindo assinatura inicial...");
-                const { error: directSubError } = await supabase
-                    .from('pharmacy_subscriptions')
-                    .upsert({
-                        pharmacy_id: pharmacyId,
-                        plan: 'ENTERPRISE',
-                        status: 'trialing',
-                    }, { onConflict: 'pharmacy_id' });
-
-                if (directSubError) {
-                    console.warn("Falha ao criar assinatura automática (pode ser RLS):", directSubError);
-                    alert("Farmácia criada, mas NÃO consegui criar a assinatura (RLS). Sem assinatura, não dá pra aprovar. Verifique políticas/permite admin criar subscriptions.");
-                } else {
-                    console.log("Assinatura trialing criada com sucesso.");
-                }
+                // O trigger 'trigger_auto_create_subscription' no banco de dados
+                // criará automaticamente a assinatura 'active' no plano 'free'.
+                console.log("Assinatura automática será gerada pelo banco de dados.");
 
                 // Criar Usuário Dono (Merchant) se dados fornecidos
                 if (formData.merchant_email && formData.merchant_password) {

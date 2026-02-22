@@ -220,16 +220,22 @@ Deno.serve(async (req) => {
             return json({ ok: true }, 200);
         }
 
+        // 3.3 Atualiza para active E PRÓXIMA COBRANÇA
         console.log(`[asaas-webhook] Ativando subscription ${sub.id} (status atual: ${sub.status})...`);
 
-        // 3.3 Atualiza para active E PRÓXIMA COBRANÇA
+        // CORREÇÃO: Calcula próxima data de cobrança (30 dias após pagamento)
+        const paymentDateStr = payment.paymentDate || payment.confirmedDate || new Date().toISOString().slice(0, 10);
+        const paymentDateObj = new Date(paymentDateStr);
+        const nextBillingDateObj = new Date(paymentDateObj);
+        nextBillingDateObj.setDate(nextBillingDateObj.getDate() + 30);
+        const nextBillingDateStr = nextBillingDateObj.toISOString().slice(0, 10);
+
         const { error: subErr } = await supabaseAdmin
             .from("pharmacy_subscriptions")
             .update({
                 status: "active",
                 activated_at: new Date().toISOString(),
-                // CORREÇÃO: Calcula próxima data de cobrança (30 dias após pagamento)
-                next_billing_date: endDateStr, // Usar a mesma endDate do ciclo
+                next_billing_date: nextBillingDateStr,
                 asaas_last_error: null,
                 asaas_updated_at: new Date().toISOString(),
             })
@@ -239,45 +245,36 @@ Deno.serve(async (req) => {
             console.error("[asaas-webhook] Falha ao ativar subscription:", subErr);
             return json({ ok: true, warning: "falha ao ativar subscription" }, 200);
         } else {
-            console.log(`[asaas-webhook] Subscription ${sub.id} ativada com sucesso!`);
+            console.log(`[asaas-webhook] Subscription ${sub.id} ativada com sucesso! Próxima cobrança: ${nextBillingDateStr}`);
 
             // --- NEW: Create Rolling Billing Cycle starting on Payment Date ---
             try {
-                // CORREÇÃO: Usar data real do pagamento ou data de confirmação
-                const paymentDateStr = payment.paymentDate || payment.confirmedDate || new Date().toISOString().slice(0, 10);
-                const paymentDate = new Date(paymentDateStr);
-
-                // End date is 30 days after payment
-                const endDate = new Date(paymentDate);
-                endDate.setDate(endDate.getDate() + 30);
-                const endDateStr = endDate.toISOString().slice(0, 10);
-
-                console.log(`[asaas-webhook] Criando ciclo rolante: ${paymentDateStr} até ${endDateStr}`);
+                console.log(`[asaas-webhook] Criando ciclo rolante: ${paymentDateStr} até ${nextBillingDateStr}`);
 
                 // Primeiro verifica se já existe ciclo PENDENTE para este período
                 const { data: existingCycle } = await supabaseAdmin
                     .from('billing_cycles')
                     .select('id, status')
                     .eq('pharmacy_id', invoice.pharmacy_id)
-                    .eq('status', 'pending')  // Busca ciclo pendente
+                    .eq('status', 'active') // Se já tem um ativo, vamos considerar "estender" ou "resetar"
                     .order('period_start', { ascending: false })
                     .limit(1)
                     .maybeSingle();
 
                 if (existingCycle) {
-                    // Se existe pendente, atualiza para active e ajusta datas
+                    // Se existe, atualiza para novas datas e reseta contadores
                     await supabaseAdmin
                         .from('billing_cycles')
-                        .update({ 
+                        .update({
                             status: 'active',
-                            period_start: paymentDateStr,  // Ajusta start para data do pagamento
-                            period_end: endDateStr,       // Ajusta end para 30 dias após pagamento
-                            free_orders_used: 0,          // Reseta contadores
+                            period_start: paymentDateStr,
+                            period_end: nextBillingDateStr,
+                            free_orders_used: 0,
                             overage_orders: 0,
                             overage_amount_cents: 0
                         })
                         .eq('id', existingCycle.id);
-                    console.log(`[asaas-webhook] Ciclo pendente atualizado para active com datas corrigidas para ${invoice.pharmacy_id}`);
+                    console.log(`[asaas-webhook] Ciclo ativo atualizado com datas do novo pagamento para ${invoice.pharmacy_id}`);
                 } else {
                     // Se não existe, cria novo
                     await supabaseAdmin
@@ -285,7 +282,7 @@ Deno.serve(async (req) => {
                         .upsert({
                             pharmacy_id: invoice.pharmacy_id,
                             period_start: paymentDateStr,
-                            period_end: endDateStr,
+                            period_end: nextBillingDateStr,
                             status: 'active',
                             free_orders_used: 0,
                             overage_orders: 0,
@@ -294,9 +291,8 @@ Deno.serve(async (req) => {
                     console.log(`[asaas-webhook] Novo ciclo criado para ${invoice.pharmacy_id}`);
                 }
             } catch (err) {
-                console.error("[asaas-webhook] Erro ao criar ciclo inicial:", err);
+                console.error("[asaas-webhook] Erro ao criar/atualizar ciclo:", err);
             }
-            // -----------------------------------------------------------------
         }
 
         // Bônus: logar se o pagamento veio com ID de subscription do Asaas

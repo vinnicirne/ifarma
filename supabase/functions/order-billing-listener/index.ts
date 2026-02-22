@@ -25,7 +25,7 @@ Deno.serve(async (req) => {
 
   try {
     const { order_id, pharmacy_id, action = 'process' } = await req.json()
-    
+
     if (!order_id || !pharmacy_id) {
       return json({ error: "order_id e pharmacy_id são obrigatórios" }, 400)
     }
@@ -82,20 +82,20 @@ Deno.serve(async (req) => {
         free_orders_used: currentFreeUsed + 1
       }
       orderType = 'FREE'
-      
+
       console.log(`[order-billing-listener] Pedido ${order_id} contado como GRÁTIS (${currentFreeUsed + 1}/${freeLimit})`)
     } else {
       // Franquia esgotada - conta como excedente
       const overageFeeCents = Math.round(
         (subscription.plan.overage_percent_bp || 0) * 100 / 10000 // converte bp para cents
       )
-      
+
       updateData = {
         overage_orders: currentOverage + 1,
         overage_amount_cents: cycle.overage_amount_cents + overageFeeCents
       }
       orderType = 'OVERAGE'
-      
+
       console.log(`[order-billing-listener] Pedido ${order_id} contado como EXCEDENTE (${currentOverage + 1}), taxa=${overageFeeCents}c`)
     }
 
@@ -110,8 +110,8 @@ Deno.serve(async (req) => {
       return json({ error: "Erro ao atualizar contador" }, 500)
     }
 
-    return json({ 
-      success: true, 
+    return json({
+      success: true,
       order_id,
       pharmacy_id,
       type: orderType,

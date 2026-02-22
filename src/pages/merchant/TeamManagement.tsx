@@ -311,7 +311,7 @@ const TeamManagement = () => {
 
     const handleSave = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!pharmacyId) return;
+        if (saving || !pharmacyId) return;
 
         setSaving(true);
         try {
@@ -542,33 +542,7 @@ const TeamManagement = () => {
                         <p className="text-slate-500 dark:text-[#92c9a9] text-sm font-bold uppercase tracking-widest mt-1">Gerentes, Caixas e Motoboys</p>
                     </div>
                     <div className="flex gap-2">
-                        {/* Botão de Teste Isolado */}
-                        <button
-                            onClick={async () => {
-                                console.log("[TEST] Clicou no botão de teste manual");
-                                if (!team[0]) {
-                                    console.warn("[TEST] Equipe vazia, não há quem testar");
-                                    return;
-                                }
-                                try {
-                                    const { data, error } = await supabase.functions.invoke('delete-user-admin', {
-                                        body: {
-                                            user_id: team[0].id,
-                                            pharmacy_id: pharmacyId
-                                        }
-                                    });
-                                    console.log("[TEST] Resposta:", { data, error });
-                                    if (error) alert("Erro no teste: " + error.message);
-                                    else alert("Sucesso no teste!");
-                                } catch (err: any) {
-                                    console.error("[TEST] Erro fatal:", err);
-                                    alert("Erro fatal: " + err.message);
-                                }
-                            }}
-                            className="bg-red-600/20 text-red-500 h-10 px-4 rounded-2xl text-[10px] font-black uppercase tracking-widest border border-red-500/20"
-                        >
-                            Teste Delete (Primeiro da Lista)
-                        </button>
+
 
                         {['merchant', 'manager', 'admin'].includes(myRole || '') && (
                             <button

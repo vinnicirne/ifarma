@@ -24,7 +24,7 @@ Deno.serve(async (req) => {
 
   try {
     const { order_id, pharmacy_id } = await req.json()
-    
+
     if (!order_id || !pharmacy_id) {
       return json({ error: "order_id e pharmacy_id são obrigatórios" }, 400)
     }
@@ -87,8 +87,8 @@ Deno.serve(async (req) => {
       }
 
       console.log(`[process-order-billing] Pedido contado como GRÁTIS (${currentFreeUsed + 1}/${freeLimit})`)
-      return json({ 
-        success: true, 
+      return json({
+        success: true,
         type: 'free',
         free_used: currentFreeUsed + 1,
         free_remaining: freeLimit - (currentFreeUsed + 1)
@@ -114,8 +114,8 @@ Deno.serve(async (req) => {
       }
 
       console.log(`[process-order-billing] Pedido contado como EXCEDENTE (${currentOverage + 1}), taxa=${overageFeeCents}c`)
-      return json({ 
-        success: true, 
+      return json({
+        success: true,
         type: 'overage',
         overage_orders: currentOverage + 1,
         overage_amount_cents: cycle.overage_amount_cents + overageFeeCents

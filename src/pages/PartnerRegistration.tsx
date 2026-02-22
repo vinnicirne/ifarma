@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
+import { useToast } from '../components/ToastProvider';
 
 const MaterialIcon = ({ name, className = "" }: { name: string, className?: string }) => (
     <span className={`material-symbols-outlined ${className}`}>{name}</span>
@@ -8,6 +9,7 @@ const MaterialIcon = ({ name, className = "" }: { name: string, className?: stri
 
 const PartnerRegistration = () => {
     const navigate = useNavigate();
+    const { showToast } = useToast();
     const [step, setStep] = useState(1);
     const [loading, setLoading] = useState(false);
     const [cnpjLoading, setCnpjLoading] = useState(false);
@@ -53,23 +55,15 @@ const PartnerRegistration = () => {
                 if (error) throw error;
 
                 // De-duplicate and filter for canonical plans
-                const canonicalNames = ['FREE', 'PROFESSIONAL', 'ENTERPRISE', 'Gratuito', 'Básico', 'Pro', 'Especial'];
+
                 const uniquePlans: any[] = [];
                 const seen = new Set();
 
-                // Sort data first to ensure we pick the "best" one if duplicates exist
-                const sortedData = (data || []).sort((a, b) => {
-                    // Custom sort to prioritize canonical slugs
-                    const score = (slug: string) => {
-                        if (['free', 'gratuito', 'professional', 'basico', 'enterprise', 'pro'].includes(slug.toLowerCase())) return 2;
-                        return 1;
-                    };
-                    return score(b.slug) - score(a.slug);
-                });
-
-                sortedData.forEach(plan => {
+                const rawPlans = (data || []);
+                rawPlans.forEach(plan => {
                     const normalizedName = plan.name.toUpperCase();
-                    if ((canonicalNames.some(cn => cn.toUpperCase() === normalizedName)) && !seen.has(normalizedName)) {
+                    const isFree = plan.slug === 'free' || normalizedName.includes('FREE') || normalizedName.includes('GRATUITO');
+                    if (isFree && !seen.has(normalizedName)) {
                         seen.add(normalizedName);
                         uniquePlans.push(plan);
                     }
@@ -79,6 +73,11 @@ const PartnerRegistration = () => {
                 uniquePlans.sort((a, b) => a.monthly_fee_cents - b.monthly_fee_cents);
 
                 setPlans(uniquePlans);
+
+                // Auto-select the free plan by default
+                if (uniquePlans.length > 0) {
+                    setFormData(prev => ({ ...prev, plan_id: uniquePlans[0].id }));
+                }
             } catch (error) {
                 console.error("Erro ao carregar planos", error);
             }
@@ -201,7 +200,8 @@ const PartnerRegistration = () => {
 
     const validateStep = (currentStep: number) => {
         if (currentStep === 1) {
-            return formData.owner_email && formData.owner_phone && formData.owner_name &&
+            return formData.owner_email && formData.owner_email.includes('@') &&
+                formData.owner_phone && formData.owner_name &&
                 formData.owner_last_name && formData.owner_cpf && formData.owner_rg &&
                 formData.owner_rg_issuer;
         }
@@ -216,14 +216,22 @@ const PartnerRegistration = () => {
             return formData.cep && formData.address && formData.address_number &&
                 formData.neighborhood && formData.city && formData.state;
         }
+        if (currentStep === 5) {
+            return true; // Review step
+        }
         return true;
     };
 
     const nextStep = () => {
+        if (step === 1 && formData.owner_email && !formData.owner_email.includes('@')) {
+            showToast("E-MAIL INVÁLIDO", "warning");
+            return;
+        }
+
         if (validateStep(step)) {
             setStep(prev => prev + 1);
         } else {
-            alert("Por favor, preencha todos os campos obrigatórios antes de continuar.");
+            showToast("PREENCHA TODOS OS CAMPOS", "warning");
         }
     };
     const prevStep = () => setStep(prev => prev - 1);
@@ -277,13 +285,14 @@ const PartnerRegistration = () => {
 
         } catch (error: any) {
             console.error(error);
-            // Check for specific error messages if possible, though Edge Function might wrap them
             const msg = error.message || "Erro ao realizar cadastro.";
 
-            if (msg.includes('pharmacies_cnpj_key') || msg.includes('Este CNPJ já está cadastrado')) {
-                alert("Este CNPJ já está cadastrado. Por favor, entre em contato conosco ou tente recuperar sua senha.");
+            if (msg.includes('pharmacies_cnpj_key') || msg.includes('Este CNPJ já está cadastrado') || msg.includes('cnpj')) {
+                showToast("CNPJ JÁ CADASTRADO", "error");
+            } else if (msg.includes('profiles_email_key') || msg.includes('e-mail')) {
+                showToast("ESTE E-MAIL JÁ ESTÁ SENDO USADO", "error");
             } else {
-                alert(msg);
+                showToast(msg, "error");
             }
         } finally {
             setLoading(false);
@@ -335,7 +344,7 @@ const PartnerRegistration = () => {
             <div className="w-full max-w-2xl bg-white dark:bg-zinc-800 rounded-[32px] shadow-2xl overflow-hidden border border-slate-100 dark:border-white/5">
                 {/* Progress Bar */}
                 <div className="bg-slate-100 dark:bg-black/20 h-2 w-full flex">
-                    <div className={`h-full bg-primary transition-all duration-500 ${step === 1 ? 'w-1/4' : step === 2 ? 'w-2/4' : step === 3 ? 'w-3/4' : 'w-full'}`}></div>
+                    <div className={`h-full bg-primary transition-all duration-500 ${step === 1 ? 'w-1/5' : step === 2 ? 'w-2/5' : step === 3 ? 'w-3/5' : step === 4 ? 'w-4/5' : 'w-full'}`}></div>
                 </div>
 
                 <form onSubmit={handleSubmit} className="p-8 md:p-12">
@@ -552,6 +561,78 @@ const PartnerRegistration = () => {
                         </div>
                     )}
 
+                    {/* STEP 5: REVIEW */}
+                    {step === 5 && (
+                        <div className="animate-fade-in">
+                            <h2 className="text-2xl font-black text-slate-900 dark:text-white mb-6 flex items-center gap-2">
+                                <MaterialIcon name="fact_check" className="text-primary" />
+                                Conferência dos Dados
+                            </h2>
+
+                            <div className="space-y-6">
+                                <div className="p-6 rounded-2xl bg-slate-50 dark:bg-black/20 border border-slate-100 dark:border-white/5">
+                                    <h3 className="text-xs font-black uppercase text-primary tracking-widest mb-4 flex items-center gap-2">
+                                        <MaterialIcon name="person" className="text-sm" /> Responsável
+                                    </h3>
+                                    <div className="grid grid-cols-2 gap-4 text-sm">
+                                        <div>
+                                            <p className="text-slate-400 text-[10px] uppercase font-bold">Nome Completo</p>
+                                            <p className="font-bold text-slate-700 dark:text-slate-200">{formData.owner_name} {formData.owner_last_name}</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-slate-400 text-[10px] uppercase font-bold">CPF</p>
+                                            <p className="font-bold text-slate-700 dark:text-slate-200">{formData.owner_cpf}</p>
+                                        </div>
+                                        <div className="col-span-2">
+                                            <p className="text-slate-400 text-[10px] uppercase font-bold">E-mail de Acesso</p>
+                                            <p className="font-bold text-primary">{formData.owner_email}</p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="p-6 rounded-2xl bg-slate-50 dark:bg-black/20 border border-slate-100 dark:border-white/5">
+                                    <h3 className="text-xs font-black uppercase text-primary tracking-widest mb-4 flex items-center gap-2">
+                                        <MaterialIcon name="store" className="text-sm" /> Estabelecimento
+                                    </h3>
+                                    <div className="grid grid-cols-2 gap-4 text-sm">
+                                        <div className="col-span-2">
+                                            <p className="text-slate-400 text-[10px] uppercase font-bold">Nome Fantasia</p>
+                                            <p className="font-bold text-slate-700 dark:text-slate-200">{formData.trade_name}</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-slate-400 text-[10px] uppercase font-bold">CNPJ</p>
+                                            <p className="font-bold text-slate-700 dark:text-slate-200">{formData.cnpj}</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-slate-400 text-[10px] uppercase font-bold">Plano Escolhido</p>
+                                            <p className="font-bold text-emerald-500 uppercase tracking-tighter">
+                                                {plans.find(p => p.id === formData.plan_id)?.name || 'Não selecionado'}
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="p-6 rounded-2xl bg-slate-50 dark:bg-black/20 border border-slate-100 dark:border-white/5">
+                                    <h3 className="text-xs font-black uppercase text-primary tracking-widest mb-4 flex items-center gap-2">
+                                        <MaterialIcon name="location_on" className="text-sm" /> Endereço
+                                    </h3>
+                                    <p className="text-sm font-bold text-slate-700 dark:text-slate-200 leading-relaxed">
+                                        {formData.address}, {formData.address_number} {formData.address_complement && `- ${formData.address_complement}`} <br />
+                                        {formData.neighborhood} - {formData.city}/{formData.state} <br />
+                                        CEP: {formData.cep}
+                                    </p>
+                                </div>
+
+                                <div className="p-4 bg-primary/10 rounded-xl flex items-start gap-3">
+                                    <MaterialIcon name="info" className="text-primary mt-0.5" />
+                                    <p className="text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed">
+                                        Ao clicar em <strong>"Enviar para Aprovação"</strong>, seus dados serão processados e nossa equipe entrará em contato em até 24h úteis.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
                     {/* Footer Buttons */}
                     <div className="mt-10 flex gap-4 pt-6 border-t border-slate-100 dark:border-white/5">
                         {step > 1 && (
@@ -560,13 +641,13 @@ const PartnerRegistration = () => {
                             </button>
                         )}
 
-                        {step < 4 ? (
+                        {step < 5 ? (
                             <button type="button" onClick={nextStep} className="flex-1 bg-primary text-background-dark h-14 rounded-2xl font-black uppercase tracking-widest hover:opacity-90 transition-opacity shadow-lg shadow-primary/20">
                                 Continuar
                             </button>
                         ) : (
                             <button disabled={loading} type="submit" className="flex-1 bg-primary text-background-dark h-14 rounded-2xl font-black uppercase tracking-widest hover:opacity-90 transition-opacity shadow-lg shadow-primary/20 disabled:opacity-50">
-                                {loading ? 'Finalizando...' : 'Concluir Cadastro'}
+                                {loading ? 'Enviando...' : 'Enviar para Aprovação'}
                             </button>
                         )}
                     </div>

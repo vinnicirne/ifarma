@@ -18,45 +18,48 @@ DECLARE
   v_cycle RECORD;
   v_plan RECORD;
   v_overage_amount INTEGER := 0;
+  v_period_start DATE;
+  v_period_end DATE;
 BEGIN
   -- Aciona quando o status muda para 'delivered' ou 'entregue'
   IF (NEW.status IN ('delivered', 'entregue')) AND (OLD.status IS NULL OR (OLD.status NOT IN ('delivered', 'entregue'))) THEN
 
     -- A) Localizar assinatura ativa da farmácia
-    SELECT * INTO v_subscription
-    FROM public.pharmacy_subscriptions
-    WHERE pharmacy_id = NEW.pharmacy_id AND status = 'active'
+    SELECT ps.*, bp.slug as plan_slug, bp.free_orders_per_period, bp.overage_percent_bp, bp.overage_fixed_fee_cents 
+    INTO v_subscription
+    FROM public.pharmacy_subscriptions ps
+    JOIN public.billing_plans bp ON bp.id = ps.plan_id
+    WHERE ps.pharmacy_id = NEW.pharmacy_id AND ps.status IN ('active', 'pending_asaas')
     LIMIT 1;
 
     IF NOT FOUND THEN
-      RAISE NOTICE '[BILLING] Pharmacy % sem assinatura ativa. Ignorando.', NEW.pharmacy_id;
+      RAISE WARNING '[BILLING] Pharmacy % sem assinatura ativa. Ignorando contagem.', NEW.pharmacy_id;
       RETURN NEW;
     END IF;
 
-    -- B) Localizar o plano vinculado à assinatura
-    SELECT * INTO v_plan
-    FROM public.billing_plans
-    WHERE id = v_subscription.plan_id;
-
-    IF NOT FOUND THEN
-      RAISE NOTICE '[BILLING] Plano não encontrado para sub %. Ignorando.', v_subscription.id;
-      RETURN NEW;
-    END IF;
-
-    -- C) Localizar ciclo ativo atual
+    -- B) Localizar ciclo ativo atual
     SELECT * INTO v_cycle
     FROM public.billing_cycles
     WHERE pharmacy_id = NEW.pharmacy_id AND status = 'active'
     ORDER BY period_start DESC
     LIMIT 1;
 
+    -- C) AUTO-HEALING: Se não houver ciclo ativo, cria um agora
     IF NOT FOUND THEN
-      RAISE NOTICE '[BILLING] Ciclo ativo não encontrado para pharmacy %. Ignorando.', NEW.pharmacy_id;
-      RETURN NEW;
+      v_period_start := CURRENT_DATE;
+      v_period_end := CURRENT_DATE + INTERVAL '30 days';
+      
+      INSERT INTO public.billing_cycles (pharmacy_id, status, period_start, period_end, free_orders_used, overage_orders, overage_amount_cents)
+      VALUES (NEW.pharmacy_id, 'active', v_period_start, v_period_end, 0, 0, 0)
+      ON CONFLICT (pharmacy_id, period_start) 
+      DO UPDATE SET status = 'active'
+      RETURNING * INTO v_cycle;
+      
+      RAISE NOTICE '[BILLING] Ciclo auto-criado ou reativado para pharmacy %', NEW.pharmacy_id;
     END IF;
 
     -- D) REGRA DE NEGÓCIO: Incrementar Contadores
-    IF v_cycle.free_orders_used < v_plan.free_orders_per_period THEN
+    IF v_cycle.free_orders_used < v_subscription.free_orders_per_period THEN
       -- D.1) Dentro da franquia grátis
       UPDATE public.billing_cycles
       SET free_orders_used = free_orders_used + 1,
@@ -65,9 +68,8 @@ BEGIN
       
     ELSE
       -- D.2) Pedido Excedente (Overage)
-      -- NEW.total_price é Numeric (reais), multiplicamos por 100 para centavos.
-      v_overage_amount := v_plan.overage_fixed_fee_cents;
-      v_overage_amount := v_overage_amount + ROUND(NEW.total_price * 100.0 * v_plan.overage_percent_bp / 10000.0)::INTEGER;
+      v_overage_amount := COALESCE(v_subscription.overage_fixed_fee_cents, 0);
+      v_overage_amount := v_overage_amount + ROUND(COALESCE(NEW.total_price, 0) * 100.0 * COALESCE(v_subscription.overage_percent_bp, 0) / 10000.0)::INTEGER;
 
       UPDATE public.billing_cycles
       SET overage_orders = overage_orders + 1,

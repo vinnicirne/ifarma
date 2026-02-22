@@ -20,8 +20,8 @@ DECLARE
     v_plan_id UUID;
     v_plan_slug TEXT;
 BEGIN
-    -- Determine plan slug (default to 'gratuito' if null)
-    v_plan_slug := COALESCE(NEW.plan, 'gratuito');
+    -- Determine plan slug (default to 'free' if null)
+    v_plan_slug := COALESCE(NEW.plan, 'free');
 
     -- Find plan ID by slug
     SELECT id INTO v_plan_id

@@ -27,7 +27,7 @@ BEGIN
     -- A) Localizar assinatura ativa da farmácia
     SELECT * INTO v_subscription
     FROM public.pharmacy_subscriptions
-    WHERE pharmacy_id = NEW.pharmacy_id AND status = 'active'
+    WHERE pharmacy_id = NEW.pharmacy_id AND status IN ('active', 'pending_asaas')
     LIMIT 1;
 
     IF NOT FOUND THEN
