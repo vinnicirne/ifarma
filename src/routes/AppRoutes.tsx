@@ -38,6 +38,7 @@ const ResetPassword = lazy(() => import('../pages/ResetPassword'));
 const DiagnosticPage = null; // Removed for hygiene
 const HelpSupport = lazy(() => import('../pages/HelpSupport'));
 const PrivacyPolicy = lazy(() => import('../pages/PrivacyPolicy'));
+const RefundPolicy = lazy(() => import('../pages/RefundPolicy'));
 const AboutUs = lazy(() => import('../pages/AboutUs'));
 const LandingPage = lazy(() => import('../pages/client/LandingPage').then(m => ({ default: m.LandingPage })));
 
@@ -113,6 +114,7 @@ export const AppRoutes = ({ session, profile, userLocation, sortedPharmacies, re
             <Route path="/category/:id" element={<Suspense fallback={<LoadingScreen />}><GlobalCategoryPage session={session} userLocation={userLocation} /></Suspense>} />
             <Route path="/product/:id" element={<Suspense fallback={<LoadingScreen />}><ProductPage session={session} /></Suspense>} />
             <Route path="/privacy" element={<Suspense fallback={<LoadingScreen />}><PrivacyPolicy /></Suspense>} />
+            <Route path="/refund" element={<Suspense fallback={<LoadingScreen />}><RefundPolicy /></Suspense>} />
             <Route path="/about" element={<Suspense fallback={<LoadingScreen />}><AboutUs /></Suspense>} />
             <Route path="/help" element={<Suspense fallback={<LoadingScreen />}><HelpSupport /></Suspense>} />
             <Route path="/login" element={<Auth view="login" />} />

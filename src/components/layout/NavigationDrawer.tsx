@@ -96,6 +96,7 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({ isOpen, onCl
                     <div className="mt-auto flex flex-col pt-4 border-t border-gray-100 dark:border-white/5 gap-2">
                         <MenuLink icon="info" label="Sobre o ifarma" to="/about" onClick={onClose} active={location.pathname === '/about'} />
                         <MenuLink icon="shield_lock" label="Privacidade" to="/privacy" onClick={onClose} active={location.pathname === '/privacy'} />
+                        <MenuLink icon="currency_exchange" label="Reembolso" to="/refund" onClick={onClose} active={location.pathname === '/refund'} />
                         <div className="grid grid-cols-2 gap-3 pt-2">
                             <MenuLinkSmall icon="help" label="Ajuda" to="/help" onClick={onClose} />
                             <MenuLinkSmall icon="settings" label="Configurar" to="/settings" onClick={onClose} />
