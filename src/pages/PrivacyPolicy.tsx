@@ -28,10 +28,16 @@ const PrivacyPolicy = () => {
             content: 'Seus dados são utilizados para personalizar sua experiência, agilizar o checkout e cumprir exigências legais da ANVISA. Não vendemos suas informações para terceiros. O compartilhamento ocorre apenas com a farmácia responsável pelo seu atendimento.'
         },
         {
+            id: 'seguranca_dados',
+            title: 'Segurança dos Dados',
+            icon: <ShieldCheck className="text-primary" size={20} />,
+            content: 'Em conformidade com as práticas de Segurança de Dados do App, garantimos: 1. Proteção de dados em trânsito (criptografia SSL); 2. Armazenamento seguro em servidores certificados; 3. Controle total do usuário para solicitar a exclusão de dados; 4. Transparência sobre a não transferência de dados pessoais para terceiros não operacionais.'
+        },
+        {
             id: 'seguranca',
-            title: 'Segurança',
+            title: 'Infraestrutura',
             icon: <Lock className="text-amber-500" size={20} />,
-            content: 'Utilizamos infraestrutura de nível bancário com o Supabase Auth e Banco de Dados. Todas as transações são protegidas por SSL e monitoradas 24/7 contra acessos não autorizados.'
+            content: 'Utilizamos infraestrutura de nível bancário com o Supabase Auth e Banco de Dados. Todas as transações são monitoradas 24/7 contra acessos não autorizados.'
         }
     ];
 
@@ -125,6 +131,7 @@ const PrivacyPolicy = () => {
                         icon={<Trash2 size={18} />}
                         label="Excluir Minha Conta"
                         color="text-red-500"
+                        onClick={() => navigate('/delete-account')}
                     />
                 </div>
 
@@ -160,8 +167,11 @@ const PreferenceItem = ({ label, description, active, onToggle, isFirst = true, 
     </div>
 );
 
-const ActionButton = ({ icon, label, color }: any) => (
-    <button className="flex items-center justify-between p-5 rounded-2xl bg-white/[0.03] border border-white/5 hover:bg-white/[0.06] active:scale-[0.98] transition-all group">
+const ActionButton = ({ icon, label, color, onClick }: any) => (
+    <button
+        onClick={onClick}
+        className="flex items-center justify-between p-5 rounded-2xl bg-white/[0.03] border border-white/5 hover:bg-white/[0.06] active:scale-[0.98] transition-all group w-full text-left"
+    >
         <div className="flex items-center gap-4">
             <div className={`${color} opacity-80 group-hover:opacity-100 transition-opacity`}>
                 {icon}

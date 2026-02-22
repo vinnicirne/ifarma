@@ -41,6 +41,7 @@ const PrivacyPolicy = lazy(() => import('../pages/PrivacyPolicy'));
 const RefundPolicy = lazy(() => import('../pages/RefundPolicy'));
 const AboutUs = lazy(() => import('../pages/AboutUs'));
 const LandingPage = lazy(() => import('../pages/client/LandingPage').then(m => ({ default: m.LandingPage })));
+const AccountDeletion = lazy(() => import('../pages/AccountDeletion'));
 
 // Pages - Admin (lazy load - large and admin-only)
 import AdminLayout from '../layouts/AdminLayout';
@@ -117,6 +118,7 @@ export const AppRoutes = ({ session, profile, userLocation, sortedPharmacies, re
             <Route path="/refund" element={<Suspense fallback={<LoadingScreen />}><RefundPolicy /></Suspense>} />
             <Route path="/about" element={<Suspense fallback={<LoadingScreen />}><AboutUs /></Suspense>} />
             <Route path="/help" element={<Suspense fallback={<LoadingScreen />}><HelpSupport /></Suspense>} />
+            <Route path="/delete-account" element={<Suspense fallback={<LoadingScreen />}><AccountDeletion /></Suspense>} />
             <Route path="/login" element={<Auth view="login" />} />
             <Route path="/signup" element={<Auth view="signup" />} />
             <Route path="/partner/register" element={<Suspense fallback={<LoadingScreen />}><PartnerRegistration /></Suspense>} />
