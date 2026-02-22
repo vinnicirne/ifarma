@@ -14,7 +14,8 @@ const StoreCustomization = () => {
     const [pharmacy, setPharmacy] = useState<any>(null);
 
     // Form States
-    const [name, setName] = useState('');
+    const [tradeName, setTradeName] = useState('');
+    const [legalName, setLegalName] = useState('');
     const [phone, setPhone] = useState('');
     const [cnpj, setCnpj] = useState('');
     const [isOpen, setIsOpen] = useState(true);
@@ -139,7 +140,8 @@ const StoreCustomization = () => {
 
             if (data) {
                 setPharmacy(data);
-                setName(data.name || '');
+                setTradeName(data.trade_name || data.name || '');
+                setLegalName(data.legal_name || '');
                 setPhone(data.establishment_phone || data.phone || '');
                 setCnpj(data.cnpj || '');
                 setIsOpen(data.is_open ?? true);
@@ -293,7 +295,9 @@ const StoreCustomization = () => {
             const { data: updateResult, error } = await supabase
                 .from('pharmacies')
                 .update({
-                    name,
+                    name: tradeName,
+                    trade_name: tradeName,
+                    legal_name: legalName,
                     establishment_phone: phone,
                     cnpj: cnpj || null,
                     is_open: isOpen,
@@ -423,7 +427,12 @@ const StoreCustomization = () => {
                         <div className="grid md:grid-cols-2 gap-6">
                             <label className="flex flex-col gap-1">
                                 <span className="text-[10px] font-black uppercase text-slate-500">Nome Fantasia</span>
-                                <input value={name} onChange={e => setName(e.target.value)} className="h-12 px-4 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 rounded-xl outline-none font-bold italic text-slate-900 dark:text-white focus:border-primary transition-colors" />
+                                <input value={tradeName} onChange={e => setTradeName(e.target.value)} className="h-12 px-4 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 rounded-xl outline-none font-bold italic text-slate-900 dark:text-white focus:border-primary transition-colors" />
+                            </label>
+
+                            <label className="flex flex-col gap-1">
+                                <span className="text-[10px] font-black uppercase text-slate-500">Razão Social</span>
+                                <input value={legalName} onChange={e => setLegalName(e.target.value)} className="h-12 px-4 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/5 rounded-xl outline-none font-bold italic text-slate-900 dark:text-white focus:border-primary transition-colors" />
                             </label>
 
                             <label className="flex flex-col gap-1">

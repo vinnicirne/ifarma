@@ -27,6 +27,10 @@ ip_version = "IPv4"
 # [migrations] section removed as it was flagged as invalid key
 
 # Configurações customizadas do Ifarma
+[functions.activate-pharmacy-plan]
+verify_jwt = false
+
 # [db.seed]
 # enabled = true
 # sql_paths = ["./supabase/seeds"]
+

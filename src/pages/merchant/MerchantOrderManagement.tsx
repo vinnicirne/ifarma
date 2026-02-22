@@ -33,10 +33,12 @@ const AssignDriverModal = ({ isOpen, onClose, onAssign, pharmacyId }: any) => {
     const [loading, setLoading] = useState(false);
 
     async function fetchDrivers() {
+        if (!pharmacyId) return;
         setLoading(true);
         const { data } = await supabase
             .from('profiles')
             .select('*')
+            .eq('pharmacy_id', pharmacyId) // FIX: Listar apenas motoboys da própria farmácia
             .eq('role', 'motoboy')
             .eq('is_active', true)
             .eq('is_online', true)

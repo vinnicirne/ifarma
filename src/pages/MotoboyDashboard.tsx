@@ -63,8 +63,31 @@ const MotoboyDashboard = ({ session, profile }: { session: any, profile: any }) 
     useWakeLock(!!currentOrder && ACTIVE_DELIVERY_STATUSES.includes(currentOrder.status));
 
     useEffect(() => {
-        if (!session?.user) navigate('/motoboy-login');
-    }, [session, navigate]);
+        const checkMotoboySession = async () => {
+            const { data: { session: activeSession } } = await supabase.auth.getSession();
+            if (!activeSession?.user) {
+                navigate('/motoboy-login');
+                return;
+            }
+
+            // Força o Realtime a usar o token atual
+            supabase.realtime.setAuth(activeSession.access_token);
+        };
+
+        checkMotoboySession();
+
+        const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
+            if (event === 'SIGNED_OUT' || !session) {
+                navigate('/motoboy-login');
+            } else if (session) {
+                supabase.realtime.setAuth(session.access_token);
+            }
+        });
+
+        return () => {
+            authListener.subscription.unsubscribe();
+        };
+    }, [navigate]);
 
     useEffect(() => {
         if (currentOrder && ['retirado', 'em_rota'].includes(currentOrder.status)) {
@@ -103,34 +126,44 @@ const MotoboyDashboard = ({ session, profile }: { session: any, profile: any }) 
         setLoading(true);
         isProcessingAction.current = true;
 
-        const { data: updated, error } = await supabase
-            .from('orders')
-            .update({ status: 'aceito' })
-            .eq('id', order.id)
-            .select('id, status');
+        try {
+            // ELITE 2.5: Refresh de sessão antes de ação crítica
+            await supabase.auth.refreshSession();
 
-        if (error) {
-            console.error('Erro ao aceitar corrida:', error);
-            alert(`Erro ao aceitar corrida: ${error.message}`);
+            const { data: updated, error } = await supabase
+                .from('orders')
+                .update({ status: 'aceito' })
+                .eq('id', order.id)
+                .select('id, status');
+
+            if (error) {
+                console.error('Erro ao aceitar corrida:', error);
+                alert(`Erro ao aceitar corrida: ${error.message}`);
+                setLoading(false);
+                isProcessingAction.current = false;
+                return;
+            }
+
+            if (!updated || updated.length === 0) {
+                console.error('Aceitar corrida bloqueado por RLS: 0 linhas atualizadas. Verifique permissões.');
+                alert('Não foi possível aceitar a corrida. Verifique se você está atribuído a esta farmácia.');
+                setLoading(false);
+                isProcessingAction.current = false;
+                return;
+            }
+
+            setAcceptedOrders(prev => [...new Set([...prev, order.id])]);
+            setOrdersQueue((prev: any[]) => prev.map(o => o.id === order.id ? { ...o, status: 'aceito' } : o));
+            setCurrentView('delivery');
+            stopAudio();
+
+            setTimeout(() => { isProcessingAction.current = false; setLoading(false); }, 4000);
+        } catch (err: any) {
+            console.error('Falha de sistema ao aceitar corrida:', err);
+            alert('Falha interna ao processar aceite. Tente novamente.');
             setLoading(false);
             isProcessingAction.current = false;
-            return;
         }
-
-        if (!updated || updated.length === 0) {
-            console.error('Aceitar corrida bloqueado por RLS: 0 linhas atualizadas. Verifique permissões.');
-            alert('Não foi possível aceitar a corrida. Verifique se você está atribuído a esta farmácia.');
-            setLoading(false);
-            isProcessingAction.current = false;
-            return;
-        }
-
-        setAcceptedOrders(prev => [...new Set([...prev, order.id])]);
-        setOrdersQueue((prev: any[]) => prev.map(o => o.id === order.id ? { ...o, status: 'aceito' } : o));
-        setCurrentView('delivery');
-        stopAudio();
-
-        setTimeout(() => { isProcessingAction.current = false; setLoading(false); }, 4000);
     };
 
     const handleConfirmPickup = async () => {
@@ -208,6 +241,7 @@ const MotoboyDashboard = ({ session, profile }: { session: any, profile: any }) 
                     isCancelModalOpen={isCancelModalOpen}
                     setIsCancelModalOpen={setIsCancelModalOpen}
                     setCurrentView={setCurrentView}
+                    mapReady={mapReady}
                 />
             ) : (
                 <DashboardView

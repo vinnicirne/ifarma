@@ -260,40 +260,75 @@ export const UserManagement = ({ profile }: { profile: any }) => {
     };
 
     const confirmDelete = (id: string) => {
+        console.log(`[UserManagement] confirmDelete triggered for id: ${id}`);
         setConfirmModal({
             isOpen: true,
             title: 'Excluir Usuário',
             description: 'Tem certeza que deseja excluir este usuário? Esta ação não pode ser desfeita.',
             type: 'danger',
             confirmText: 'Excluir Definitivamente',
-            onConfirm: () => executeDelete(id)
+            onConfirm: () => {
+                console.log(`[UserManagement] User confirmed delete for id: ${id}`);
+                executeDelete(id);
+            }
         });
     };
 
     const executeDelete = async (id: string) => {
+        console.log(`[UserManagement] executeDelete started for id: ${id}`);
         setConfirmModal(prev => prev ? { ...prev, loading: true } : null);
 
         try {
-            const { data: { session } } = await supabase.auth.refreshSession();
-            const { error: deleteFuncErr } = await supabase.functions.invoke('delete-user-admin', {
-                body: { user_id: id },
-                headers: {
-                    Authorization: `Bearer ${session?.access_token}`,
-                    apikey: import.meta.env.VITE_SUPABASE_ANON_KEY
+            // Encontrar o usuário localmente para ver se tem pharmacy_id
+            const targetUser = users.find(u => u.id === id);
+            console.log(`[UserManagement] Target user found in state:`, targetUser);
+
+            // 1. Refresh da sessão para garantir token válido
+            console.log("[UserManagement] Requesting internal session refresh...");
+            const { data: { session }, error: refreshErr } = await supabase.auth.refreshSession();
+            if (refreshErr || !session) {
+                console.error("[UserManagement] Session refresh failure:", refreshErr);
+                throw new Error("Sessão expirada. Faça login novamente.");
+            }
+            console.log("[UserManagement] Session refresh success.");
+
+            // 2. Invocar a função de deleção robusta
+            console.log(`[UserManagement] Invoking edge function 'delete-user-admin' for ${id}...`);
+            const { data, error: invokeErr } = await supabase.functions.invoke('delete-user-admin', {
+                body: {
+                    user_id: id,
+                    pharmacy_id: targetUser?.pharmacy_id || undefined
                 }
             });
 
-            if (deleteFuncErr) {
-                console.error("Erro Edge Function:", deleteFuncErr);
-                // Fallback: tentar deletar direto se for admin
-                const { error } = await supabase.from('profiles').delete().eq('id', id);
-                if (error) throw error;
+            if (invokeErr) {
+                console.error("[UserManagement] Edge Function invocation error (invokeErr):", invokeErr);
+
+                let serverMsg = invokeErr.message || "Erro na Edge Function";
+                try {
+                    const ctx = (invokeErr as any).context;
+                    if (ctx && typeof ctx.json === 'function') {
+                        const body = await ctx.json();
+                        console.log("[UserManagement] Error body from edge:", body);
+                        serverMsg = body.detail || body.error || body.message || serverMsg;
+                    }
+                } catch { /* ignore parse error */ }
+
+                throw new Error(serverMsg);
             }
+
+            if (!data?.success) {
+                console.warn("[UserManagement] Edge retornou 200 mas success é falso ou nulo:", data);
+                throw new Error(data?.error || data?.detail || "A deleção não foi confirmada pelo servidor.");
+            }
+
+            // 3. Fallback/Sync: Garantir que o profile sumiu do banco (o Edge Function já faz, mas aqui confirmamos)
+            await supabase.from('profiles').delete().eq('id', id);
 
             setConfirmModal({
                 isOpen: true,
                 title: 'Sucesso',
-                description: 'Usuário excluído com sucesso.',
+                description: 'Usuário e dados vinculados excluídos com sucesso.',
                 type: 'success',
                 confirmText: 'OK',
                 cancelText: '',

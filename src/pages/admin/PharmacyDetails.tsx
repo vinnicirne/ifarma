@@ -131,7 +131,9 @@ const PharmacyDetailsContent = ({ googleKey }: { googleKey: string }) => {
 
     // Form State
     const [formData, setFormData] = useState({
-        name: '',
+        name: '', // Display name (synced with trade_name)
+        trade_name: '',
+        legal_name: '',
         cep: '',
         address: '', // Campo legado (concatenação)
         street: '',
@@ -244,7 +246,9 @@ const PharmacyDetailsContent = ({ googleKey }: { googleKey: string }) => {
                     delivery_time_min: pharmaData.delivery_time_min || 20,
                     delivery_time_max: pharmaData.delivery_time_max || 30,
                     status: pharmaData.status || 'pending',
-                    merchant_email: pharmaData.owner_email || ''
+                    merchant_email: pharmaData.owner_email || '',
+                    trade_name: pharmaData.trade_name || pharmaData.name || '',
+                    legal_name: pharmaData.legal_name || ''
                 }));
                 setOriginalData(pharmaData);
             }
@@ -382,7 +386,11 @@ const PharmacyDetailsContent = ({ googleKey }: { googleKey: string }) => {
             const { data: accessData, error: accessErr } = await supabase.functions.invoke(
                 'provision-merchant-access',
                 {
-                    body: { pharmacy_id: id }
+                    body: { pharmacy_id: id },
+                    headers: {
+                        Authorization: `Bearer ${refreshData.session?.access_token}`,
+                        apikey: import.meta.env.VITE_SUPABASE_ANON_KEY
+                    }
                 }
             );
 
@@ -710,7 +718,9 @@ const PharmacyDetailsContent = ({ googleKey }: { googleKey: string }) => {
             delivery_time_max: formData.delivery_time_max,
             min_order_value: formData.min_order_value,
             allows_pickup: formData.allows_pickup,
-            complement: formData.complement
+            complement: formData.complement,
+            trade_name: formData.trade_name || formData.name,
+            legal_name: formData.legal_name
         };
 
         // Remove fields that should not be directly updated in the pharmacies table
@@ -780,7 +790,11 @@ const PharmacyDetailsContent = ({ googleKey }: { googleKey: string }) => {
                             }
 
                             const { error: updateAuthErr } = await supabase.functions.invoke('update-user-admin', {
-                                body: updateData
+                                body: updateData,
+                                headers: {
+                                    Authorization: `Bearer ${currentSession?.access_token}`,
+                                    apikey: import.meta.env.VITE_SUPABASE_ANON_KEY
+                                }
                             });
 
                             if (updateAuthErr) {
@@ -856,6 +870,10 @@ const PharmacyDetailsContent = ({ googleKey }: { googleKey: string }) => {
                                 pharmacy_id: pharmacyId,
                                 phone: formData.owner_phone
                             }
+                        },
+                        headers: {
+                            Authorization: `Bearer ${currentSession?.access_token}`,
+                            apikey: import.meta.env.VITE_SUPABASE_ANON_KEY
                         }
                     });
 
@@ -1109,7 +1127,11 @@ const PharmacyDetailsContent = ({ googleKey }: { googleKey: string }) => {
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                         <div className="flex flex-col gap-2">
                                             <label className="text-[10px] font-black uppercase tracking-widest text-[#92c9a9] px-1">Nome Fantasia</label>
-                                            <input value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} className="h-14 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-2xl px-4 text-slate-900 dark:text-white font-bold outline-none focus:border-primary/50 transition-colors" />
+                                            <input value={formData.trade_name || formData.name} onChange={e => setFormData({ ...formData, trade_name: e.target.value, name: e.target.value })} className="h-14 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-2xl px-4 text-slate-900 dark:text-white font-bold outline-none focus:border-primary/50 transition-colors" />
+                                        </div>
+                                        <div className="flex flex-col gap-2">
+                                            <label className="text-[10px] font-black uppercase tracking-widest text-[#92c9a9] px-1">Razão Social</label>
+                                            <input value={formData.legal_name} onChange={e => setFormData({ ...formData, legal_name: e.target.value })} className="h-14 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-2xl px-4 text-slate-900 dark:text-white font-bold outline-none focus:border-primary/50 transition-colors" />
                                         </div>
                                         <div className="flex flex-col gap-2">
                                             <label className="text-[10px] font-black uppercase tracking-widest text-[#92c9a9] px-1">CNPJ</label>

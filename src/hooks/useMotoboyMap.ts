@@ -26,10 +26,15 @@ export const useMotoboyMap = (
     const isFetchingRoute = useRef(false);
 
     const fetchRoute = useCallback((startLat: number, startLng: number, destLat: number, destLng: number) => {
-        if (!(window as any).google || !directionsRenderer.current || !mapInstance.current) return;
+        if (!(window as any).google || !directionsRenderer.current || !mapInstance.current) {
+            console.warn('📍 Map não pronto para fetchRoute', { google: !!(window as any).google, dr: !!directionsRenderer.current, mi: !!mapInstance.current });
+            return;
+        }
 
         const google = (window as any).google;
         const ds = new google.maps.DirectionsService();
+
+        console.log(`📍 Calculando rota: [${startLat}, ${startLng}] -> [${destLat}, ${destLng}]`);
 
         ds.route({
             origin: { lat: startLat, lng: startLng },
@@ -37,6 +42,7 @@ export const useMotoboyMap = (
             travelMode: google.maps.TravelMode.DRIVING
         }, async (result: any, status: any) => {
             if (status === 'OK') {
+                console.log('✅ Rota recebida com sucesso');
                 directionsRenderer.current.setMap(mapInstance.current);
                 directionsRenderer.current.setDirections(result);
 
@@ -49,7 +55,6 @@ export const useMotoboyMap = (
                 if (leg.duration?.text) setEta(leg.duration.text);
 
                 // --- CACHE DE ROTA PREMIUM ---
-                // Salvar a rota no banco para que o cliente não precise gastar API do Google recalculando
                 if (currentOrder?.id && polyline) {
                     supabase.from('orders').update({
                         route_polyline: polyline,
@@ -58,33 +63,35 @@ export const useMotoboyMap = (
                         updated_at: new Date().toISOString()
                     }).eq('id', currentOrder.id).then(({ error }) => {
                         if (error) console.error('Erro ao salvar cache de rota:', error);
-                        else console.log('📍 Rota cacheada no servidor com sucesso.');
                     });
                 }
 
                 pathPoints.current = result.routes[0].overview_path;
 
+                // Forçar o mapa a mostrar a rota
                 if (mapInstance.current) {
                     const destKey = `${destLat},${destLng}-${currentOrder?.status || ''}`;
-                    if (hasInitialFit.current !== destKey) {
+
+                    const updateViewport = () => {
                         const bounds = new google.maps.LatLngBounds();
                         bounds.extend({ lat: startLat, lng: startLng });
                         bounds.extend({ lat: destLat, lng: destLng });
 
-                        // Force resize before fitBounds so the map knows its true dimensions
                         google.maps.event.trigger(mapInstance.current, 'resize');
                         mapInstance.current.fitBounds(bounds, { top: 120, bottom: 220, left: 60, right: 60 });
-                        hasInitialFit.current = destKey;
 
-                        // Only enforce minimum zoom — do NOT panTo motoboy position,
-                        // that shifts the viewport away from the route line
+                        // Garante um zoom mínimo decente para não ver apenas o oceano
                         setTimeout(() => {
-                            if (mapInstance.current) {
-                                const currentZoom = mapInstance.current.getZoom();
-                                if (currentZoom < 14) mapInstance.current.setZoom(15);
+                            if (mapInstance.current && mapInstance.current.getZoom() < 12) {
+                                mapInstance.current.setZoom(15);
                             }
-                        }, 600);
-                    }
+                        }, 500);
+                    };
+
+                    // Executa ajuste de viewport IMEDIATAMENTE e após delay (para garantir que a animação de transição terminou)
+                    updateViewport();
+                    setTimeout(updateViewport, 600);
+                    hasInitialFit.current = destKey;
                 }
 
                 // Destino Marker Estilizado
@@ -113,19 +120,32 @@ export const useMotoboyMap = (
                         anchor: new google.maps.Point(20, 35)
                     });
                 }
+            } else {
+                console.error('❌ Falha ao buscar rota:', status);
             }
         });
-    }, [currentOrder?.status, isNavigationMode]);
+    }, [currentOrder?.id, currentOrder?.status, isNavigationMode]);
 
     useEffect(() => {
+        const google = (window as any).google;
+        if (!google) return;
+
         if (currentView !== 'delivery' || !mapRef.current) {
             setMapReady(false);
             return;
         }
 
-        if (mapInstance.current) return;
-        if (!(window as any).google) return;
-        const google = (window as any).google;
+        // ✅ Se o mapa já existe, reativa o estado e força resize
+        if (mapInstance.current) {
+            setMapReady(true);
+            setTimeout(() => {
+                google.maps.event.trigger(mapInstance.current, 'resize');
+                if (latitude && longitude) {
+                    mapInstance.current.setCenter({ lat: latitude, lng: longitude });
+                }
+            }, 50);
+            return;
+        }
 
         mapInstance.current = new google.maps.Map(mapRef.current, {
             center: { lat: latitude || -22.9, lng: longitude || -43.1 },
@@ -169,15 +189,27 @@ export const useMotoboyMap = (
         setTimeout(() => google.maps.event.trigger(mapInstance.current, 'resize'), 300);
 
         return () => {
-            if (mapInstance.current) {
-                google.maps.event.clearInstanceListeners(mapInstance.current);
-            }
-            if (userMarker.current) userMarker.current.setMap(null);
-            if (destMarkerRef.current) destMarkerRef.current.setMap(null);
-            if (pharmacyMarkerRef.current) pharmacyMarkerRef.current.setMap(null);
-            mapInstance.current = null;
+            // No cleanup here if we want the map to persist
         };
-    }, [currentView, darkModeStyle]);
+    }, [currentView, darkModeStyle, latitude, longitude]);
+
+    // ✅ ResizeObserver para lidar com mudanças de layout (ex.: expansão do bottom sheet)
+    useEffect(() => {
+        const google = (window as any).google;
+        if (!google || !mapRef.current || !mapInstance.current) return;
+
+        const el = mapRef.current;
+        const ro = new ResizeObserver(() => {
+            google.maps.event.trigger(mapInstance.current, 'resize');
+            // Opcional: manter o centro no motoboy durante o resize
+            if (latitude && longitude && isNavigationMode) {
+                mapInstance.current.setCenter({ lat: latitude, lng: longitude });
+            }
+        });
+
+        ro.observe(el);
+        return () => ro.disconnect();
+    }, [mapReady, latitude, longitude, isNavigationMode]);
 
     const pathPoints = useRef<any[]>([]);
     const gpsBuffer = useRef<{ lat: number, lng: number }[]>([]);
@@ -284,13 +316,16 @@ export const useMotoboyMap = (
 
         const isGoingToPharmacy = ['aceito', 'pronto_entrega', 'aguardando_retirada'].includes(currentOrder.status);
 
-        // Pharmacy Marker
+        // Pharmacy Marker (Ponto de Origem/Coleta)
         if (currentOrder.pharmacies && mapInstance.current) {
+            const google = (window as any).google;
+            const pharmaPos = { lat: Number(currentOrder.pharmacies.latitude), lng: Number(currentOrder.pharmacies.longitude) };
+
             if (!pharmacyMarkerRef.current) {
-                const google = (window as any).google;
                 pharmacyMarkerRef.current = new google.maps.Marker({
-                    map: isGoingToPharmacy ? null : mapInstance.current,
-                    position: { lat: Number(currentOrder.pharmacies.latitude), lng: Number(currentOrder.pharmacies.longitude) },
+                    map: mapInstance.current,
+                    position: pharmaPos,
+                    zIndex: 90,
                     icon: {
                         url: 'https://img.icons8.com/3d-fluency/94/pharmacy-shop.png',
                         scaledSize: new google.maps.Size(40, 40),
@@ -298,8 +333,8 @@ export const useMotoboyMap = (
                     }
                 });
             } else {
-                pharmacyMarkerRef.current.setMap(isGoingToPharmacy ? null : mapInstance.current);
-                pharmacyMarkerRef.current.setPosition({ lat: Number(currentOrder.pharmacies.latitude), lng: Number(currentOrder.pharmacies.longitude) });
+                pharmacyMarkerRef.current.setMap(mapInstance.current);
+                pharmacyMarkerRef.current.setPosition(pharmaPos);
             }
         }
 

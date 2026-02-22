@@ -16,6 +16,7 @@ export type AuthzResult = {
   | "pharmacy_not_found"
   | "no_access"
   | "unexpected_error";
+  detail?: string;
 };
 
 // ============================================================================
@@ -30,18 +31,11 @@ export function extractBearer(req: Request): string | null {
   return m?.[1]?.trim() || null;
 }
 
-function requireEnv(name: string): string {
-  const v = Deno.env.get(name);
-  if (!v) throw new Error(`Missing env var: ${name}`);
-  return v;
-}
-
 let _adminClient: SupabaseClient | null = null;
 
 /**
  * Supabase Admin Client (Service Role)
  * - Use apenas no backend (Edge Function), nunca no frontend.
- * - Cacheia o client por isolamento de runtime.
  */
 export function adminClient(): SupabaseClient {
   if (_adminClient) return _adminClient;
@@ -65,7 +59,6 @@ export function adminClient(): SupabaseClient {
     auth: { autoRefreshToken: false, persistSession: false },
     global: {
       headers: {
-        // opcional: ajuda a identificar chamadas no log do Supabase
         "X-Client-Info": "edge-functions/adminClient",
       },
     },
@@ -78,9 +71,14 @@ export function adminClient(): SupabaseClient {
 // Authorization
 // ============================================================================
 
+/**
+ * ✅ Valida o JWT corretamente:
+ * - chama /auth/v1/user com ANON KEY + Authorization Bearer token
+ * - depois usa service role só para ler profiles/pharmacies
+ */
 export async function authorizeBillingAccess(params: {
   token: string | null;
-  pharmacyId: string;
+  pharmacyId?: string; // ✅ Agora explicitamente opcional
 }): Promise<AuthzResult> {
   try {
     if (!params.token) {
@@ -93,23 +91,52 @@ export async function authorizeBillingAccess(params: {
       };
     }
 
-    const supabase = adminClient();
+    const url =
+      Deno.env.get("SUPABASE_URL") ||
+      Deno.env.get("SUPABASE_PROJECT_URL") ||
+      Deno.env.get("VITE_SUPABASE_URL") ||
+      "";
 
-    const { data: userRes, error: userErr } = await supabase.auth.getUser(params.token);
+    const anonKey =
+      Deno.env.get("SUPABASE_ANON_KEY") ||
+      Deno.env.get("SUPABASE_ANON_PUBLIC_KEY") ||
+      Deno.env.get("VITE_SUPABASE_ANON_KEY") ||
+      "";
 
-    if (userErr || !userRes?.user) {
+    if (!url || !anonKey) {
+      console.error("[authz] Missing environment variables for validation");
+      throw new Error("Missing env vars: SUPABASE_URL / SUPABASE_ANON_KEY");
+    }
+
+    // ✅ 1) Validação REAL do JWT no GoTrue do Supabase (usando ANON KEY)
+    const gotrueRes = await fetch(`${url}/auth/v1/user`, {
+      method: "GET",
+      headers: {
+        apikey: anonKey,
+        Authorization: `Bearer ${params.token}`,
+      },
+    });
+
+    if (!gotrueRes.ok) {
+      const detail = await gotrueRes.text().catch(() => null);
+      console.error("[authz] JWT Validation failed:", detail);
       return {
         userId: "",
         email: null,
         isAdmin: false,
         allowed: false,
         reason: "invalid_jwt",
+        detail: detail ?? "Token rejected by Supabase Auth",
       };
     }
 
-    const user = userRes.user;
+    const user = await gotrueRes.json(); // { id, email, user_metadata, ... }
+    const roleFromMeta = user?.app_metadata?.role || user?.user_metadata?.role || "";
+    const isAdminByMeta = roleFromMeta === "admin";
 
-    // 1) Profile
+    // ✅ 2) Checar perfil e role via adminClient
+    const supabase = adminClient();
+
     const { data: profile, error: profErr } = await supabase
       .from("profiles")
       .select("role, pharmacy_id")
@@ -117,22 +144,33 @@ export async function authorizeBillingAccess(params: {
       .maybeSingle();
 
     if (profErr) {
-      // Se quiser logar: console.error("[authz] profile query error:", profErr);
-      // mas não bloqueia automaticamente (depende da sua regra).
+      console.error("[authz] profile query error:", profErr);
+      return {
+        userId: user.id,
+        email: user.email ?? null,
+        isAdmin: isAdminByMeta, // Fallback para metadados se o DB falhar
+        allowed: isAdminByMeta, // Admins via meta podem passar
+        reason: isAdminByMeta ? undefined : "unexpected_error",
+        detail: profErr.message,
+      };
     }
 
-    if (!profile) {
+    const isAdmin = isAdminByMeta || profile?.role === "admin";
+    const userPharmacyId = profile?.pharmacy_id;
+
+    if (!profile && !isAdminByMeta) {
+      console.warn(`[authz] No profile found for user ${user.id} and no admin metadata found.`);
       return {
         userId: user.id,
         email: user.email ?? null,
         isAdmin: false,
         allowed: false,
-        reason: "profile_not_found",
+        reason: "no_access",
+        detail: "User profile record missing and no admin privileges detected.",
       };
     }
 
-    const isAdmin = profile.role === "admin";
-
+    // ✅ Admins: Acesso total sem necessidade de pharmacyId
     if (isAdmin) {
       return {
         userId: user.id,
@@ -142,15 +180,36 @@ export async function authorizeBillingAccess(params: {
       };
     }
 
-    // 2) Pharmacy ownership
+    // ✅ Não-Admins: Exigir pharmacyId no contexto
+    const pharmacyId = (params.pharmacyId || "").trim();
+    if (!pharmacyId) {
+      return {
+        userId: user.id,
+        email: user.email ?? null,
+        isAdmin: false,
+        allowed: false,
+        reason: "no_access",
+        detail: "Contexto de Farmácia (pharmacyId) é obrigatório para não-administradores."
+      };
+    }
+
+    // ✅ Verificação de propriedade/associação para comerciantes
     const { data: pharmacy, error: phErr } = await supabase
       .from("pharmacies")
       .select("id, owner_id")
-      .eq("id", params.pharmacyId)
+      .eq("id", pharmacyId)
       .maybeSingle();
 
     if (phErr) {
-      // console.error("[authz] pharmacy query error:", phErr);
+      console.error("[authz] pharmacy query error:", phErr);
+      return {
+        userId: user.id,
+        email: user.email ?? null,
+        isAdmin: false,
+        allowed: false,
+        reason: "unexpected_error",
+        detail: phErr.message,
+      };
     }
 
     if (!pharmacy) {
@@ -163,7 +222,10 @@ export async function authorizeBillingAccess(params: {
       };
     }
 
-    if (pharmacy.owner_id === user.id || (profile.role === 'merchant' && profile.pharmacy_id === params.pharmacyId)) {
+    const isOwner = pharmacy.owner_id === user.id;
+    const isAssociated = profile.pharmacy_id === pharmacyId;
+
+    if (isOwner || isAssociated) {
       return {
         userId: user.id,
         email: user.email ?? null,
@@ -178,8 +240,9 @@ export async function authorizeBillingAccess(params: {
       isAdmin: false,
       allowed: false,
       reason: "no_access",
+      detail: "Usuário não possui permissão para acessar esta farmácia."
     };
-  } catch (e) {
+  } catch (e: any) {
     console.error("[authz] unexpected error:", e);
     return {
       userId: "",
@@ -187,6 +250,7 @@ export async function authorizeBillingAccess(params: {
       isAdmin: false,
       allowed: false,
       reason: "unexpected_error",
+      detail: e?.message,
     };
   }
 }

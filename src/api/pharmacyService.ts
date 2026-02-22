@@ -25,24 +25,47 @@ export const pharmacyService = {
 
     async deletePharmacy(id: string): Promise<void> {
         assertUuid(id, "deletePharmacy");
-        // 1. Get associated profile
-        const { data: profile } = await supabase
-            .from('profiles')
-            .select('id')
-            .eq('pharmacy_id', id)
-            .single();
 
-        // 2. Delete Auth user via Edge Function if profile exists
-        if (profile) {
-            const { data: { session } } = await supabase.auth.getSession();
-            await supabase.functions.invoke('delete-user-admin', {
-                body: { user_id: profile.id }
-            });
+        console.log(`[deletePharmacy] 🚀 Starting deep deletion for pharmacy: ${id}`);
+        console.log(`[deletePharmacy] Versão: 3.0 (Edge Master Delete)`);
+
+        // 1. Fetch fresh session for Edge Function
+        const { data: { session }, error: refreshErr } = await supabase.auth.refreshSession();
+        if (refreshErr || !session?.access_token) {
+            console.error("[deletePharmacy] Session refresh failed:", refreshErr);
+            throw new Error("Sessão expirada. Faça login novamente.");
         }
 
-        // 3. Delete pharmacy
-        const { error } = await supabase.from('pharmacies').delete().eq('id', id);
-        if (error) throw error;
+        const { data: { user } } = await supabase.auth.getUser();
+        console.log(`[deletePharmacy] Initiated by: ${user?.email} (Metadata Role: ${user?.user_metadata?.role || 'null'})`);
+
+        // 2. Invocar a Edge Function Mestra de Exclusão de Farmácia
+        console.log(`[deletePharmacy] Invoking edge function 'delete-pharmacy-admin'...`);
+        const { data, error: invokeErr } = await supabase.functions.invoke('delete-pharmacy-admin', {
+            body: {
+                pharmacy_id: id
+            }
+        });
+
+        if (invokeErr) {
+            console.error("[deletePharmacy] ❌ Edge Function invocation failed:", invokeErr);
+            let msg = invokeErr.message || "Erro de rede ao excluir farmácia";
+            try {
+                const ctx = (invokeErr as any).context;
+                if (ctx && typeof ctx.json === 'function') {
+                    const body = await ctx.json();
+                    msg = body.detail || body.error || body.message || msg;
+                }
+            } catch { /* parse fail */ }
+            throw new Error(msg);
+        }
+
+        if (!data?.success) {
+            console.error("[deletePharmacy] ❌ Server-side deletion failed:", data);
+            throw new Error(data?.error || data?.detail || "O servidor não pôde concluir a exclusão da farmácia.");
+        }
+
+        console.log(`[deletePharmacy] ✅ Pharmacy ${id} deleted successfully by Master Function.`);
     },
 
     async approvePharmacy(id: string): Promise<{ email: string, password?: string, userWasCreated: boolean }> {
@@ -58,24 +81,31 @@ export const pharmacyService = {
 
         const tempPassword = Math.random().toString(36).slice(-8) + 'A1@';
 
-        // Refresh session to avoid expired token 401 errors
+        // Refresh session and LOG IT for debugging 401
         const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
         const session = refreshData?.session;
+        const accessToken = session?.access_token;
 
-        if (refreshError || !session?.access_token) {
+        console.log(`[pharmacyService] Attempting approval. Project: ${import.meta.env.VITE_SUPABASE_URL}`);
+        console.log(`[pharmacyService] Token status: ${accessToken ? 'EXISTS' : 'MISSING'}`);
+        if (accessToken) {
+            console.log(`[pharmacyService] Token preview: ${accessToken.substring(0, 15)}... (len: ${accessToken.length})`);
+        }
+
+        if (refreshError || !accessToken) {
             throw new Error("Sessão expirada. Faça logout e login novamente.");
         }
 
         const { data: responseData, error: invokeError } = await supabase.functions.invoke('create-user-admin', {
             body: {
                 email: pharm.owner_email,
-                password: tempPassword || Math.random().toString(36).slice(-8), // Fallback password
+                password: tempPassword || Math.random().toString(36).slice(-8),
                 pharmacy_id: id,
-                approve_pharmacy: true, // ✅ Required by new Edge Function logic
+                approve_pharmacy: true,
                 metadata: {
                     full_name: pharm.owner_name || pharm.name,
                     role: 'merchant',
-                    pharmacy_id: id // Redundant but safe
+                    pharmacy_id: id
                 }
             }
         });
@@ -84,26 +114,25 @@ export const pharmacyService = {
             console.error("Invoke Error:", invokeError);
             const errorText = (invokeError.message || '').toLowerCase();
 
-            // Handle 401 specifically (Invalid JWT)
-            // Note: supabase-js might wrap the response. context.json() is better if available but invokeError usually is just an Error object with text.
-            // If the message explicitly says 'Invalid JWT' or status 401
-            if (errorText.includes('invalid jwt') || (invokeError as any).context?.status === 401) {
-                throw new Error('Sessão expirada ou permissão negada. Faça logout e login novamente no painel admin.');
-            }
-
-            // For other errors (400, 500), try to extract the message
+            // Try to extract the message and detail from the server response
             let serverMsg = invokeError.message || 'Erro na Edge Function';
+            let detail = '';
             try {
-                // If it's a FunctionsHttpError, it might have context
                 if ((invokeError as any).context && typeof (invokeError as any).context.json === 'function') {
                     const body = await (invokeError as any).context.json();
-                    if (body && body.error) {
-                        serverMsg = body.error;
-                        if (body.detail) serverMsg += ` (${body.detail})`;
+                    if (body) {
+                        if (body.error) serverMsg = body.error;
+                        if (body.detail) detail = body.detail;
+                        if (body.message) serverMsg = body.message;
                     }
                 }
             } catch (e) {
                 // ignore json parse error
+            }
+
+            if (errorText.includes('invalid jwt') || (invokeError as any).context?.status === 401) {
+                const finalMsg = detail ? `Sessão expirada ou permissão negada (${detail}). Faça logout/login.` : 'Sessão expirada ou permissão negada. Faça logout/login novamente no painel admin.';
+                throw new Error(finalMsg);
             }
 
             if (serverMsg.toLowerCase().includes('already registered') || serverMsg.toLowerCase().includes('already exists')) {

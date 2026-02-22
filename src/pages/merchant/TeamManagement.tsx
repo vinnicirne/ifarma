@@ -195,6 +195,7 @@ const TeamManagement = () => {
     };
 
     const handleDeleteClick = (member: any) => {
+        console.log("[DELETE] Clicou no ícone de lixeira → member:", member);
         setMemberToDelete(member);
         setShowDeleteModal(true);
     };
@@ -240,37 +241,68 @@ const TeamManagement = () => {
     const fmt = (v: number) => v > 0 ? `R$ ${v.toFixed(2).replace('.', ',')}` : null;
 
     const handleConfirmDelete = async () => {
-        if (!memberToDelete) return;
+        console.log("[DELETE] Botão REMOVER do modal foi clicado!");
+        console.log("memberToDelete atual:", memberToDelete);
+        console.log("pharmacyId atual:", pharmacyId);
+
+        if (!memberToDelete || !pharmacyId) {
+            console.error("[DELETE] Falha na validação inicial → memberToDelete ou pharmacyId ausente");
+            showToast("Erro interno: dados do usuário ou farmácia não encontrados", "error");
+            return;
+        }
 
         setSaving(true);
         try {
-            console.log("🗑️ Desativando usuário:", memberToDelete.id);
+            console.log(`[DELETE] Iniciando exclusão do usuário ${memberToDelete.id}`);
 
-            // Atualizar is_active no profile para revogar acesso imediato
-            const { error: profileError, data: updatedRows } = await supabase
-                .from('profiles')
-                .update({ is_active: false, pharmacy_id: null })
-                .eq('id', memberToDelete.id)
-                .select('id');
+            // 1. Garantir sessão fresca
+            console.log("[DELETE] Solicitando refreshSession...");
+            const { data: { session }, error: refreshErr } = await supabase.auth.refreshSession();
+            if (refreshErr || !session) {
+                console.error("[DELETE] Erro no refreshSession:", refreshErr);
+                throw new Error("Sessão expirada. Faça login novamente.");
+            }
+            console.log("[DELETE] Sessão renovada com sucesso.");
 
-            if (profileError) {
-                console.error("❌ Erro RLS ao desativar:", profileError);
-                throw new Error(profileError.message);
+            // 2. Invocar Edge Function de deleção
+            console.log("[DELETE] Invocando Edge Function 'delete-user-admin'...");
+            const { data, error: invokeErr } = await supabase.functions.invoke('delete-user-admin', {
+                body: {
+                    user_id: memberToDelete.id,
+                    pharmacy_id: pharmacyId
+                }
+            });
+
+            console.log("[DELETE] Retorno completo da Edge Function:", { data, invokeErr });
+
+            if (invokeErr) {
+                console.error("[DELETE] Erro de invocação (Rede/CORS):", invokeErr);
+                let msg = invokeErr.message || "Erro ao conectar com o servidor";
+                try {
+                    const ctx = (invokeErr as any).context;
+                    if (ctx && typeof ctx.json === 'function') {
+                        const body = await ctx.json();
+                        console.log("[DELETE] Erro context JSON:", body);
+                        msg = body.detail || body.error || body.message || msg;
+                    }
+                } catch { /* fallback */ }
+                throw new Error(msg);
             }
 
-            if (!updatedRows || updatedRows.length === 0) {
-                throw new Error('Nenhuma linha foi atualizada. Verifique permissões RLS para atualizar profiles de outros usuários.');
+            if (!data?.success) {
+                console.warn("[DELETE] Edge retornou 200 mas success é falso ou nulo:", data);
+                throw new Error(data?.error || data?.detail || "A deleção não foi confirmada pelo servidor.");
             }
 
-            console.log("✅ Usuário desativado e desvinculado da farmácia");
-            showToast(`${memberToDelete.full_name} foi removido da equipe.`, 'success');
+            console.log("[DELETE] ✅ Deleção confirmada pelo servidor!");
+            showToast(`${memberToDelete.full_name} foi removido com sucesso.`, 'success');
 
-            // Atualizar lista local imediatamente (não esperar realtime)
+            // Atualizar lista local
             setTeam(prev => prev.filter(m => m.id !== memberToDelete.id));
             setShowDeleteModal(false);
             setMemberToDelete(null);
         } catch (error: any) {
-            console.error('Erro ao remover:', error);
+            console.error('[DELETE] ❌ Erro no catch final:', error);
             showToast('Erro: ' + error.message, 'error');
         } finally {
             setSaving(false);
@@ -509,15 +541,45 @@ const TeamManagement = () => {
                         <h1 className="text-2xl font-black italic text-slate-900 dark:text-white tracking-tighter">Gestão de Equipe</h1>
                         <p className="text-slate-500 dark:text-[#92c9a9] text-sm font-bold uppercase tracking-widest mt-1">Gerentes, Caixas e Motoboys</p>
                     </div>
-                    {['merchant', 'manager', 'admin'].includes(myRole || '') && (
+                    <div className="flex gap-2">
+                        {/* Botão de Teste Isolado */}
                         <button
-                            onClick={handleAddNewClick}
-                            className="bg-primary hover:bg-primary/90 text-background-dark flex h-10 px-4 items-center justify-center rounded-2xl shadow-lg shadow-primary/20 transition-all active:scale-90 gap-2 text-xs font-black uppercase tracking-widest"
+                            onClick={async () => {
+                                console.log("[TEST] Clicou no botão de teste manual");
+                                if (!team[0]) {
+                                    console.warn("[TEST] Equipe vazia, não há quem testar");
+                                    return;
+                                }
+                                try {
+                                    const { data, error } = await supabase.functions.invoke('delete-user-admin', {
+                                        body: {
+                                            user_id: team[0].id,
+                                            pharmacy_id: pharmacyId
+                                        }
+                                    });
+                                    console.log("[TEST] Resposta:", { data, error });
+                                    if (error) alert("Erro no teste: " + error.message);
+                                    else alert("Sucesso no teste!");
+                                } catch (err: any) {
+                                    console.error("[TEST] Erro fatal:", err);
+                                    alert("Erro fatal: " + err.message);
+                                }
+                            }}
+                            className="bg-red-600/20 text-red-500 h-10 px-4 rounded-2xl text-[10px] font-black uppercase tracking-widest border border-red-500/20"
                         >
-                            <MaterialIcon name="person_add" />
-                            <span>Novo Membro</span>
+                            Teste Delete (Primeiro da Lista)
                         </button>
-                    )}
+
+                        {['merchant', 'manager', 'admin'].includes(myRole || '') && (
+                            <button
+                                onClick={handleAddNewClick}
+                                className="bg-primary hover:bg-primary/90 text-background-dark flex h-10 px-4 items-center justify-center rounded-2xl shadow-lg shadow-primary/20 transition-all active:scale-90 gap-2 text-xs font-black uppercase tracking-widest"
+                            >
+                                <MaterialIcon name="person_add" />
+                                <span>Novo Membro</span>
+                            </button>
+                        )}
+                    </div>
                 </header>
 
                 {loading ? (

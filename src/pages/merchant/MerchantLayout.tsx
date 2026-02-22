@@ -123,8 +123,13 @@ const MerchantLayout = ({ children, activeTab, title }: { children: React.ReactN
         window.addEventListener('pharmacy_status_changed', handleLocalUpdate as EventListener);
 
         const syncStatus = async () => {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user) return;
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) return;
+
+            // Garante que o realtime use o token atualizado para evitar "mismatch"
+            supabase.realtime.setAuth(session.access_token);
+
+            const user = session.user;
 
             // Resolve ID
             let pid = localStorage.getItem('impersonatedPharmacyId');

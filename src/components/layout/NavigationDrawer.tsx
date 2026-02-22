@@ -93,9 +93,13 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({ isOpen, onCl
                     <MenuLink icon="favorite" label="Favoritos" to="/favorites" onClick={onClose} active={location.pathname === '/favorites'} />
                     <MenuLink icon="explore" label="Explorar" to="/pharmacies" onClick={onClose} active={location.pathname === '/pharmacies'} />
 
-                    <div className="mt-auto grid grid-cols-2 gap-3 pt-4 border-t border-gray-100 dark:border-white/5">
-                        <MenuLinkSmall icon="help" label="Ajuda" to="/help" onClick={onClose} />
-                        <MenuLinkSmall icon="settings" label="Configurar" to="/settings" onClick={onClose} />
+                    <div className="mt-auto flex flex-col pt-4 border-t border-gray-100 dark:border-white/5 gap-2">
+                        <MenuLink icon="info" label="Sobre o ifarma" to="/about" onClick={onClose} active={location.pathname === '/about'} />
+                        <MenuLink icon="shield_lock" label="Privacidade" to="/privacy" onClick={onClose} active={location.pathname === '/privacy'} />
+                        <div className="grid grid-cols-2 gap-3 pt-2">
+                            <MenuLinkSmall icon="help" label="Ajuda" to="/help" onClick={onClose} />
+                            <MenuLinkSmall icon="settings" label="Configurar" to="/settings" onClick={onClose} />
+                        </div>
                     </div>
                 </nav>
 

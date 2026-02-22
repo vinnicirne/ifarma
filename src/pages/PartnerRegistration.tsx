@@ -53,23 +53,24 @@ const PartnerRegistration = () => {
                 if (error) throw error;
 
                 // De-duplicate and filter for canonical plans
-                const canonicalNames = ['FREE', 'PROFESSIONAL', 'ENTERPRISE'];
+                const canonicalNames = ['FREE', 'PROFESSIONAL', 'ENTERPRISE', 'Gratuito', 'Básico', 'Pro', 'Especial'];
                 const uniquePlans: any[] = [];
                 const seen = new Set();
 
-                // Sort data first to ensure we pick the "best" one if duplicates exist (e.g. prefer 'free' slug over 'gratuito')
+                // Sort data first to ensure we pick the "best" one if duplicates exist
                 const sortedData = (data || []).sort((a, b) => {
                     // Custom sort to prioritize canonical slugs
                     const score = (slug: string) => {
-                        if (['free', 'professional', 'enterprise'].includes(slug)) return 2;
+                        if (['free', 'gratuito', 'professional', 'basico', 'enterprise', 'pro'].includes(slug.toLowerCase())) return 2;
                         return 1;
                     };
                     return score(b.slug) - score(a.slug);
                 });
 
                 sortedData.forEach(plan => {
-                    if (canonicalNames.includes(plan.name) && !seen.has(plan.name)) {
-                        seen.add(plan.name);
+                    const normalizedName = plan.name.toUpperCase();
+                    if ((canonicalNames.some(cn => cn.toUpperCase() === normalizedName)) && !seen.has(normalizedName)) {
+                        seen.add(normalizedName);
                         uniquePlans.push(plan);
                     }
                 });
@@ -140,26 +141,59 @@ const PartnerRegistration = () => {
 
         setCnpjLoading(true);
         try {
-            const response = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cnpj}`);
-            if (!response.ok) throw new Error('CNPJ não encontrado');
-            const data = await response.json();
+            console.log(`[CNPJ Lookup] Buscando: ${cnpj}`);
 
-            setFormData(prev => ({
-                ...prev,
-                legal_name: data.razao_social || '',
-                trade_name: data.nome_fantasia || data.razao_social || '',
-                establishment_phone: data.ddd_telefone_1 ? `(${data.ddd_telefone_1.slice(0, 2)}) ${data.ddd_telefone_1.slice(2)}` : '',
-                // Tenta preencher endereço se disponível (BrasilAPI retorna isso também)
-                cep: data.cep ? data.cep.replace(/\D/g, '') : prev.cep,
-                address: data.logradouro || prev.address,
-                address_number: data.numero || prev.address_number,
-                address_complement: data.complemento || prev.address_complement,
-                neighborhood: data.bairro || prev.neighborhood,
-                city: data.municipio || prev.city,
-                state: data.uf || prev.state
-            }));
+            // Tentativa 1: BrasilAPI
+            let response = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cnpj}`);
+            let data: any;
+
+            if (response.ok) {
+                data = await response.json();
+                console.log(`[CNPJ Lookup] BrasilAPI sucesso:`, data.razao_social);
+            } else {
+                console.warn("[CNPJ Lookup] BrasilAPI falhou ou não encontrou, tentando Minha Receita...");
+                // Tentativa 2: Minha Receita (Excelente fallback open source)
+                response = await fetch(`https://minhareceita.org/${cnpj}`);
+                if (response.ok) {
+                    data = await response.json();
+                    console.log(`[CNPJ Lookup] Minha Receita sucesso:`, data.razao_social);
+                } else {
+                    console.warn("[CNPJ Lookup] Ambas as APIs falharam.");
+                }
+            }
+
+            if (data) {
+                // Normalização de campos (BrasilAPI x Minha Receita)
+                const razaoSocial = data.razao_social || data.nome_empresarial || '';
+                const nomeFantasia = data.nome_fantasia && data.nome_fantasia !== 'null' ? data.nome_fantasia : razaoSocial;
+
+                // Formatação simples de telefone se vier só números
+                let phone = formData.establishment_phone;
+                if (data.ddd_telefone_1) {
+                    const cleanPhone = data.ddd_telefone_1.replace(/\D/g, '');
+                    if (cleanPhone.length >= 10) {
+                        phone = `(${cleanPhone.slice(0, 2)}) ${cleanPhone.slice(2, 6)}-${cleanPhone.slice(6)}`;
+                    } else if (data.ddd_telefone_1.includes('(')) {
+                        phone = data.ddd_telefone_1;
+                    }
+                }
+
+                setFormData(prev => ({
+                    ...prev,
+                    legal_name: razaoSocial,
+                    trade_name: nomeFantasia,
+                    establishment_phone: phone,
+                    cep: data.cep ? data.cep.replace(/\D/g, '') : prev.cep,
+                    address: data.logradouro || prev.address,
+                    address_number: data.numero || prev.address_number,
+                    address_complement: data.complemento || prev.address_complement,
+                    neighborhood: data.bairro || prev.neighborhood,
+                    city: data.municipio || data.localidade || prev.city,
+                    state: data.uf || prev.state
+                }));
+            }
         } catch (error) {
-            console.error("Erro CNPJ", error);
+            console.error("[CNPJ Lookup] Erro crítico:", error);
         } finally {
             setCnpjLoading(false);
         }

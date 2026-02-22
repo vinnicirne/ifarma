@@ -49,15 +49,26 @@ const MerchantBilling = () => {
     useEffect(() => {
         fetchBillingData();
 
-        // Polling for status updates if pending
+        // Guard de sessão para evitar problemas pós-cleanup
+        const { data: { subscription: authSub } } = supabase.auth.onAuthStateChange((event, session) => {
+            if (event === 'SIGNED_OUT' || !session) {
+                console.warn('Sessão perdida. Redirecionando para login...');
+                window.location.href = '/login';
+            }
+        });
+
+        // Polling for status updates and billing cycles
         const interval = setInterval(() => {
-            if (showPixModal || subscription?.status === 'pending_asaas') {
+            if (showPixModal || subscription?.status === 'pending_asaas' || subscription?.status === 'active') {
                 fetchBillingData(true); // true = silent
             }
-        }, 5000);
+        }, 3000); // Reduzido para 3s para atualização mais rápida
 
-        return () => clearInterval(interval);
-    }, [showPixModal, subscription?.status]);
+        return () => {
+            clearInterval(interval);
+            subscription.unsubscribe();
+        };
+    }, [showPixModal]);
 
     // Close modal if subscription becomes active
     useEffect(() => {
@@ -90,17 +101,20 @@ const MerchantBilling = () => {
                 if (payload.new && (payload.new as any).status === 'active') {
                     setCurrentCycle(payload.new);
 
-                    const oldUsed = (payload.old as any)?.free_orders_used;
-                    const newUsed = (payload.new as any)?.free_orders_used;
+                    const oldUsed = (payload.old as any)?.free_orders_used || 0;
+                    const newUsed = (payload.new as any)?.free_orders_used || 0;
 
                     if (oldUsed !== newUsed) {
-                        const used = newUsed || 0;
+                        const used = newUsed;
                         const limit = subscription?.plan?.free_orders_per_period || 0;
                         const remaining = Math.max(0, limit - used);
 
                         if (remaining <= 2) {
                             toast(`⚠️ Atenção: você tem apenas ${remaining} pedido${remaining !== 1 ? 's' : ''} grátis!`);
                         }
+
+                        // Força refresh dos dados para garantir sincronia
+                        fetchBillingData(true);
                     }
                 }
             })
@@ -167,12 +181,13 @@ const MerchantBilling = () => {
                 .maybeSingle();
             setSubscription(sub);
 
-            // 2. Fetch Current Cycle (Mais robusto: pega o mais recente ativo)
+            // 2. Fetch Current Cycle (Mais robusto: pega o mais recente ATIVO ou o mais recente geral)
             const { data: cycles, error: cycleErr } = await supabase
                 .from('billing_cycles')
                 .select('*')
                 .eq('pharmacy_id', pId)
-                .eq('status', 'active')
+                // Primeiro tenta ciclos ativos, se não tiver, pega o mais recente
+                .or('status.eq.active,status.eq.pending')
                 .order('period_start', { ascending: false })
                 .limit(1);
 
@@ -206,26 +221,43 @@ const MerchantBilling = () => {
         try {
             setLoading(true);
 
-            // Forçamos o refresh para garantir token válido (evita token expirado 401)
-            const { data: sessionData, error: sessionError } = await supabase.auth.refreshSession();
+            // 1. Tenta refresh explícito e pega sessão fresca
+            const { data: refreshed, error: refreshErr } = await supabase.auth.refreshSession();
 
-            if (sessionError || !sessionData.session) {
-                toast.error("Sessão expirada. Faça login novamente.");
+            if (refreshErr || !refreshed?.session?.access_token) {
+                console.error('Falha no refresh da sessão:', refreshErr?.message || 'Sessão não retornada');
+                toast.error("Sessão expirada ou perdida. Faça login novamente para continuar.");
+
+                // Logout limpo + redirect para login
+                await supabase.auth.signOut({ scope: 'local' });
+                window.location.href = '/login';
                 return;
             }
 
+            const freshToken = refreshed.session.access_token;
+
+            // Log para debug (remova depois)
+            console.log('Token fresco obtido:', freshToken.substring(0, 20) + '...');
+
+            // 2. Invoca a function com token explícito
             const { data, error } = await supabase.functions.invoke('activate-pharmacy-plan', {
                 body: {
                     pharmacy_id: pharmacyId,
                     plan_id: plan.id
                 },
                 headers: {
-                    Authorization: `Bearer ${sessionData.session.access_token}`,
+                    Authorization: `Bearer ${freshToken}`,
                     apikey: import.meta.env.VITE_SUPABASE_ANON_KEY
                 }
             });
 
-            if (error) throw error;
+            if (error) {
+                console.error('Erro na invoke da function:', error);
+                if (error.code === 401 || error.message?.includes('401') || error.message?.includes('Invalid JWT')) {
+                    toast.error('401: Token ainda inválido. Tente logar novamente.');
+                }
+                throw error;
+            }
 
             const pix = data?.pix || data?.pix_data;
 
@@ -233,11 +265,10 @@ const MerchantBilling = () => {
                 setPixData(pix);
                 setShowPixModal(true);
 
-                // Se QR está pronto ou pendente, as mensagens adequadas são exibidas e o polling se encarrega do resto
                 if (pix.status === 'ready' && pix.qr_base64) {
                     toast.success("QR Code gerado com sucesso!");
                 } else if (pix.status === 'pending_qr' && pix.payment_id) {
-                    toast.success("Pagamento gerado! QR Code sendo processado...");
+                    toast.success("Pagamento gerado! QR Code está sendo processado...");
                 } else {
                     toast.success("Pagamento gerado! Finalize para ativar.");
                 }
@@ -248,9 +279,8 @@ const MerchantBilling = () => {
 
         } catch (error: any) {
             console.error("Error migrating plan:", error);
-
-            // Tenta extrair o erro detalhado da Edge Function
             let errorMsg = "Erro ao migrar plano.";
+
             if (error.context) {
                 try {
                     const errorBody = await error.context.json();
@@ -265,7 +295,6 @@ const MerchantBilling = () => {
             } else {
                 errorMsg = error.message || errorMsg;
             }
-
             toast.error(errorMsg);
         } finally {
             setLoading(false);

@@ -107,6 +107,7 @@ export const SystemSettings = ({ profile }: { profile: any }) => {
 
         setIsTesting(true);
         try {
+            const { data: { session } } = await supabase.auth.getSession();
             const { error } = await supabase.functions.invoke('whatsapp-notifier', {
                 body: {
                     record: {
@@ -116,6 +117,10 @@ export const SystemSettings = ({ profile }: { profile: any }) => {
                         address: 'Rua de Teste, 123',
                         pharmacy_id: 'd9b33703-e85d-4f1b-bd57-8677c768837e'
                     }
+                },
+                headers: {
+                    Authorization: `Bearer ${session?.access_token}`,
+                    apikey: import.meta.env.VITE_SUPABASE_ANON_KEY
                 }
             });
 

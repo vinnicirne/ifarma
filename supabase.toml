@@ -8,7 +8,20 @@ external_url = "http://localhost:54321"
 port = 54322
 shadow_port = 54320
 
-[functions]
+[functions.create-user-admin]
+verify_jwt = false
+
+[functions.activate-pharmacy-plan]
+verify_jwt = false
+
+[functions.provision-merchant-access]
+verify_jwt = false
+
+[functions.delete-user-admin]
+verify_jwt = false
+
+[functions.create-staff-user]
+verify_jwt = false
 
 [auth]
 enabled = true

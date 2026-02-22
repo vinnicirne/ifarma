@@ -1,5 +1,4 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { extractBearer, adminClient, authorizeBillingAccess } from "../_shared/authz.ts";
 
 const corsHeaders = {
     "Access-Control-Allow-Origin": "*",
@@ -14,85 +13,29 @@ function json(status: number, payload: unknown) {
     });
 }
 
-serve(async (req) => {
+Deno.serve(async (req) => {
     if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
     if (req.method !== "POST") return json(405, { error: "Method not allowed" });
 
     try {
-        const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
+        const token = extractBearer(req);
+        console.log(`[create-user-admin] Auth Token received: ${token ? 'YES' : 'NO'} (${token?.substring(0, 15)}... len: ${token?.length})`);
 
-        // ✅ precisa existir (pra validar JWT do usuário)
-        const anonKey =
-            Deno.env.get("SUPABASE_ANON_KEY") ??
-            Deno.env.get("VITE_SUPABASE_ANON_KEY") ?? // fallback comum
-            "";
-
-        const serviceRoleKey =
-            Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ??
-            Deno.env.get("IFARMA_SERVICE_ROLE_KEY") ??
-            Deno.env.get("ADMIN_SERVICE_ROLE_KEY") ??
-            "";
-
-        if (!supabaseUrl || !anonKey || !serviceRoleKey) {
-            return json(500, {
-                error: "Missing env vars",
-                detail: {
-                    SUPABASE_URL: !!supabaseUrl,
-                    SUPABASE_ANON_KEY: !!anonKey,
-                    SERVICE_ROLE_KEY: !!serviceRoleKey,
-                },
-            });
+        if (token) {
+            try {
+                const payload = JSON.parse(atob(token.split('.')[1]));
+                console.log(`[create-user-admin] Token Role: ${payload.role}, User: ${payload.sub}`);
+            } catch (err: any) {
+                console.log(`[create-user-admin] Could not decode token payload: ${err.message}`);
+            }
         }
 
-        // --- AUTH HEADER ---
-        const authHeader = req.headers.get("Authorization") ?? "";
-        if (!authHeader.toLowerCase().startsWith("bearer ")) {
+        if (!token) {
             return json(401, { error: "No Bearer token provided" });
         }
 
-        // ✅ 1) Client do usuário (anon + Authorization do request)
-        const supabaseUser = createClient(supabaseUrl, anonKey, {
-            auth: { autoRefreshToken: false, persistSession: false },
-            global: {
-                headers: {
-                    Authorization: authHeader, // 👈 ESSENCIAL
-                },
-            },
-        });
-
-        const { data: userData, error: userErr } = await supabaseUser.auth.getUser();
-        const requester = userData?.user;
-
-        if (userErr || !requester) {
-            return json(401, {
-                error: "Invalid JWT",
-                detail: userErr?.message ?? null,
-            });
-        }
-
-        // ✅ 2) Client admin (service role)
-        const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
-            auth: { autoRefreshToken: false, persistSession: false },
-        });
-
-        // --- requester profile ---
-        const { data: requesterProfile, error: profileError } = await supabaseAdmin
-            .from("profiles")
-            .select("role")
-            .eq("id", requester.id)
-            .single();
-
-        if (profileError || !requesterProfile) {
-            return json(403, {
-                error: "Profile not found or error fetching profile",
-                detail: profileError?.message ?? null,
-            });
-        }
-
-        const isAdmin = requesterProfile.role === "admin";
-        if (!isAdmin) return json(403, { error: "Only admin can approve a pharmacy" });
-
-        // --- BODY ---
+        // ✅ 1) Usar helper compartilhado para validar JWT e Permissões
+        // Precisamos do pharmacy_id do body para validar se o admin tem acesso (embora admin sempre tenha)
         let reqJson: any = {};
         try {
             reqJson = await req.json();
@@ -102,108 +45,161 @@ serve(async (req) => {
 
         let pharmacy_id = reqJson.pharmacy_id || reqJson?.metadata?.pharmacy_id;
         pharmacy_id = typeof pharmacy_id === "string" ? pharmacy_id.trim() : pharmacy_id;
-        if (!pharmacy_id) return json(400, { error: "Field 'pharmacy_id' is required" });
+
+        const authz = await authorizeBillingAccess({
+            token,
+            pharmacyId: pharmacy_id || undefined
+        });
+
+        if (!authz.allowed) {
+            console.error(`[create-user-admin] Unauthorized access blocked: ${authz.reason}`);
+            return json(401, {
+                error: "Invalid JWT",
+                detail: authz.detail || authz.reason,
+                message: "Sessão expirada ou sem permissão de administrador."
+            });
+        }
+
+        if (!authz.isAdmin) {
+            return json(403, { error: "Only admin can approve a pharmacy" });
+        }
+
+        const supabaseAdmin = adminClient();
 
         const approve_pharmacy = reqJson.approve_pharmacy === true;
-        if (!approve_pharmacy) {
-            return json(400, { error: "Missing flag 'approve_pharmacy: true'" });
-        }
+        let pharmacyData = null; // To hold pharmacy data, whether approved or just fetched for user creation
 
-        // --- subscription gate ---
-        // --- subscription gate (Auto-Fix) ---
-        let { data: subscription, error: subError } = await supabaseAdmin
-            .from("pharmacy_subscriptions")
-            .select("*")
-            .eq("pharmacy_id", pharmacy_id)
-            .maybeSingle();
+        if (approve_pharmacy) {
+            if (!pharmacy_id) return json(400, { error: "Field 'pharmacy_id' is required to approve a pharmacy" });
 
-        if (subError) {
-            console.error("Error checking subscription:", subError);
-            return json(500, { error: "Error checking subscription", detail: subError.message });
-        }
-
-        // AUTO-FIX: Se não tiver assinatura ou status for inválido, criar Trial automaticamente
-        if (!subscription || !["active", "trialing"].includes(subscription.status)) {
-            console.log(`[Auto-Fix] Creating trial subscription for pharmacy ${pharmacy_id}`);
-
-            // FETCH PLAN ID (Fix for 'plan' column missing)
-            let planId = null;
-            const { data: planData } = await supabaseAdmin
-                .from("billing_plans")
-                .select("id")
-                .or("slug.eq.basic,slug.eq.gratuito,slug.eq.free")
-                .limit(1)
+            // --- subscription gate (Auto-Fix) ---
+            let { data: subscription, error: subError } = await supabaseAdmin
+                .from("pharmacy_subscriptions")
+                .select("*")
+                .eq("pharmacy_id", pharmacy_id)
                 .maybeSingle();
 
-            planId = planData?.id;
+            if (subError) {
+                console.error("Error checking subscription:", subError);
+                return json(500, { error: "Error checking subscription", detail: subError.message });
+            }
 
-            // Fallback: Get ANY plan if specific ones are missing
-            if (!planId) {
-                const { data: anyPlan } = await supabaseAdmin
+            // AUTO-FIX: Se não tiver assinatura ou status for inválido, criar Trial automaticamente
+            if (!subscription || !["active", "trialing"].includes(subscription.status)) {
+                console.log(`[Auto-Fix] Creating trial subscription for pharmacy ${pharmacy_id}`);
+
+                let planId = null;
+                const { data: planData } = await supabaseAdmin
                     .from("billing_plans")
                     .select("id")
+                    .or("slug.eq.basic,slug.eq.gratuito,slug.eq.free")
                     .limit(1)
                     .maybeSingle();
-                planId = anyPlan?.id;
+
+                planId = planData?.id;
+
+                if (!planId) {
+                    const { data: anyPlan } = await supabaseAdmin
+                        .from("billing_plans")
+                        .select("id")
+                        .limit(1)
+                        .maybeSingle();
+                    planId = anyPlan?.id;
+                }
+
+                if (!planId) {
+                    return json(500, { error: "Sistema sem planos de cobrança cadastrados. Crie um plano antes." });
+                }
+
+                const trialEnd = new Date();
+                trialEnd.setDate(trialEnd.getDate() + 14);
+
+                const { data: newSub, error: createSubError } = await supabaseAdmin
+                    .from("pharmacy_subscriptions")
+                    .upsert({
+                        pharmacy_id: pharmacy_id,
+                        plan_id: planId,
+                        status: "active",
+                        started_at: new Date().toISOString(),
+                        next_billing_date: trialEnd.toISOString().split('T')[0],
+                        cancel_at_period_end: false
+                    }, { onConflict: 'pharmacy_id' })
+                    .select()
+                    .single();
+
+                if (createSubError) {
+                    console.error("Failed to auto-create subscription:", createSubError);
+                    return json(500, {
+                        error: "Falha ao criar assinatura automática",
+                        detail: createSubError.message
+                    });
+                }
+
+                subscription = newSub;
             }
 
-            if (!planId) {
-                return json(500, { error: "Sistema sem planos de cobrança cadastrados. Crie um plano antes." });
+            // --- approve ---
+            // Trava de segurança: só permite aprovar o que está pendente (anti-replay/abuso)
+            const { data: updated, error: approvalError } = await supabaseAdmin
+                .from("pharmacies")
+                .update({
+                    status: "approved"
+                    // 🚩 Audit columns temporarily removed to avoid "column not found" error
+                    // approved_by: authz.userId,
+                    // approved_at: new Date().toISOString()
+                })
+                .eq("id", pharmacy_id)
+                .eq("status", "pending") // 🚩 CRITICAL: Só aprova se estiver pendente
+                .select("id,status,owner_email,owner_name,owner_phone")
+                .maybeSingle();
+
+            if (approvalError) {
+                console.error("[create-user-admin] Approval error:", approvalError);
+                return json(500, { error: "Approval failed", detail: approvalError.message });
             }
 
-            const trialEnd = new Date();
-            trialEnd.setDate(trialEnd.getDate() + 14); // 14 dias de trial
-
-            const { data: newSub, error: createSubError } = await supabaseAdmin
-                .from("pharmacy_subscriptions")
-                .upsert({
-                    pharmacy_id: pharmacy_id,
-                    plan_id: planId,
-                    status: "active", // Changed from trialing to active for better frontend visibility
-                    started_at: new Date().toISOString(),
-                    next_billing_date: trialEnd.toISOString().split('T')[0],
-                    cancel_at_period_end: false
-                }, { onConflict: 'pharmacy_id' })
-                .select()
-                .single();
-
-            if (createSubError) {
-                console.error("Failed to auto-create subscription:", createSubError);
-                return json(500, {
-                    error: "Falha ao criar assinatura automática. Verifique os logs.",
-                    detail: createSubError.message
+            if (!updated) {
+                // Se não retornou nada, é porque o filtro .eq("status", "pending") falhou (ou ID inexistente)
+                console.warn(`[create-user-admin] Pharmacy ${pharmacy_id} was not approved (likely not in 'pending' status)`);
+                return json(400, {
+                    error: "Invalid state",
+                    message: "Esta farmácia não está pendente ou já foi aprovada anteriormente."
                 });
             }
-
-            subscription = newSub;
-        }
-
-        // --- approve ---
-        const { data: updated, error: approvalError } = await supabaseAdmin
-            .from("pharmacies")
-            .update({ status: "approved" })
-            .eq("id", pharmacy_id)
-            .select("id,status,owner_email,owner_name,owner_phone")
-            .single();
-
-        if (approvalError) {
-            return json(500, { error: "Approval failed", detail: approvalError.message });
+            pharmacyData = updated;
+            console.log(`[create-user-admin] Pharmacy ${pharmacy_id} successfully approved by ${authz.userId}`);
+        } else {
+            // If not approving, just fetch the pharmacy data to get owner details for user creation
+            if (pharmacy_id) {
+                const { data, error } = await supabaseAdmin
+                    .from("pharmacies")
+                    .select("id,status,owner_email,owner_name,owner_phone,name")
+                    .eq("id", pharmacy_id)
+                    .maybeSingle();
+                if (error) {
+                    console.error("[create-user-admin] Error fetching pharmacy data:", error);
+                    return json(500, { error: "Error fetching pharmacy data", detail: error.message });
+                }
+                pharmacyData = data;
+            }
         }
 
         // --- create / ensure owner user ---
-        const email = (reqJson.email || updated.owner_email || "").trim().toLowerCase();
+        // Use pharmacyData if available, otherwise fall back to reqJson for email/name
+        const email = (reqJson.email || pharmacyData?.owner_email || "").trim().toLowerCase();
         const password = (reqJson.password || "").trim();
+
         const metadata = {
-            full_name: updated.owner_name || updated.name,
-            role: 'merchant',
-            pharmacy_id: pharmacy_id,
-            phone: updated.owner_phone
+            full_name: reqJson.metadata?.full_name || reqJson.full_name || pharmacyData?.owner_name || pharmacyData?.name || "",
+            role: reqJson.metadata?.role || reqJson.role || 'merchant',
+            pharmacy_id: pharmacy_id || null,
+            phone: reqJson.metadata?.phone || reqJson.phone || pharmacyData?.owner_phone || ""
         };
 
         let user = null;
 
         if (email && password && password.length >= 6) {
-            console.log(`[create-user-admin] Creating owner user: ${email}`);
+            console.log(`[create-user-admin] Creating user: ${email}`);
             const { data: userData, error: createError } = await supabaseAdmin.auth.admin.createUser({
                 email,
                 password,
@@ -212,27 +208,20 @@ serve(async (req) => {
             });
 
             if (createError) {
-                // If user already exists, we MUST update their password to the new provisional one
                 if (createError.message.includes("already registered") || createError.message.includes("already exists")) {
-                    console.log(`[create-user-admin] User ${email} already exists. Updating password...`);
+                    console.log(`[create-user-admin] User ${email} already exists. Finding ID...`);
 
                     const { data: { users }, error: listError } = await supabaseAdmin.auth.admin.listUsers();
                     const existingUser = users?.find((u: any) => u.email?.toLowerCase() === email.toLowerCase());
 
                     if (existingUser) {
                         user = existingUser;
-                        console.log(`[create-user-admin] Found existing userId=${existingUser.id}. Keeping existing password, updating metadata only.`);
+                        console.log(`[create-user-admin] Found existing userId=${existingUser.id}. Updating metadata...`);
 
-                        const { error: updateAuthErr } = await supabaseAdmin.auth.admin.updateUserById(existingUser.id, {
+                        await supabaseAdmin.auth.admin.updateUserById(existingUser.id, {
                             user_metadata: metadata,
                             email_confirm: true
                         });
-
-                        if (updateAuthErr) {
-                            console.error("[create-user-admin] Error updating existing user metadata:", updateAuthErr);
-                        }
-                    } else {
-                        console.error("[create-user-admin] User exists but could not be found in list.");
                     }
                 } else {
                     console.error("[create-user-admin] User creation error:", createError);
@@ -241,25 +230,21 @@ serve(async (req) => {
                 user = userData.user;
                 console.log(`[create-user-admin] User created: ${user.id}`);
             }
-        } else {
-            // This block was previously handling user creation success, but now it should handle the case
-            // where email/password conditions are not met, and thus no user creation attempt was made.
-            // The original code had `user = userData.user;` here, which is incorrect if no user was created.
-            // For now, we'll leave it as is, assuming `user` remains null if conditions are not met.
-            // A more robust solution might involve returning an error here if email/password are missing.
-            console.log(`[create-user-admin] Skipping user creation: email or password not provided or too short.`);
         }
 
-        // Sync Owner ID if we have a user
-        if (user) {
-            await supabaseAdmin.from('pharmacies').update({ owner_id: user.id }).eq('id', pharmacy_id);
+        // Sync Owner ID (Only if we have a pharmacy)
+        if (user && pharmacy_id) {
+            await supabaseAdmin.from('pharmacies').update({
+                owner_id: user.id,
+                owner_email: email // Garante sincronia do email oficial de acesso 
+            }).eq('id', pharmacy_id);
         }
 
         return json(200, {
             success: true,
-            approved: true,
-            pharmacy: updated,
-            user: user // Needed by pharmacyService.ts
+            approved: approve_pharmacy,
+            pharmacy: pharmacyData,
+            user: user
         });
     } catch (error: any) {
         console.error("[create-user-admin] Fatal Error:", error);

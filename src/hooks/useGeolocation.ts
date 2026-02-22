@@ -13,6 +13,18 @@ interface GeolocationState {
     orderId: string | null;
 }
 
+// Helper simples de distância (Haversine simplificado) - Fora do hook para evitar problemas de hoisting e performance
+const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+    const R = 6371e3;
+    const φ1 = lat1 * Math.PI / 180;
+    const φ2 = lat2 * Math.PI / 180;
+    const Δφ = (lat2 - lat1) * Math.PI / 180;
+    const Δλ = (lon2 - lon1) * Math.PI / 180;
+    const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) + Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+};
+
 export const useGeolocation = (userId: string | null, shouldTrack: boolean = false, orderId: string | null = null) => {
     const [state, setState] = useState<GeolocationState>({
         latitude: null,
@@ -60,24 +72,19 @@ export const useGeolocation = (userId: string | null, shouldTrack: boolean = fal
                     async (position, err) => {
                         if (err) {
                             console.warn('GPS Warning:', err.message, 'Code:', (err as any).code);
-
-                            // Only stop tracking on Permission Denied (code 1)
                             const isCritical = (err as any).code === 1;
-
                             setState(prev => ({
                                 ...prev,
                                 error: err.message,
                                 isTracking: !isCritical
                             }));
-
                             if (isCritical) return;
-                            // For timeouts or position unavailable, we don't return so the watch continues
                         }
 
                         if (position) {
                             const { latitude, longitude, accuracy } = position.coords;
 
-                            // 1. Atualizar UI Local (Sempre Instantâneo para o Mapa fluir)
+                            // 1. Atualizar UI Local
                             setState(prev => ({
                                 ...prev,
                                 latitude,
@@ -87,13 +94,12 @@ export const useGeolocation = (userId: string | null, shouldTrack: boolean = fal
                                 isTracking: true
                             }));
 
-                            // 2. Throttling Inteligente para Backend (Economia de Bateria/Dados)
+                            // 2. Throttling Inteligente
                             const now = Date.now();
-                            const THROTTLE_TIME_MS = 5000; // 5 segundos (Mais frequente para entrega local)
-                            const THROTTLE_DIST_M = 5;    // 5 metros
+                            const THROTTLE_TIME_MS = 5000;
+                            const THROTTLE_DIST_M = 5;
 
                             let shouldUpdateDB = false;
-
                             if (!lastUpdate.current) {
                                 shouldUpdateDB = true;
                             } else {
@@ -104,7 +110,6 @@ export const useGeolocation = (userId: string | null, shouldTrack: boolean = fal
                                     latitude,
                                     longitude
                                 );
-
                                 if (timeDelta > THROTTLE_TIME_MS || distDelta > THROTTLE_DIST_M) {
                                     shouldUpdateDB = true;
                                 }
@@ -113,7 +118,6 @@ export const useGeolocation = (userId: string | null, shouldTrack: boolean = fal
                             if (shouldUpdateDB) {
                                 lastUpdate.current = { lat: latitude, lng: longitude, time: now };
 
-                                // --- ELITE 2.0: Telemetria ---
                                 let batteryLevel: number | undefined;
                                 let isCharging: boolean | undefined;
 
@@ -125,10 +129,10 @@ export const useGeolocation = (userId: string | null, shouldTrack: boolean = fal
                                     console.warn('Falha ao obter telemetria:', e);
                                 }
 
-                                // 1. Tentar via Edge Function (Ideal para performance e logica server-side)
                                 let invokeSuccess = false;
                                 try {
                                     const { data: { session } } = await supabase.auth.getSession();
+
                                     if (session?.access_token) {
                                         const { error: trackingError } = await supabase.functions.invoke('tracking-engine', {
                                             body: {
@@ -138,28 +142,31 @@ export const useGeolocation = (userId: string | null, shouldTrack: boolean = fal
                                                 orderId: orderId || null,
                                                 batteryLevel,
                                                 isCharging
+                                            },
+                                            headers: {
+                                                Authorization: `Bearer ${session.access_token}`,
+                                                apikey: import.meta.env.VITE_SUPABASE_ANON_KEY
                                             }
                                         });
 
                                         if (!trackingError) invokeSuccess = true;
-                                        else console.warn('Erro tracking-engine:', trackingError);
+                                        else if (trackingError.message?.includes('401') || trackingError.message?.includes('JWT')) {
+                                            console.warn('⚠️ Token de tracking expirado, tentando refresh...');
+                                            await supabase.auth.refreshSession();
+                                        }
                                     }
                                 } catch (e) {
                                     console.warn('Exceção tracking-engine:', e);
                                 }
 
-                                // 2. Fallback APENAS se falhar (Economia de ~50% de escritas)
                                 if (!invokeSuccess) {
                                     console.warn('Edge falhou, usando fallback direto via DB');
-
-                                    // Fallback: Atualizar perfil diretamente
                                     await supabase.from('profiles').update({
                                         last_lat: latitude,
                                         last_lng: longitude,
                                         updated_at: new Date().toISOString()
                                     }).eq('id', userId);
 
-                                    // Fallback: Inserir rota
                                     await supabase.from('route_history').insert({
                                         motoboy_id: userId,
                                         order_id: orderId || null,
@@ -184,18 +191,6 @@ export const useGeolocation = (userId: string | null, shouldTrack: boolean = fal
             setState(prev => ({ ...prev, isTracking: false }));
         };
     }, [userId, shouldTrack, orderId]);
-
-    // Helper simples de distância (Haversine simplificado) para o Hook não depender de lib externa
-    const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
-        const R = 6371e3;
-        const φ1 = lat1 * Math.PI / 180;
-        const φ2 = lat2 * Math.PI / 180;
-        const Δφ = (lat2 - lat1) * Math.PI / 180;
-        const Δλ = (lon2 - lon1) * Math.PI / 180;
-        const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) + Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
-        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        return R * c;
-    };
 
     return state;
 };

@@ -222,12 +222,14 @@ Deno.serve(async (req) => {
 
         console.log(`[asaas-webhook] Ativando subscription ${sub.id} (status atual: ${sub.status})...`);
 
-        // 3.3 Atualiza para active
+        // 3.3 Atualiza para active E PRÓXIMA COBRANÇA
         const { error: subErr } = await supabaseAdmin
             .from("pharmacy_subscriptions")
             .update({
                 status: "active",
                 activated_at: new Date().toISOString(),
+                // CORREÇÃO: Calcula próxima data de cobrança (30 dias após pagamento)
+                next_billing_date: endDateStr, // Usar a mesma endDate do ciclo
                 asaas_last_error: null,
                 asaas_updated_at: new Date().toISOString(),
             })
@@ -252,21 +254,30 @@ Deno.serve(async (req) => {
 
                 console.log(`[asaas-webhook] Criando ciclo rolante: ${paymentDateStr} até ${endDateStr}`);
 
-                // Primeiro verifica se já existe ciclo para este período
+                // Primeiro verifica se já existe ciclo PENDENTE para este período
                 const { data: existingCycle } = await supabaseAdmin
                     .from('billing_cycles')
                     .select('id, status')
                     .eq('pharmacy_id', invoice.pharmacy_id)
-                    .eq('period_start', paymentDateStr)
+                    .eq('status', 'pending')  // Busca ciclo pendente
+                    .order('period_start', { ascending: false })
+                    .limit(1)
                     .maybeSingle();
 
                 if (existingCycle) {
-                    // Se existe, apenas ativa
+                    // Se existe pendente, atualiza para active e ajusta datas
                     await supabaseAdmin
                         .from('billing_cycles')
-                        .update({ status: 'active' })
+                        .update({ 
+                            status: 'active',
+                            period_start: paymentDateStr,  // Ajusta start para data do pagamento
+                            period_end: endDateStr,       // Ajusta end para 30 dias após pagamento
+                            free_orders_used: 0,          // Reseta contadores
+                            overage_orders: 0,
+                            overage_amount_cents: 0
+                        })
                         .eq('id', existingCycle.id);
-                    console.log(`[asaas-webhook] Ciclo existente ativado para ${invoice.pharmacy_id}`);
+                    console.log(`[asaas-webhook] Ciclo pendente atualizado para active com datas corrigidas para ${invoice.pharmacy_id}`);
                 } else {
                     // Se não existe, cria novo
                     await supabaseAdmin

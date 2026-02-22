@@ -43,6 +43,30 @@ export const ClientSidebar = () => {
                         <span className="text-sm font-medium">{item.label}</span>
                     </NavLink>
                 ))}
+                <NavLink
+                    to="/about"
+                    className={({ isActive }) => `
+                        flex items-center gap-4 px-4 py-3 rounded-xl transition-all group
+                        ${isActive
+                            ? 'bg-primary/10 text-primary font-bold'
+                            : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-white/5 hover:text-slate-900 dark:hover:text-white'}
+                    `}
+                >
+                    <MaterialIcon name="info" className="text-xl" />
+                    <span className="text-sm font-medium">Sobre Nós</span>
+                </NavLink>
+                <NavLink
+                    to="/privacy"
+                    className={({ isActive }) => `
+                        flex items-center gap-4 px-4 py-3 rounded-xl transition-all group
+                        ${isActive
+                            ? 'bg-primary/10 text-primary font-bold'
+                            : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-white/5 hover:text-slate-900 dark:hover:text-white'}
+                    `}
+                >
+                    <MaterialIcon name="shield_lock" className="text-xl" />
+                    <span className="text-sm font-medium">Privacidade</span>
+                </NavLink>
             </nav>
 
             <div className="border-t border-slate-100 dark:border-white/5 pt-6 mt-auto">

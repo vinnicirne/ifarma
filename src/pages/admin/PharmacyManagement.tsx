@@ -100,8 +100,12 @@ const PharmacyManagement = ({ profile }: { profile: any }) => {
     };
 
     const filteredPharmacies = pharmacies.filter(p => {
-        const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            (p.owner_email && p.owner_email.toLowerCase().includes(searchTerm.toLowerCase()));
+        const search = searchTerm.toLowerCase();
+        const matchesSearch =
+            p.name.toLowerCase().includes(search) ||
+            (p.trade_name && p.trade_name.toLowerCase().includes(search)) ||
+            (p.legal_name && p.legal_name.toLowerCase().includes(search)) ||
+            (p.owner_email && p.owner_email.toLowerCase().includes(search));
 
         let matchesFilter = true;
         const statusType = getStatusType(p.status);
@@ -242,8 +246,11 @@ const PharmacyManagement = ({ profile }: { profile: any }) => {
                                                     )}
                                                 </div>
                                                 <div className="flex flex-col gap-1">
-                                                    <h4 className="text-sm font-[900] italic text-white leading-none uppercase tracking-tight group-hover:text-primary transition-colors">{pharm.name}</h4>
-                                                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mt-1 flex items-center gap-2">
+                                                    <h4 className="text-sm font-[900] italic text-white leading-none uppercase tracking-tight group-hover:text-primary transition-colors">{pharm.trade_name || pharm.name}</h4>
+                                                    {pharm.legal_name && (
+                                                        <p className="text-[10px] font-bold text-slate-400 mt-0.5 opacity-80">{pharm.legal_name}</p>
+                                                    )}
+                                                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mt-1.5 flex items-center gap-2">
                                                         {pharm.address || 'Sem endereço'}
                                                         {pharm.owner_email && (
                                                             <>

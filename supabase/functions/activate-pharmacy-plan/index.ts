@@ -228,7 +228,7 @@ Deno.serve(async (req) => {
             pharmacy_id,
             period_start: periodStart,
             period_end: periodEndStr,
-            status: "active",
+            status: "pending",  // CORREÇÃO: Cria como pending até pagamento
             free_orders_used: 0,
             overage_orders: 0,
             overage_amount_cents: 0,
@@ -500,7 +500,7 @@ Deno.serve(async (req) => {
           pharmacy_id,
           period_start: periodStart,
           period_end: periodEndStr,
-          status: "active",
+          status: "pending",  // CORREÇÃO: Cria como pending até pagamento
           free_orders_used: 0,
           overage_orders: 0,
           overage_amount_cents: 0,
@@ -511,7 +511,7 @@ Deno.serve(async (req) => {
       console.error("[activate-pharmacy-plan] Billing Cycle Insurance failed (non-blocking):", err);
     }
 
-    // ✅ Return PIX even if QR is pending
+    // Return PIX even if QR is pending
     const pixObj = pixPaymentId
       ? {
           payment_id: pixPaymentId,

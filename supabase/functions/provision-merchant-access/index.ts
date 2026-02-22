@@ -49,6 +49,8 @@ serve(async (req: Request) => {
         }
 
         const pharmacy_id = body?.pharmacy_id;
+        const force_reset = !!body?.force_reset;
+
         if (!pharmacy_id || typeof pharmacy_id !== "string" || !isUuid(pharmacy_id)) {
             return json({ error: "pharmacy_id inválido" }, 400);
         }
@@ -72,15 +74,14 @@ serve(async (req: Request) => {
         if (!pharmacy) return json({ error: "Pharmacy not found" }, 404);
 
         const email = normalizeEmail(pharmacy.owner_email);
-        console.log(`[provision-merchant-access] pharmacy=${pharmacy.id} owner_id=${pharmacy.owner_id ?? "null"} owner_email=${email || "EMPTY"}`);
+        console.log(`[provision-merchant-access] pharmacy=${pharmacy.id} owner_id=${pharmacy.owner_id ?? "null"} owner_email=${email || "EMPTY"} force_reset=${force_reset}`);
 
         if (!email) {
             return json({ error: "A farmácia não possui um e-mail (owner_email) cadastrado." }, 400);
         }
 
-        // Password só será gerado quando realmente criarmos um novo usuário.
-        // Para usuários já existentes, mantemos a senha atual (evita resets inesperados).
         let password: string | null = null;
+        let userId: string | null = pharmacy.owner_id;
 
         const metadata = {
             full_name: pharmacy.owner_name || pharmacy.name,
@@ -89,26 +90,33 @@ serve(async (req: Request) => {
             phone: pharmacy.owner_phone,
         };
 
-        let userId: string | null = null;
+        // 1. Determine User ID if not known
+        if (!userId) {
+            console.log(`[provision-merchant-access] Searching for existing user by email=${email}`);
+            let page = 1;
+            while (true) {
+                const { data: listRes, error: listErr } = await sb.auth.admin.listUsers({ page, perPage: 1000 });
+                if (listErr) {
+                    console.error("[provision-merchant-access] listUsers error:", listErr);
+                    break;
+                }
+                const users = listRes?.users ?? [];
+                if (users.length === 0) break;
 
-        // Fast-path: if owner_id exists, apenas atualiza metadata e garante vínculo,
-        // sem trocar a senha existente (mais seguro e previsível).
-        if (pharmacy.owner_id && typeof pharmacy.owner_id === "string" && isUuid(pharmacy.owner_id)) {
-            userId = pharmacy.owner_id;
-            console.log(`[provision-merchant-access] Fast-path updateUserById user=${userId}`);
-
-            const { error: updateErr } = await sb.auth.admin.updateUserById(userId, {
-                user_metadata: metadata,
-            });
-
-            if (updateErr) {
-                console.error("[provision-merchant-access] updateUserById error:", updateErr);
-                throw updateErr;
+                const found = users.find(u => normalizeEmail(u.email) === email);
+                if (found) {
+                    userId = found.id;
+                    break;
+                }
+                if (users.length < 1000) break;
+                page++;
             }
-        } else {
-            // Create-path
-            console.log(`[provision-merchant-access] createUser email=${email}`);
-            password = genPassword(10);
+        }
+
+        // 2. Create or Update
+        if (!userId) {
+            console.log(`[provision-merchant-access] Creating new user: ${email}`);
+            password = genPassword(12);
             const { data: createData, error: createError } = await sb.auth.admin.createUser({
                 email,
                 password,
@@ -116,66 +124,24 @@ serve(async (req: Request) => {
                 user_metadata: metadata,
             });
 
-            if (createError) {
-                console.error("[provision-merchant-access] createUser error:", createError);
+            if (createError) throw createError;
+            userId = createData.user.id;
+        } else {
+            console.log(`[provision-merchant-access] Updating existing user: ${userId}`);
 
-                const msg = (createError.message ?? "").toLowerCase();
-                const isAlready =
-                    msg.includes("already registered") ||
-                    msg.includes("already exists") ||
-                    msg.includes("user already registered");
-
-                if (!isAlready) {
-                    // Fail loudly with original error
-                    return json({ error: `createUser failed: ${createError.message}` }, 500);
-                }
-
-                // Fallback: locate user by email via listUsers (only as fallback)
-                console.log(`[provision-merchant-access] Existing user detected. Searching by email=${email}`);
-
-                let found: any = null;
-                let page = 1;
-
-                while (!found) {
-                    const { data, error: listErr } = await sb.auth.admin.listUsers({ page, perPage: 1000 });
-                    if (listErr) {
-                        console.error("[provision-merchant-access] listUsers error:", listErr);
-                        throw listErr;
-                    }
-
-                    const users = data?.users ?? [];
-                    if (users.length === 0) break;
-
-                    found = users.find((u: any) => normalizeEmail(u.email) === email);
-                    if (found) break;
-
-                    if (users.length < 1000) break;
-                    page++;
-                }
-
-                if (!found?.id) {
-                    return json({ error: `User exists but could not be located for email=${email}` }, 500);
-                }
-
-                userId = found.id;
-                console.log(`[provision-merchant-access] Found existing userId=${userId}. Keeping existing password, updating metadata only.`);
-
-                // Atualiza apenas metadata; NÃO troca senha silenciosamente.
-                const { error: updErr } = await sb.auth.admin.updateUserById(userId, {
-                    user_metadata: metadata,
-                });
-
-                if (updErr) {
-                    console.error("[provision-merchant-access] updateUserById (fallback metadata only) error:", updErr);
-                    throw updErr;
-                }
-            } else {
-                userId = createData.user?.id ?? null;
-                console.log(`[provision-merchant-access] Created userId=${userId}`);
+            const updatePayload: any = { user_metadata: metadata };
+            if (force_reset) {
+                password = genPassword(12);
+                updatePayload.password = password;
+                console.log("[provision-merchant-access] Password reset forced.");
             }
+
+            const { error: updateErr } = await sb.auth.admin.updateUserById(userId, updatePayload);
+            if (updateErr) throw updateErr;
         }
 
         if (!userId) return json({ error: "Falha ao determinar o ID do usuário." }, 500);
+
 
         // Write profile (must succeed)
         console.log(`[provision-merchant-access] Upserting profile id=${userId}`);
