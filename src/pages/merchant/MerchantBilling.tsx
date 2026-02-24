@@ -102,7 +102,7 @@ const MerchantBilling = () => {
 
         // Guard de sessão para evitar problemas pós-cleanup
 
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+        const { data: { subscription: authListener } } = supabase.auth.onAuthStateChange((event, session) => {
 
             if (event === 'SIGNED_OUT' || !session) {
 
@@ -134,7 +134,7 @@ const MerchantBilling = () => {
 
             clearInterval(interval);
 
-            subscription.unsubscribe();
+            authListener.unsubscribe();
 
         };
 
@@ -226,7 +226,7 @@ const MerchantBilling = () => {
 
                         }
 
-                        
+
 
                         // Força refresh dos dados para garantir sincronia
 
