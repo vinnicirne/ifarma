@@ -106,7 +106,7 @@ const MerchantBilling = () => {
 
             if (event === 'SIGNED_OUT' || !session) {
 
-                toast.warn('Sessão perdida. Redirecionando para login...');
+                toast('Sessão perdida. Redirecionando para login...');
 
                 window.location.href = '/login';
 
