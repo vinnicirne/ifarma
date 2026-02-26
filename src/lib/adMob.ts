@@ -42,6 +42,7 @@ export const initializeAdMob = async () => {
             return;
         }
 
+        adMobEnabled = true;
         bannerUnitId = settings['admob_banner_id_android'] || 'ca-app-pub-2871403878275209/7289782014'; // ID Produção do Banner
 
         if (!adMobInitialized) {
