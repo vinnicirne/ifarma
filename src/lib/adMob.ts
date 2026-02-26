@@ -42,8 +42,7 @@ export const initializeAdMob = async () => {
             return;
         }
 
-        adMobEnabled = true;
-        bannerUnitId = settings['admob_banner_id_android'] || 'ca-app-pub-3940256099942544/6300978111';
+        bannerUnitId = settings['admob_banner_id_android'] || 'ca-app-pub-2871403878275209/7289782014'; // ID Produção do Banner
 
         if (!adMobInitialized) {
             await AdMob.initialize({
@@ -52,7 +51,21 @@ export const initializeAdMob = async () => {
                 tagForUnderAgeOfConsent: false,
             });
             adMobInitialized = true;
-            console.log('✅ AdMob SDK Inicializado | Banner ID:', bannerUnitId.substring(0, 30) + '...');
+            console.log('✅ AdMob SDK Inicializado | IDs configurados');
+
+            // Implementação do Anúncio de Abertura (App Open simulação via Interstitial)
+            try {
+                const appOpenId = settings['admob_app_open_id_android'] || 'ca-app-pub-2871403878275209/1346879135';
+                console.log('🔄 Preparando Anúncio de Abertura (App Open/Interstitial)...');
+                await AdMob.prepareInterstitial({
+                    adId: appOpenId,
+                    isTesting: appOpenId.includes('3940256099942544')
+                });
+                await AdMob.showInterstitial();
+                console.log('📺 Anúncio de Abertura exibido com sucesso');
+            } catch (err) {
+                console.error('❌ Falha ao carregar/exibir Anúncio de Abertura:', err);
+            }
         }
     } catch (error) {
         console.error('💥 AdMob Init Error:', error);
@@ -66,7 +79,7 @@ export const initializeAdMob = async () => {
 export const showBanner = async (position: 'TOP_CENTER' | 'BOTTOM_CENTER' = 'BOTTOM_CENTER') => {
     if (!Capacitor.isNativePlatform()) return;
     if (!adMobEnabled) {
-        console.warn('⚠️ AdMob showBanner ignorado: adMobEnabled=false (verifique admob_enabled e admob_banner_id_android)');
+        console.warn('⚠️ AdMob showBanner ignorado: adMobEnabled=false');
         return;
     }
     if (!bannerUnitId) {
